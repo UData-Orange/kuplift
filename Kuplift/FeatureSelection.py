@@ -56,16 +56,23 @@ class FeatureSelection:
         Data_features[treatment_col]=Data_features[treatment_col].astype(str)
         return Data_features
     
-    def __getImportantVariables_UMODL_ForMultiProcessing(self, data):
-        featureImportanceAndBounds=ExecuteGreedySearchAndPostOpt(data)
-        return featureImportanceAndBounds
+    # def __getImportantVariables_UMODL_ForMultiProcessing(self, data):
+    #     featureImportanceAndBounds=ExecuteGreedySearchAndPostOpt(data)
+    #     return featureImportanceAndBounds
     
     def __getTheBestVar(self, Data_features, features, treatment_col, y_col):
+        '''
+        return a dictionary where the keys are the variable names and the values are the variable importance
+        for example: return a dictionary VarVsImportance={"age":2.2,"genre":2.3}
+        '''
         VarVsImportance={}
         VarVsDisc={}
         for feature in features:
             print("feature is ",feature)
-            VarVsImportance[feature],VarVsDisc[feature]=self.__getImportantVariables_UMODL_ForMultiProcessing(Data_features[[feature,treatment_col,y_col]])
+            # VarVsImportance[feature],VarVsDisc[feature]=self.__getImportantVariables_UMODL_ForMultiProcessing(Data_features[[feature,treatment_col,y_col]])
+            VarVsImportance[feature],VarVsDisc[feature]=ExecuteGreedySearchAndPostOpt(Data_features[[feature,treatment_col,y_col]])
+        
+        # sort the dictionary by values in ascending order 
         VarVsImportance={k: v for k, v in sorted(VarVsImportance.items(), key=lambda item: item[1])}
         return VarVsImportance
 

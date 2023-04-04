@@ -93,7 +93,8 @@ class UnivariateEncoding:
 
         for col in cols:
             VarVsImportance[col],VarVsDisc[col]=ExecuteGreedySearchAndPostOpt(Data_features[[col,treatment_col,y_col]])
-        
+            VarVsDisc[col]=VarVsDisc[col][:-1]
+        #------------------------------------------------------------------------------------------------------
         for col in cols:
             if len(VarVsDisc[col]) == 1:
                 Data_features.drop(col,inplace=True,axis=1)
@@ -101,7 +102,7 @@ class UnivariateEncoding:
             else:
                 if Data_features[col].max()>VarVsDisc[col][-1]:
                     print("SOMETHING STRANGS IS HAPPENING max in train")
-                Data_features[col] = pd.cut(Data_features[col], bins=[Data_features[col].min()-0.001]+VarVsDisc[col])
+                Data_features[col] = pd.cut(Data_features[col], bins=[Data_features[col].min()-0.001]+VarVsDisc[col]+[Data_features[col].max()+0.001])
 
                 Data_features[col] = Data_features[col].astype('category')
                 Data_features[col] = Data_features[col].cat.codes

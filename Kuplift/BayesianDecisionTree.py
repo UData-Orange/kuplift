@@ -16,7 +16,31 @@ class BayesianDecisionTree:
     
     #TODO à revoir
     def __log_fact(self, n):
-        return n
+        """
+        Compute log(fact(n))
+        :param n:
+        :return: value of log(fact(n))
+        """
+        start_counter(4)
+        # print("\t\t asked for log_fact(n=%d)"%n)
+        # Use approximation for large n
+        if n > 1e6:
+            # print('\t\t Using approximation : res=%.f' %log_fact_approx(n))
+            return log_fact_approx(n)
+        # computation of values, tabulation in private array
+        else:
+            s = len(_Log_Fact_Table)
+            if n >= s:
+                if s == 0:
+                    _Log_Fact_Table.append(0)
+                size = len(_Log_Fact_Table)
+                while size <= n:
+                    # print('%d<=%d' %(size,n))
+                    _Log_Fact_Table.append(log(size) + _Log_Fact_Table[size - 1])
+                    size = size + 1
+            stop_counter(4)
+            return _Log_Fact_Table[n]
+
     
     def __log_2_star(self, k: int):
         """
