@@ -14,7 +14,7 @@ import numpy as np
 import pandas as pd
 import random
 from HelperFunctions import log_fact, universal_code_natural_numbers, log_binomial_coefficient
-
+from UMODL_BinaryDiscretization import UMODL_BinaryDiscretization
 #TODO UMODL_Discretizer !
 
 class _Node:
@@ -119,7 +119,7 @@ class _Node:
         for attribute in features:
             if len(self.X[attribute].value_counts())==1 or len(self.X[attribute].value_counts())==0:
                 continue
-            DiscRes=UMODL_Discretizer(self.X,self.T,self.Y,attribute)
+            DiscRes=UMODL_BinaryDiscretization(self.X,self.T,self.Y,attribute)
             if DiscRes==-1:
 #                 print("NULL MODEL FOUND was returned")
                 continue
