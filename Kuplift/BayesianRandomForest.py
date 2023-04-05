@@ -8,10 +8,16 @@
 # * See the "LICENSE.md" file for more details.                                      #
 ######################################################################################
 """Description?"""
+from math import log
+import multiprocessing as mp
+import numpy as np
+import pandas as pd
+import random
+from HelperFunctions import log_fact, universal_code_natural_numbers, log_binomial_coefficient
 
+#TODO UMODL_Discretizer !
 
-
-class Node:
+class _Node:
     def __init__(self, data,treatmentName,outcomeName,ID=None):
 #         print("Initializing a node")
         self.id=ID
@@ -140,7 +146,7 @@ class Node:
     def updateTreeCriterion(self,LeftAndRightData,simulate=True):
         LeavesVals=0
         for NewNodeEffectifs in LeftAndRightData:#Loop on Left and Right candidate nodes
-            L=Node(NewNodeEffectifs,self.treatment,self.output)
+            L=_Node(NewNodeEffectifs,self.treatment,self.output)
             LeavesVals+=(L.PriorLeaf+L.LikelihoodLeaf)
             del L
         return LeavesVals
@@ -150,8 +156,8 @@ class Node:
             raise
         else:
             self.isLeaf=False
-            self.leftNode = Node(self.CandidateSplitsVsDataLeftDataRight[Attribute][0],self.treatment,self.output,ID=self.id*2)
-            self.rightNode = Node(self.CandidateSplitsVsDataLeftDataRight[Attribute][1],self.treatment,self.output,ID=self.id*2+1)
+            self.leftNode = _Node(self.CandidateSplitsVsDataLeftDataRight[Attribute][0],self.treatment,self.output,ID=self.id*2)
+            self.rightNode = _Node(self.CandidateSplitsVsDataLeftDataRight[Attribute][1],self.treatment,self.output,ID=self.id*2+1)
             self.Attribute = Attribute
             self.SplitThreshold=self.CandidateSplitsVsDataLeftDataRight[Attribute][2]
             return self.leftNode,self.rightNode
@@ -160,12 +166,12 @@ class Node:
             
 
 # Uplift Tree Classifier
-class UpliftTreeClassifier:
+class _UpliftTreeClassifier:
     
     def __init__(self, data,treatmentName,outcomeName):#ordered data as argument
 
         self.nodesIds=0
-        self.rootNode=Node(data,treatmentName,outcomeName,ID=self.nodesIds+1) 
+        self.rootNode=_Node(data,treatmentName,outcomeName,ID=self.nodesIds+1) 
         self.terminalNodes=[self.rootNode]
         self.internalNodes=[]
         
@@ -353,10 +359,11 @@ class BayesianRandomForest:
             self.data=self.data[cols+[treatmentName,outcomeName]]
         self.parallelized=parallelized
         for i in range(numberOfTrees):
-            Tree=UpliftTreeClassifier(self.data.copy(),treatmentName,outcomeName)
+            Tree=_UpliftTreeClassifier(self.data.copy(),treatmentName,outcomeName)
             self.ListOfTrees.append(Tree)
 
     
+    #Question : pourquoi ces paramètres de fonction ?
     def fit(self, X_train, treatment_col, outcome_col):
         """Description?
 
@@ -369,7 +376,13 @@ class BayesianRandomForest:
         outcome_col : pd.Series
             Outcome column.
         """
-        return 0
+        if self.parallelized:
+            pool = mp.Pool(processes=10)
+            pool.map(self.fit_parallelized, self.ListOfTrees)
+            pool.close()
+        else:
+            for tree in self.ListOfTrees:
+                tree.growTree()
     
     def predict(self, X_test):
         """Description?
@@ -384,4 +397,18 @@ class BayesianRandomForest:
         y_pred_list(ndarray, shape=(num_samples, 1))
             An array containing the predicted treatment uplift for each sample.
         """
-        return X_test
+        ListOfPreds=[]
+        
+        if self.parallelized:
+            pool = mp.Pool(processes=10)
+            ListOfModelsAndX=[]
+            for tree in self.ListOfTrees:
+                ListOfModelsAndX.append([tree,X_test.copy()])
+#             print("ListOfModelsAndX ",ListOfModelsAndX)
+            ListOfPreds=pool.map(self.predict_parallelized, ListOfModelsAndX)
+            pool.close()
+        else:
+            for tree in self.ListOfTrees:
+                ListOfPreds.append(np.array(tree.predict(X_test)))
+        return np.mean(ListOfPreds,axis=0)
+    

@@ -12,6 +12,7 @@ from operator import add
 import logging
 import time
 
+
 logger = logging.getLogger('causalml')
 logging.basicConfig(level=logging.INFO)
 
@@ -293,15 +294,6 @@ class DLL:
         self.count -= 1
         self.I-=1
         return
-
-     
-    def index(self, nitj,IncludedRightFrontier,W_value):
-        start = self.head
-        for i in range(self.count):
-            if(start.data == data):
-                return i
-            start = start.next
-        return None
      
     def size(self):
         return self.count
