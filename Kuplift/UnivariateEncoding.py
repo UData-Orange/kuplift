@@ -86,7 +86,6 @@ class UnivariateEncoding:
         for col in cols:
             if len(self.VarVsDisc[col]) == 1:
                 Data_features.drop(col, inplace=True, axis=1)
-                Data_features.drop(col, inplace=True, axis=1)
             else:
                 if Data_features[col].max() > self.VarVsDisc[col][-1]:
                     print("SOMETHING STRANGS IS HAPPENING max in train")
