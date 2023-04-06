@@ -1,6 +1,18 @@
+######################################################################################
+# Copyright (c) 2023 Orange - All Rights Reserved                             #
+# * This software is the confidential and proprietary information of Orange.         #
+# * You shall not disclose such Restricted Information and shall use it only in      #
+#   accordance with the terms of the license agreement you entered into with Orange  #
+#   named the "Khiops - Python Library Evaluation License".                          #
+# * Unauthorized copying of this file, via any medium is strictly prohibited.        #
+# * See the "LICENSE.md" file for more details.                                      #
+######################################################################################
+"""Description?"""
 from math import log
 
 _Log_Fact_Table = []
+binomialFunctionAccessCount = 0
+
 
 def log_fact(n):
     """
@@ -19,10 +31,10 @@ def log_fact(n):
                 _Log_Fact_Table.append(0)
             size = len(_Log_Fact_Table)
             while size <= n:
-                # print('%d<=%d' %(size,n))
                 _Log_Fact_Table.append(log(size) + _Log_Fact_Table[size - 1])
                 size = size + 1
         return _Log_Fact_Table[n]
+
 
 def log_2_star(k: int):
     """
@@ -41,8 +53,27 @@ def log_2_star(k: int):
         while d_logI > 0:
             d_cost += d_logI
             d_logI = log(d_logI) / d_log2
+        return d_cost
 
-        return d_cost    
+
+#
+
+
+def log_binomial_coefficient(n: int, k: int):
+    """
+    Computes the log of the binomial coefficient  (n
+                                                   k)
+    (log of the total number of combinations of k elements from n)
+    :param n: Total number of elements
+    :param k: Number of selected elements
+    :return:
+    """
+    # start_counter(5)
+    nf = log_fact(n)
+    kf = log_fact(k)
+    nkf = log_fact(n - k)
+    # stop_counter(5)
+    return (nf - nkf) - kf
 
 
 def universal_code_natural_numbers(k: int):
@@ -67,70 +98,61 @@ def universal_code_natural_numbers(k: int):
         # Go back to the natural log
         d_cost *= d_log2
 
-        return d_cost 
-    
-def preprocessData(Data_features, treatment_col='segment', y_col='visit'):
+        return d_cost
+
+
+def preprocessData(Data_features, treatment_col="segment", y_col="visit"):
     cols = Data_features.columns
     num_cols = list(Data_features._get_numeric_data().columns)
 
     num_cols.remove(treatment_col)
     num_cols.remove(y_col)
     for num_col in num_cols:
-        if len(Data_features[num_col].value_counts())<(Data_features.shape[0]/100):
+        if len(Data_features[num_col].value_counts()) < (Data_features.shape[0] / 100):
             num_cols.remove(num_col)
         else:
-            Data_features[num_col] = Data_features[num_col].fillna(Data_features[num_col].mean())
+            Data_features[num_col] = Data_features[num_col].fillna(
+                Data_features[num_col].mean()
+            )
 
-    categoricalCols=list(set(cols) - set(num_cols))
+    categoricalCols = list(set(cols) - set(num_cols))
     if treatment_col in categoricalCols:
         categoricalCols.remove(treatment_col)
     if y_col in categoricalCols:
         categoricalCols.remove(y_col)
     for catCol in categoricalCols:
-        Data_features[catCol] = Data_features[catCol].fillna(Data_features[catCol].mode()[0])
-        DictValVsUplift={}
+        Data_features[catCol] = Data_features[catCol].fillna(
+            Data_features[catCol].mode()[0]
+        )
+        DictValVsUplift = {}
         for val in Data_features[catCol].value_counts().index:
-            dataset_slice=Data_features[Data_features[catCol]==val]
-            t0j0=dataset_slice[(dataset_slice[treatment_col]==0)&(dataset_slice[y_col]==0)].shape[0]
-            t0j1=dataset_slice[(dataset_slice[treatment_col]==0)&(dataset_slice[y_col]==1)].shape[0]
-            t1j0=dataset_slice[(dataset_slice[treatment_col]==1)&(dataset_slice[y_col]==0)].shape[0]
-            t1j1=dataset_slice[(dataset_slice[treatment_col]==1)&(dataset_slice[y_col]==1)].shape[0]
+            dataset_slice = Data_features[Data_features[catCol] == val]
+            t0j0 = dataset_slice[
+                (dataset_slice[treatment_col] == 0) & (dataset_slice[y_col] == 0)
+            ].shape[0]
+            t0j1 = dataset_slice[
+                (dataset_slice[treatment_col] == 0) & (dataset_slice[y_col] == 1)
+            ].shape[0]
+            t1j0 = dataset_slice[
+                (dataset_slice[treatment_col] == 1) & (dataset_slice[y_col] == 0)
+            ].shape[0]
+            t1j1 = dataset_slice[
+                (dataset_slice[treatment_col] == 1) & (dataset_slice[y_col] == 1)
+            ].shape[0]
 
-            if (t1j1+t1j0)==0:
-                UpliftInThisSlice=-1
-            elif (t0j1+t0j1)==0:
-                UpliftInThisSlice=0
+            if (t1j1 + t1j0) == 0:
+                UpliftInThisSlice = -1
+            elif (t0j1 + t0j1) == 0:
+                UpliftInThisSlice = 0
             else:
-                UpliftInThisSlice=(t1j1/(t1j1+t1j0))-(t0j1/(t0j1+t0j1))
-            DictValVsUplift[val]=UpliftInThisSlice
-        OrderedDict={k: v for k, v in sorted(DictValVsUplift.items(), key=lambda item: item[1])}
-        encoded_i=0
-        for k,v in OrderedDict.items():
-            Data_features[catCol] = Data_features[catCol].replace([k],encoded_i)
-            encoded_i+=1
-    Data_features[treatment_col]=Data_features[treatment_col].astype(str)
+                UpliftInThisSlice = (t1j1 / (t1j1 + t1j0)) - (t0j1 / (t0j1 + t0j1))
+            DictValVsUplift[val] = UpliftInThisSlice
+        OrderedDict = {
+            k: v for k, v in sorted(DictValVsUplift.items(), key=lambda item: item[1])
+        }
+        encoded_i = 0
+        for k, v in OrderedDict.items():
+            Data_features[catCol] = Data_features[catCol].replace([k], encoded_i)
+            encoded_i += 1
+    Data_features[treatment_col] = Data_features[treatment_col].astype(str)
     return Data_features
-    
-def log_binomial_coefficient(n: int, k: int):
-    """
-    Computes the log of the binomial coefficient  (n
-                                                   k)
-    (log of the total number of combinations of k elements from n)
-    :param n: Total number of elements
-    :param k: Number of selected elements
-    :return:
-    """
-    
-    global _Log_Fact_Table
-    
-    global binomialFunctionAccessCount
-    binomialFunctionAccessCount+=1
-    try:
-        nf = _Log_Fact_Table[n]
-        kf = _Log_Fact_Table[k]
-        nkf = _Log_Fact_Table[n - k]
-    except:
-        print("length of log_fact table is ",len(_Log_Fact_Table))
-        print("n is ",n)
-        raise
-    return (nf - nkf) - kf
