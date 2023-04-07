@@ -38,8 +38,8 @@ class UnivariateEncoding:
         pd.Dataframe
             Pandas Dataframe that contains encoded Data_features.
         """
-        self.fit(self, Data_features, treatment_col, y_col)
-        Data_features = self.transform(self, Data_features)
+        self.fit(Data_features, treatment_col, y_col)
+        Data_features = self.transform(Data_features)
         return Data_features
 
     def fit(self, Data_features, treatment_col, y_col):
@@ -96,7 +96,7 @@ class UnivariateEncoding:
         cols.remove(self.y_col)
         
         for col in cols:
-            if VarVsDisc[col] == None:
+            if self.VarVsDisc[col] == None:
                 Data_features.drop(col, inplace=True, axis=1)
             else:
                 Data_features[col] = pd.cut(
