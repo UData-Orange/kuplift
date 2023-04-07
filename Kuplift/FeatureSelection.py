@@ -9,8 +9,8 @@
 ######################################################################################
 """Description?"""
 import sys
-from HelperFunctions import preprocessData
-from UMODL_SearchAlgorithm import ExecuteGreedySearchAndPostOpt
+from .HelperFunctions import preprocessData
+from .UMODL_SearchAlgorithm import ExecuteGreedySearchAndPostOpt
 
 
 class FeatureSelection:

@@ -10,8 +10,8 @@
 """Description?"""
 import numpy as np
 from math import log
-from BinaryDiscretizationFunctions import UMODL_BinaryDiscretization
-from HelperFunctions import (
+from .BinaryDiscretizationFunctions import UMODL_BinaryDiscretization
+from .HelperFunctions import (
     log_fact,
     universal_code_natural_numbers,
     log_binomial_coefficient,
@@ -162,14 +162,11 @@ class _Interval:
 
         CandidateSplitsVsCriterion = {}
         for key in DictOfEachAttVsEffectifs:
-            LeavesVal = self.updateTreeCriterion(
-                DictOfEachAttVsEffectifs[key][:2]
-            )  # ,K_subset,subsetFeatures)
+            LeavesVal = self.updateTreeCriterion(DictOfEachAttVsEffectifs[key][:2])
             CandidateSplitsVsCriterion[key] = NewPriorVals + LeavesVal
         return CandidateSplitsVsCriterion.copy()
 
     def updateTreeCriterion(self, LeftAndRightData, simulate=True):
-        #         NewNodeEffectifs=[T0J0,T0J1,T1J0,T1J1]
         LeavesVals = 0
         for (
             NewIntervalEffectifs
@@ -221,7 +218,7 @@ class BayesianDecisionTree:
         self.Prob_Kt = None
         self.EncodingOfBeingAnInternalInterval = None
         self.ProbAttributeSelection = None
-        self.PriorOfInternalIntervals = None
+        self.PriorOfInternalInterval = None
         self.EncodingOfBeingALeafIntervalAndContainingTE = (
             len(self.terminalIntervals) * log(2) * 2
         )  # TE=TreatmentEffect
@@ -230,15 +227,61 @@ class BayesianDecisionTree:
 
         self.calcCriterion()
 
+        print(type(self.EncodingOfBeingAnInternalInterval))
+        print(type(self.PriorOfInternalInterval))
+
         self.TreeCriterion = (
             self.Prob_Kt
             + self.EncodingOfBeingAnInternalInterval
             + self.ProbAttributeSelection
-            + self.PriorOfInternalIntervals
+            + self.PriorOfInternalInterval
             + self.EncodingOfBeingALeafIntervalAndContainingTE
             + self.LeafPrior
             + self.TreeLikelihood
         )
+
+    def calcCriterion(self):
+        self.calcProb_kt()
+        self.calcPriorOfInternalInterval()
+        self.calcEncoding()
+        self.calcLeafPrior()
+        self.calcTreeLikelihood()
+
+    def calcProb_kt(self):
+        self.Prob_Kt = (
+            universal_code_natural_numbers(self.K_t)
+            - log_fact(self.K_t)
+            + self.K_t * log(self.K)
+        )
+
+    def calcPriorOfInternalInterval(self):
+        if len(self.internalIntervals) == 0:
+            self.PriorOfInternalInterval = 0
+            self.ProbAttributeSelection = 0
+        else:
+            PriorOfInternalInterval = 0
+            for internalInterval in self.internalIntervals:
+                PriorOfInternalInterval += internalInterval.PriorOfInternalInterval
+            self.PriorOfInternalInterval = PriorOfInternalInterval
+            self.ProbAttributeSelection = log(self.K_t) * len(self.internalIntervals)
+
+    def calcEncoding(self):
+        self.EncodingOfBeingALeafIntervalAndContainingTE = (
+            len(self.terminalIntervals) * log(2) * 2
+        )
+        self.EncodingOfBeingAnInternalInterval = len(self.internalIntervals) * log(2)
+
+    def calcTreeLikelihood(self):
+        LeafLikelihoods = 0
+        for leafInterval in self.terminalIntervals:
+            LeafLikelihoods += leafInterval.LikelihoodLeaf
+        self.TreeLikelihood = LeafLikelihoods
+
+    def calcLeafPrior(self):
+        leafPriors = 0
+        for leafInterval in self.terminalIntervals:
+            leafPriors += leafInterval.PriorLeaf
+        self.LeafPrior = leafPriors
 
     def fit(self, X_train, treatment_col, outcome_col):
         """Description?
@@ -309,7 +352,7 @@ class BayesianDecisionTree:
                             + EncodingOfInternalAndLeavesAndWWithExtraIntervals
                             + self.LeafPrior
                             + self.TreeLikelihood
-                            + self.PriorOfInternalIntervals
+                            + self.PriorOfInternalInterval
                         )
                     else:
                         IntervalVsCandidateSplitsCosts[terminalInterval][attribute] += (
@@ -318,7 +361,7 @@ class BayesianDecisionTree:
                             + ProbOfAttributeSelectionAmongSubsetAttributesPlusOne
                             + self.LeafPrior
                             + self.TreeLikelihood
-                            + self.PriorOfInternalIntervals
+                            + self.PriorOfInternalInterval
                         )
 
                 # Once costs are updated, I get the key of the minimal value split for terminalInterval
@@ -375,8 +418,8 @@ class BayesianDecisionTree:
             return interval.averageUplift
 
         if x[interval.Attribute] <= interval.SplitThreshold:
-            return self._traverse_tree(x, interval.leftinterval)
-        return self._traverse_tree(x, interval.rightinterval)
+            return self._traverse_tree(x, interval.leftInterval)
+        return self._traverse_tree(x, interval.rightInterval)
 
     def predict(self, X_test):
         """Description?

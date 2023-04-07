@@ -9,16 +9,12 @@
 ######################################################################################
 """Description?"""
 import bisect
-import logging
 from math import log
 import pandas as pd
 import time
-from HelperFunctions import _Log_Fact_Table, log_fact, log_binomial_coefficient
+from .HelperFunctions import _Log_Fact_Table, log_fact, log_binomial_coefficient
 from operator import itemgetter, add, sub
 from sortedcontainers import SortedKeyList
-
-logger = logging.getLogger("causalml")
-logging.basicConfig(level=logging.INFO)
 
 _nb_counter = []
 _start_counter = []

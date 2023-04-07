@@ -9,8 +9,8 @@
 ######################################################################################
 """Description?"""
 import pandas as pd
-from HelperFunctions import preprocessData
-from UMODL_SearchAlgorithm import ExecuteGreedySearchAndPostOpt
+from .HelperFunctions import preprocessData
+from .UMODL_SearchAlgorithm import ExecuteGreedySearchAndPostOpt
 
 
 class UnivariateEncoding:

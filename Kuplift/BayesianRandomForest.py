@@ -12,12 +12,14 @@ from math import log
 import numpy as np
 import pandas as pd
 import random
-from BinaryDiscretizationFunctions import UMODL_BinaryDiscretization
-from HelperFunctions import (
+from .BinaryDiscretizationFunctions import UMODL_BinaryDiscretization
+from .HelperFunctions import (
     log_fact,
     universal_code_natural_numbers,
     log_binomial_coefficient,
 )
+
+random.seed(10)  # to decomment for tests
 
 
 class _Node:
@@ -462,9 +464,7 @@ class BayesianRandomForest:
         Number of trees in a forest.
     """
 
-    def __init__(
-        self, data, treatmentName, outcomeName, numberOfTrees=10, NotAllVars=False
-    ):
+    def __init__(self, data, treatmentName, outcomeName, n_trees, NotAllVars=False):
         self.ListOfTrees = []
         self.data = data
         # Randomly select columns for the data
@@ -476,12 +476,12 @@ class BayesianRandomForest:
             cols = random.sample(cols, int(np.sqrt(len(cols))))
             print("cols after are ", cols)
             self.data = self.data[cols + [treatmentName, outcomeName]]
-        for i in range(numberOfTrees):
+        for i in range(n_trees):
             Tree = UpliftTreeClassifier(self.data.copy(), treatmentName, outcomeName)
             self.ListOfTrees.append(Tree)
 
     # Question : pourquoi ces paramètres de fonction ?
-    def fit(self, X_train, treatment_col, outcome_col):
+    def fit(self):  # X_train, treatment_col, outcome_col):
         """Description?
 
         Parameters

@@ -8,15 +8,10 @@
 # * See the "LICENSE.md" file for more details.                                      #
 ######################################################################################
 """Description?"""
-import logging
 import numpy as np
 from math import log
 from operator import add, sub, itemgetter
 from sortedcontainers import SortedKeyList
-
-logger = logging.getLogger("causalml")
-logging.basicConfig(level=logging.INFO)
-
 
 # def log_fact(n):
 #     """
@@ -56,8 +51,8 @@ logging.basicConfig(level=logging.INFO)
 #     nkf = log_fact(n - k)
 #     stop_counter(5)
 #     return (nf - nkf) - kf
-from HelperFunctions import log_fact, log_binomial_coefficient
-from BinaryDiscretizationFunctions import start_counter, stop_counter
+from .HelperFunctions import log_fact, log_binomial_coefficient
+from .BinaryDiscretizationFunctions import start_counter, stop_counter
 
 
 class Node:
