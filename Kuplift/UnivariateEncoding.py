@@ -18,6 +18,8 @@ class UnivariateEncoding:
 
     def __init__(self):
         self.VarVsDisc = {}
+        self.treatment_col=''
+        self.y_col=''
 
     def fit_transform(self, Data_features, treatment_col, y_col):
         """Description?
@@ -52,10 +54,13 @@ class UnivariateEncoding:
         y_col : pd.Series
             Outcome column.
         """
+        self.treatment_col=treatment_col
+        self.y_col=y_col
+        
         cols = list(Data_features.columns)
-
         cols.remove(treatment_col)
         cols.remove(y_col)
+        
         Data_features = Data_features[cols + [treatment_col, y_col]]
 
         Data_features = preprocessData(Data_features, treatment_col, y_col)
@@ -67,7 +72,10 @@ class UnivariateEncoding:
             VarVsImportance[col], self.VarVsDisc[col] = ExecuteGreedySearchAndPostOpt(
                 Data_features[[col, treatment_col, y_col]]
             )
-            self.VarVsDisc[col] = self.VarVsDisc[col][:-1]
+            if len(self.VarVsDisc[col])==1:
+                self.VarVsDisc[col]=None
+            else:
+                self.VarVsDisc[col] = self.VarVsDisc[col][:-1]
 
     def transform(self, Data_features):
         """Description?
@@ -83,12 +91,14 @@ class UnivariateEncoding:
             Pandas Dataframe that contains encoded Data_features.
         """
         cols = list(Data_features.columns)
+        
+        cols.remove(self.treatment_col)
+        cols.remove(self.y_col)
+        
         for col in cols:
-            if len(self.VarVsDisc[col]) == 1:
+            if VarVsDisc[col] == None:
                 Data_features.drop(col, inplace=True, axis=1)
             else:
-                if Data_features[col].max() > self.VarVsDisc[col][-1]:
-                    print("SOMETHING STRANGS IS HAPPENING max in train")
                 Data_features[col] = pd.cut(
                     Data_features[col],
                     bins=[Data_features[col].min() - 0.001]
