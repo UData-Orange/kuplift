@@ -13,10 +13,13 @@ from Kuplift.UnivariateEncoding import UnivariateEncoding
 testFeatureSelection = False
 testBayesianDecisionTree = False
 testBayesianRandomForest = False
-testUnvariateEncoding = False
+testUnvariateEncoding = True
 
-df = pd.read_csv("data/zenodo_sample.csv")
+df = pd.read_csv("../data/zenodo_sample.csv")
 print(df.head())
+
+stdoutOrigin=sys.stdout
+sys.stdout = open("OutputResults.txt", "w")
 
 if testFeatureSelection:
     fs = FeatureSelection()
@@ -38,4 +41,9 @@ if testBayesianRandomForest:
     print(list(preds))
 
 if testUnvariateEncoding:
-    print("TODO")
+    ue = UnivariateEncoding()
+    encoded_data=ue.fit_transform(df, "segment", "visit")
+    print('encoded_data ',encoded_data)
+    
+sys.stdout.close()
+sys.stdout=stdoutOrigin    
