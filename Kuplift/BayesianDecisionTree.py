@@ -30,6 +30,9 @@ class _Interval:
     y_col : pd.Series
         Outcome column.
     ID : ?, optional
+        ?
+    debug : bool
+        Print the performance time
     """
 
     def __init__(self, data, treatmentName, outcomeName, ID=None):
@@ -76,26 +79,29 @@ class _Interval:
         self.CandidateSplitsVsCriterion = None
         self.leftInterval = None
         self.rightInterval = None
-        self.PriorOfInternalInterval = self.calcPriorOfInternalInterval()
-        self.PriorLeaf, self.LikelihoodLeaf, self.W = self.calcPriorAndLikelihoodLeaf()
+        self.PriorOfInternalInterval = self.__calcPriorOfInternalInterval()
+        (
+            self.PriorLeaf,
+            self.LikelihoodLeaf,
+            self.W,
+        ) = self.__calcPriorAndLikelihoodLeaf()
 
-    def calcPriorOfInternalInterval(self):
+    def __calcPriorOfInternalInterval(self):
         return log_binomial_coefficient(sum(self.Ntj) + 1, 1)
 
-    def calcPriorAndLikelihoodLeaf(self):
+    def __calcPriorAndLikelihoodLeaf(self):
         NumberOfTreatment = self.Ntj[2] + self.Ntj[3]
         NumberOfControl = self.Ntj[0] + self.Ntj[1]
         NumberOfPosOutcome = self.Ntj[1] + self.Ntj[3]
         NumberOfZeroOutcome = self.Ntj[0] + self.Ntj[2]
 
-        # W=0
         LeafPrior_W0 = log_binomial_coefficient(sum(self.Ntj) + 1, 1)
         TreeLikelihood_W0 = (
             log_fact(sum(self.Ntj))
             - log_fact(NumberOfPosOutcome)
             - log_fact(NumberOfZeroOutcome)
         )
-        # W=1
+
         LeafPrior_W1 = log_binomial_coefficient(
             NumberOfTreatment + 1, 1
         ) + log_binomial_coefficient(NumberOfControl + 1, 1)
@@ -113,7 +119,7 @@ class _Interval:
             TreeLikelihood = TreeLikelihood_W1
         return LeafPrior, TreeLikelihood, W
 
-    def DiscretizeVarsAndGetAttributesSplitsCosts(self):
+    def discretizeVarsAndGetAttributesSplitsCosts(self):
         """
         For this node loop on all attributes and get the optimal split for each one
 
@@ -127,7 +133,6 @@ class _Interval:
         """
         features = list(self.X.columns)
         AttributeToSplitVsLeftAndRightData = {}
-        #         print("features are ",features)
         for attribute in features:
             if (
                 len(self.X[attribute].value_counts()) == 1
@@ -147,26 +152,26 @@ class _Interval:
         self.CandidateSplitsVsDataLeftDataRight = (
             AttributeToSplitVsLeftAndRightData.copy()
         )
-        CandidateSplitsVsCriterion = self.GetAttributesSplitsCosts(
+        CandidateSplitsVsCriterion = self.__getAttributesSplitsCosts(
             AttributeToSplitVsLeftAndRightData
         )
         self.CandidateSplitsVsCriterion = CandidateSplitsVsCriterion.copy()
         return CandidateSplitsVsCriterion.copy()
 
-    def GetAttributesSplitsCosts(self, DictOfEachAttVsEffectifs):
+    def __getAttributesSplitsCosts(self, DictOfEachAttVsEffectifs):
         # Prior of Internal node is only the combinatorial calculations
         CriterionToBeInternal = (
-            self.calcPriorOfInternalInterval()
+            self.__calcPriorOfInternalInterval()
         )  # In case we split this node, it will be no more a leaf but an internal node
         NewPriorVals = CriterionToBeInternal - self.PriorLeaf - self.LikelihoodLeaf
 
         CandidateSplitsVsCriterion = {}
         for key in DictOfEachAttVsEffectifs:
-            LeavesVal = self.updateTreeCriterion(DictOfEachAttVsEffectifs[key][:2])
+            LeavesVal = self.__updateTreeCriterion(DictOfEachAttVsEffectifs[key][:2])
             CandidateSplitsVsCriterion[key] = NewPriorVals + LeavesVal
         return CandidateSplitsVsCriterion.copy()
 
-    def updateTreeCriterion(self, LeftAndRightData, simulate=True):
+    def __updateTreeCriterion(self, LeftAndRightData, simulate=True):
         LeavesVals = 0
         for (
             NewIntervalEffectifs
@@ -196,7 +201,6 @@ class _Interval:
             self.Attribute = Attribute
             self.SplitThreshold = self.CandidateSplitsVsDataLeftDataRight[Attribute][2]
             return self.leftInterval, self.rightInterval
-        return -1
 
 
 class BayesianDecisionTree:
@@ -225,10 +229,7 @@ class BayesianDecisionTree:
         self.LeafPrior = None
         self.TreeLikelihood = None
 
-        self.calcCriterion()
-
-        print(type(self.EncodingOfBeingAnInternalInterval))
-        print(type(self.PriorOfInternalInterval))
+        self.__calcCriterion()
 
         self.TreeCriterion = (
             self.Prob_Kt
@@ -240,21 +241,21 @@ class BayesianDecisionTree:
             + self.TreeLikelihood
         )
 
-    def calcCriterion(self):
-        self.calcProb_kt()
-        self.calcPriorOfInternalInterval()
-        self.calcEncoding()
-        self.calcLeafPrior()
-        self.calcTreeLikelihood()
+    def __calcCriterion(self):
+        self.__calcProb_kt()
+        self.__calcPriorOfInternalInterval()
+        self.__calcEncoding()
+        self.__calcLeafPrior()
+        self.__calcTreeLikelihood()
 
-    def calcProb_kt(self):
+    def __calcProb_kt(self):
         self.Prob_Kt = (
             universal_code_natural_numbers(self.K_t)
             - log_fact(self.K_t)
             + self.K_t * log(self.K)
         )
 
-    def calcPriorOfInternalInterval(self):
+    def __calcPriorOfInternalInterval(self):
         if len(self.internalIntervals) == 0:
             self.PriorOfInternalInterval = 0
             self.ProbAttributeSelection = 0
@@ -265,19 +266,19 @@ class BayesianDecisionTree:
             self.PriorOfInternalInterval = PriorOfInternalInterval
             self.ProbAttributeSelection = log(self.K_t) * len(self.internalIntervals)
 
-    def calcEncoding(self):
+    def __calcEncoding(self):
         self.EncodingOfBeingALeafIntervalAndContainingTE = (
             len(self.terminalIntervals) * log(2) * 2
         )
         self.EncodingOfBeingAnInternalInterval = len(self.internalIntervals) * log(2)
 
-    def calcTreeLikelihood(self):
+    def __calcTreeLikelihood(self):
         LeafLikelihoods = 0
         for leafInterval in self.terminalIntervals:
             LeafLikelihoods += leafInterval.LikelihoodLeaf
         self.TreeLikelihood = LeafLikelihoods
 
-    def calcLeafPrior(self):
+    def __calcLeafPrior(self):
         leafPriors = 0
         for leafInterval in self.terminalIntervals:
             leafPriors += leafInterval.PriorLeaf
@@ -329,12 +330,11 @@ class BayesianDecisionTree:
             )  # Dictionary containing Intervals as key and their values are another dictionary each with attribute:CostSplit
 
             for terminalInterval in self.terminalIntervals:
-
                 # This if condition is here to not to repeat calculations of candidate splits
                 if terminalInterval.CandidateSplitsVsCriterion == None:
                     IntervalVsCandidateSplitsCosts[
                         terminalInterval
-                    ] = terminalInterval.DiscretizeVarsAndGetAttributesSplitsCosts()
+                    ] = terminalInterval.discretizeVarsAndGetAttributesSplitsCosts()
                 else:
                     IntervalVsCandidateSplitsCosts[
                         terminalInterval
@@ -402,7 +402,7 @@ class BayesianDecisionTree:
                 self.internalIntervals.append(OptimalInterval)
                 self.terminalIntervals.remove(OptimalInterval)
 
-                self.calcCriterion()
+                self.__calcCriterion()
             else:
                 break
         print("Learning Finished")
@@ -413,13 +413,13 @@ class BayesianDecisionTree:
             print("self ntj ", interval.Ntj)
         print("===============")
 
-    def _traverse_tree(self, x, interval):
+    def __traverse_tree(self, x, interval):
         if interval.isLeaf == True:
             return interval.averageUplift
 
         if x[interval.Attribute] <= interval.SplitThreshold:
-            return self._traverse_tree(x, interval.leftInterval)
-        return self._traverse_tree(x, interval.rightInterval)
+            return self.__traverse_tree(x, interval.leftInterval)
+        return self.__traverse_tree(x, interval.rightInterval)
 
     def predict(self, X_test):
         """Description?
@@ -435,7 +435,7 @@ class BayesianDecisionTree:
             An array containing the predicted treatment uplift for each sample.
         """
         predictions = [
-            self._traverse_tree(X_test.iloc[x], self.rootInterval)
+            self.__traverse_tree(X_test.iloc[x], self.rootInterval)
             for x in range(len(X_test))
         ]
         return np.array(predictions)

@@ -41,9 +41,7 @@ def stop_counter(i):
     _start_time_counter[i] = time.time()
 
 
-# ============================================================================================
 def calcCriterion(NITJ_Interval, NUllModel=False):
-
     NITJ_Interval_sum = sum(NITJ_Interval)
     Fact_Class0Freq = _Log_Fact_Table[(NITJ_Interval[0] + NITJ_Interval[2])]
     Fact_Class1Freq = _Log_Fact_Table[(NITJ_Interval[1] + NITJ_Interval[3])]
@@ -128,7 +126,6 @@ def calcCriterion(NITJ_Interval, NUllModel=False):
     return SumOfPriorsAndLikelihoods
 
 
-# ============================================================================================
 def splitInterval(
     df, colName, treatmentColName, outputColName, NullModelValue, granularite=16
 ):  # i is interval index in IntervalsList
@@ -230,7 +227,6 @@ def splitInterval(
     return -1
 
 
-# ============================================================================================
 def calcNullModel(dff, att, treatmentColName, outputColName):
     data = dff[[att, treatmentColName, outputColName]].values.tolist()
 
@@ -251,7 +247,6 @@ def calcNullModel(dff, att, treatmentColName, outputColName):
     return (2 * log(2)) + calcCriterion(dataNITJ)
 
 
-# ============================================================================================
 def Exec(df, attributeToDiscretize, treatmentColName, outputColName):
     NullModelValue = calcNullModel(
         df, attributeToDiscretize, treatmentColName, outputColName
@@ -261,7 +256,6 @@ def Exec(df, attributeToDiscretize, treatmentColName, outputColName):
     )
 
 
-# ============================================================================================
 def UMODL_BinaryDiscretization(data, T, Y, attributeToDiscretize):
     df = pd.DataFrame()
     df = data.copy()

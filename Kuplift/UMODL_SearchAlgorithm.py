@@ -12,51 +12,11 @@ import numpy as np
 from math import log
 from operator import add, sub, itemgetter
 from sortedcontainers import SortedKeyList
-
-# def log_fact(n):
-#     """
-#     Compute log(fact(n))
-#     :param n:
-#     :return: value of log(fact(n))
-#     """
-#     start_counter(4)
-#     # Use approximation for large n
-#     if n > 1e6:
-#         raise ValueError("Value of n is too large")
-#     # computation of values, tabulation in private array
-#     else:
-#         s = len(_Log_Fact_Table)
-#         if n >= s:
-#             if s == 0:
-#                 _Log_Fact_Table.append(0)
-#             size = len(_Log_Fact_Table)
-#             while size <= n:
-#                 _Log_Fact_Table.append(log(size) + _Log_Fact_Table[size - 1])
-#                 size = size + 1
-#         stop_counter(4)
-#         return _Log_Fact_Table[n]
-
-# def log_binomial_coefficient(n: int, k: int):
-#     """
-#     Computes the log of the binomial coefficient  (n
-#                                                    k)
-#     (log of the total number of combinations of k elements from n)
-#     :param n: Total number of elements
-#     :param k: Number of selected elements
-#     :return:
-#     """
-#     start_counter(5)
-#     nf = log_fact(n)
-#     kf = log_fact(k)
-#     nkf = log_fact(n - k)
-#     stop_counter(5)
-#     return (nf - nkf) - kf
 from .HelperFunctions import log_fact, log_binomial_coefficient
 from .BinaryDiscretizationFunctions import start_counter, stop_counter
 
 
 class Node:
-    #     def __init__(self, nitj,IncludedRightFrontier,W_value):
     def __init__(self, data):
         if len(data) == 3:
             self.nitj = data[0]
@@ -207,7 +167,6 @@ class DLL:
         self.I = self.count
 
     # append to the end of the list
-
     def append(self, listData):
         if self.head == None:
             self.head = Node(listData)
@@ -770,7 +729,6 @@ def PostOptimizationToBeRepeated(Intervals, data, i=0):
 
 
 def copyList(DLL_to_be_copied):
-
     newList = DLL()  # head of the new list
     newList.N = DLL_to_be_copied.N
     newList.MODL_value = DLL_to_be_copied.MODL_value

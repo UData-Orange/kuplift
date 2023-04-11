@@ -67,27 +67,29 @@ class _Node:
         self.CandidateSplitsVsCriterion = None
         self.leftNode = None
         self.rightNode = None
-        self.PriorOfInternalNode = self.calcPriorOfInternalNode()
-        self.PriorLeaf, self.LikelihoodLeaf, self.W = self.calcPriorAndLikelihoodLeaf()
+        self.PriorOfInternalNode = self.__calcPriorOfInternalNode()
+        (
+            self.PriorLeaf,
+            self.LikelihoodLeaf,
+            self.W,
+        ) = self.__calcPriorAndLikelihoodLeaf()
 
-    def calcPriorOfInternalNode(self):
-        #         return log(self.K_t)+log_binomial_coefficient(sum(self.Ntj)+1,1)
+    def __calcPriorOfInternalNode(self):
         return log_binomial_coefficient(sum(self.Ntj) + 1, 1)
 
-    def calcPriorAndLikelihoodLeaf(self):
+    def __calcPriorAndLikelihoodLeaf(self):
         NumberOfTreatment = self.Ntj[2] + self.Ntj[3]
         NumberOfControl = self.Ntj[0] + self.Ntj[1]
         NumberOfPosOutcome = self.Ntj[1] + self.Ntj[3]
         NumberOfZeroOutcome = self.Ntj[0] + self.Ntj[2]
 
-        # W=0
         LeafPrior_W0 = log_binomial_coefficient(sum(self.Ntj) + 1, 1)
         TreeLikelihood_W0 = (
             log_fact(sum(self.Ntj))
             - log_fact(NumberOfPosOutcome)
             - log_fact(NumberOfZeroOutcome)
         )
-        # W=1
+
         LeafPrior_W1 = log_binomial_coefficient(
             NumberOfTreatment + 1, 1
         ) + log_binomial_coefficient(NumberOfControl + 1, 1)
@@ -105,7 +107,7 @@ class _Node:
             TreeLikelihood = TreeLikelihood_W1
         return LeafPrior, TreeLikelihood, W
 
-    def DiscretizeVarsAndGetAttributesSplitsCosts(self):
+    def discretizeVarsAndGetAttributesSplitsCosts(self):
         """
         For this node loop on all attributes and get the optimal split for each one
 
@@ -140,28 +142,26 @@ class _Node:
         self.CandidateSplitsVsDataLeftDataRight = (
             AttributeToSplitVsLeftAndRightData.copy()
         )
-        CandidateSplitsVsCriterion = self.GetAttributesSplitsCosts(
+        CandidateSplitsVsCriterion = self.__getAttributesSplitsCosts(
             AttributeToSplitVsLeftAndRightData
         )
         self.CandidateSplitsVsCriterion = CandidateSplitsVsCriterion.copy()
         return CandidateSplitsVsCriterion.copy()
 
-    def GetAttributesSplitsCosts(self, DictOfEachAttVsEffectifs):
+    def __getAttributesSplitsCosts(self, DictOfEachAttVsEffectifs):
         # Prior of Internal node is only the combinatorial calculations
         CriterionToBeInternal = (
-            self.calcPriorOfInternalNode()
+            self.__calcPriorOfInternalNode()
         )  # In case we split this node, it will be no more a leaf but an internal node
         NewPriorVals = CriterionToBeInternal - self.PriorLeaf - self.LikelihoodLeaf
 
         CandidateSplitsVsCriterion = {}
         for key in DictOfEachAttVsEffectifs:
-            LeavesVal = self.updateTreeCriterion(
-                DictOfEachAttVsEffectifs[key][:2]
-            )  # ,K_subset,subsetFeatures)
+            LeavesVal = self.__updateTreeCriterion(DictOfEachAttVsEffectifs[key][:2])
             CandidateSplitsVsCriterion[key] = NewPriorVals + LeavesVal
         return CandidateSplitsVsCriterion.copy()
 
-    def updateTreeCriterion(self, LeftAndRightData, simulate=True):
+    def __updateTreeCriterion(self, LeftAndRightData, simulate=True):
         LeavesVals = 0
         for (
             NewNodeEffectifs
@@ -191,14 +191,12 @@ class _Node:
             self.Attribute = Attribute
             self.SplitThreshold = self.CandidateSplitsVsDataLeftDataRight[Attribute][2]
             return self.leftNode, self.rightNode
-        return -1
 
 
 # Uplift Tree Classifier
 # TODO Après tests, remettre la classe en privée
 class UpliftTreeClassifier:
     def __init__(self, data, treatmentName, outcomeName):  # ordered data as argument
-
         self.nodesIds = 0
         self.rootNode = _Node(data, treatmentName, outcomeName, ID=self.nodesIds + 1)
         self.terminalNodes = [self.rootNode]
@@ -219,7 +217,7 @@ class UpliftTreeClassifier:
         self.LeafPrior = None
         self.TreeLikelihood = None
 
-        self.calcCriterion()
+        self.__calcCriterion()
 
         self.TreeCriterion = (
             self.Prob_Kt
@@ -231,25 +229,21 @@ class UpliftTreeClassifier:
             + self.TreeLikelihood
         )
 
-    # ================================================================================================================================================
-    # ================================================================================================================================================
-    def calcCriterion(self):
-        self.calcProb_kt()
-        self.calcPriorOfInternalNodes()
-        self.calcEncoding()
-        self.calcLeafPrior()
-        self.calcTreeLikelihood()
+    def __calcCriterion(self):
+        self.__calcProb_kt()
+        self.__calcPriorOfInternalNodes()
+        self.__calcEncoding()
+        self.__calcLeafPrior()
+        self.__calcTreeLikelihood()
 
-    # ---------------------------------------------------------------------------------------------------------------------------------------
-    def calcProb_kt(self):
+    def __calcProb_kt(self):
         self.Prob_Kt = (
             universal_code_natural_numbers(self.K_t)
             - log_fact(self.K_t)
             + self.K_t * log(self.K)
         )
 
-    # ---------------------------------------------------------------------------------------------------------------------------------------
-    def calcPriorOfInternalNodes(self):
+    def __calcPriorOfInternalNodes(self):
         if len(self.internalNodes) == 0:
             self.PriorOfInternalNodes = 0
             self.ProbAttributeSelection = 0
@@ -260,30 +254,23 @@ class UpliftTreeClassifier:
             self.PriorOfInternalNodes = PriorOfInternalNodes
             self.ProbAttributeSelection = log(self.K_t) * len(self.internalNodes)
 
-    # ---------------------------------------------------------------------------------------------------------------------------------------
-    def calcEncoding(self):
+    def __calcEncoding(self):
         self.EncodingOfBeingALeafNodeAndContainingTE = (
             len(self.terminalNodes) * log(2) * 2
         )
         self.EncodingOfBeingAnInternalNode = len(self.internalNodes) * log(2)
 
-    # ---------------------------------------------------------------------------------------------------------------------------------------
-    def calcTreeLikelihood(self):
-        LeafLikelihoods = 0
-        for leafNode in self.terminalNodes:
-            LeafLikelihoods += leafNode.LikelihoodLeaf
-        self.TreeLikelihood = LeafLikelihoods
-
-    # ---------------------------------------------------------------------------------------------------------------------------------------
-    def calcLeafPrior(self):
+    def __calcLeafPrior(self):
         leafPriors = 0
         for leafNode in self.terminalNodes:
             leafPriors += leafNode.PriorLeaf
         self.LeafPrior = leafPriors
 
-    # ---------------------------------------------------------------------------------------------------------------------------------------
-    # ================================================================================================================================================
-    # ================================================================================================================================================
+    def __calcTreeLikelihood(self):
+        LeafLikelihoods = 0
+        for leafNode in self.terminalNodes:
+            LeafLikelihoods += leafNode.LikelihoodLeaf
+        self.TreeLikelihood = LeafLikelihoods
 
     def growTree(self):
         # In case if we have a new attribute for splitting
@@ -326,7 +313,7 @@ class UpliftTreeClassifier:
                 if terminalNode.CandidateSplitsVsCriterion == None:
                     NodeVsCandidateSplitsCosts[
                         terminalNode
-                    ] = terminalNode.DiscretizeVarsAndGetAttributesSplitsCosts()
+                    ] = terminalNode.discretizeVarsAndGetAttributesSplitsCosts()
                 else:
                     NodeVsCandidateSplitsCosts[
                         terminalNode
@@ -384,7 +371,6 @@ class UpliftTreeClassifier:
             ]
 
             if OptimalVal < self.TreeCriterion:
-
                 self.TreeCriterion = OptimalVal
                 if OptimalAttribute not in self.feature_subset:
                     self.feature_subset.append(OptimalAttribute)
@@ -395,7 +381,7 @@ class UpliftTreeClassifier:
                 self.internalNodes.append(OptimalNode)
                 self.terminalNodes.remove(OptimalNode)
 
-                self.calcCriterion()
+                self.__calcCriterion()
             else:
                 print("WILL NEVER ENTER HERE")
                 break
@@ -480,8 +466,7 @@ class BayesianRandomForest:
             Tree = UpliftTreeClassifier(self.data.copy(), treatmentName, outcomeName)
             self.ListOfTrees.append(Tree)
 
-    # Question : pourquoi ces paramètres de fonction ?
-    def fit(self):  # X_train, treatment_col, outcome_col):
+    def fit(self, X_train, treatment_col, outcome_col):
         """Description?
 
         Parameters
