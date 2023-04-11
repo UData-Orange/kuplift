@@ -77,16 +77,16 @@ class _Node:
         self.isLeaf = True
         self.CandidateSplitsVsDataLeftDataRight = None
         self.CandidateSplitsVsCriterion = None
-        self.leftInterval = None
-        self.rightInterval = None
-        self.PriorOfInternalInterval = self.__calcPriorOfInternalInterval()
+        self.leftNode = None
+        self.rightNode = None
+        self.PriorOfInternalNode = self.__calcPriorOfInternalNode()
         (
             self.PriorLeaf,
             self.LikelihoodLeaf,
             self.W,
         ) = self.__calcPriorAndLikelihoodLeaf()
 
-    def __calcPriorOfInternalInterval(self):
+    def __calcPriorOfInternalNode(self):
         return log_binomial_coefficient(sum(self.Ntj) + 1, 1)
 
     def __calcPriorAndLikelihoodLeaf(self):
@@ -161,7 +161,7 @@ class _Node:
     def __getAttributesSplitsCosts(self, DictOfEachAttVsEffectifs):
         # Prior of Internal node is only the combinatorial calculations
         CriterionToBeInternal = (
-            self.__calcPriorOfInternalInterval()
+            self.__calcPriorOfInternalNode()
         )  # In case we split this node, it will be no more a leaf but an internal node
         NewPriorVals = CriterionToBeInternal - self.PriorLeaf - self.LikelihoodLeaf
 
@@ -174,9 +174,9 @@ class _Node:
     def __updateTreeCriterion(self, LeftAndRightData, simulate=True):
         LeavesVals = 0
         for (
-            NewIntervalEffectifs
+            NewNodeEffectifs
         ) in LeftAndRightData:  # Loop on Left and Right candidate nodes
-            L = _Node(NewIntervalEffectifs, self.treatment, self.output)
+            L = _Node(NewNodeEffectifs, self.treatment, self.output)
             LeavesVals += L.PriorLeaf + L.LikelihoodLeaf
             del L
         return LeavesVals
@@ -186,13 +186,13 @@ class _Node:
             raise
         else:
             self.isLeaf = False
-            self.leftInterval = _Node(
+            self.leftNode = _Node(
                 self.CandidateSplitsVsDataLeftDataRight[Attribute][0],
                 self.treatment,
                 self.output,
                 ID=self.id * 2,
             )
-            self.rightInterval = _Node(
+            self.rightNode = _Node(
                 self.CandidateSplitsVsDataLeftDataRight[Attribute][1],
                 self.treatment,
                 self.output,
@@ -200,7 +200,7 @@ class _Node:
             )
             self.Attribute = Attribute
             self.SplitThreshold = self.CandidateSplitsVsDataLeftDataRight[Attribute][2]
-            return self.leftInterval, self.rightInterval
+            return self.leftNode, self.rightNode
 
 
 class BayesianDecisionTree:
@@ -210,12 +210,12 @@ class BayesianDecisionTree:
     """
 
     def __init__(self, data, treatmentName, outcomeName):  # ordered data as argument
-        self.intervalsIds = 0
-        self.rootInterval = _Node(
-            data, treatmentName, outcomeName, ID=self.intervalsIds + 1
+        self.nodesIds = 0
+        self.rootNode = _Node(
+            data, treatmentName, outcomeName, ID=self.nodesIds + 1
         )
-        self.terminalIntervals = [self.rootInterval]
-        self.internalIntervals = []
+        self.terminalNodes = [self.rootNode]
+        self.internalNodes = []
 
         self.K = len(list(data.columns))
         self.K_t = 1
@@ -223,11 +223,11 @@ class BayesianDecisionTree:
         self.feature_subset = []
 
         self.Prob_Kt = None
-        self.EncodingOfBeingAnInternalInterval = None
+        self.EncodingOfBeingAnInternalNode = None
         self.ProbAttributeSelection = None
-        self.PriorOfInternalInterval = None
-        self.EncodingOfBeingALeafIntervalAndContainingTE = (
-            len(self.terminalIntervals) * log(2) * 2
+        self.PriorOfInternalNode = None
+        self.EncodingOfBeingALeafNodeAndContainingTE = (
+            len(self.terminalNodes) * log(2) * 2
         )  # TE=TreatmentEffect
         self.LeafPrior = None
         self.TreeLikelihood = None
@@ -236,17 +236,17 @@ class BayesianDecisionTree:
 
         self.TreeCriterion = (
             self.Prob_Kt
-            + self.EncodingOfBeingAnInternalInterval
+            + self.EncodingOfBeingAnInternalNode
             + self.ProbAttributeSelection
-            + self.PriorOfInternalInterval
-            + self.EncodingOfBeingALeafIntervalAndContainingTE
+            + self.PriorOfInternalNode
+            + self.EncodingOfBeingALeafNodeAndContainingTE
             + self.LeafPrior
             + self.TreeLikelihood
         )
 
     def __calcCriterion(self):
         self.__calcProb_kt()
-        self.__calcPriorOfInternalInterval()
+        self.__calcPriorOfInternalNode()
         self.__calcEncoding()
         self.__calcLeafPrior()
         self.__calcTreeLikelihood()
@@ -258,33 +258,33 @@ class BayesianDecisionTree:
             + self.K_t * log(self.K)
         )
 
-    def __calcPriorOfInternalInterval(self):
-        if len(self.internalIntervals) == 0:
-            self.PriorOfInternalInterval = 0
+    def __calcPriorOfInternalNode(self):
+        if len(self.internalNodes) == 0:
+            self.PriorOfInternalNode = 0
             self.ProbAttributeSelection = 0
         else:
-            PriorOfInternalInterval = 0
-            for internalInterval in self.internalIntervals:
-                PriorOfInternalInterval += internalInterval.PriorOfInternalInterval
-            self.PriorOfInternalInterval = PriorOfInternalInterval
-            self.ProbAttributeSelection = log(self.K_t) * len(self.internalIntervals)
+            PriorOfInternalNode = 0
+            for internalNode in self.internalNodes:
+                PriorOfInternalNode += internalNode.PriorOfInternalNode
+            self.PriorOfInternalNode = PriorOfInternalNode
+            self.ProbAttributeSelection = log(self.K_t) * len(self.internalNodes)
 
     def __calcEncoding(self):
-        self.EncodingOfBeingALeafIntervalAndContainingTE = (
-            len(self.terminalIntervals) * log(2) * 2
+        self.EncodingOfBeingALeafNodeAndContainingTE = (
+            len(self.terminalNodes) * log(2) * 2
         )
-        self.EncodingOfBeingAnInternalInterval = len(self.internalIntervals) * log(2)
+        self.EncodingOfBeingAnInternalNode = len(self.internalNodes) * log(2)
 
     def __calcTreeLikelihood(self):
         LeafLikelihoods = 0
-        for leafInterval in self.terminalIntervals:
-            LeafLikelihoods += leafInterval.LikelihoodLeaf
+        for leafNode in self.terminalNodes:
+            LeafLikelihoods += leafNode.LikelihoodLeaf
         self.TreeLikelihood = LeafLikelihoods
 
     def __calcLeafPrior(self):
         leafPriors = 0
-        for leafInterval in self.terminalIntervals:
-            leafPriors += leafInterval.PriorLeaf
+        for leafNode in self.terminalNodes:
+            leafPriors += leafNode.PriorLeaf
         self.LeafPrior = leafPriors
 
     def fit(self):
@@ -306,90 +306,88 @@ class BayesianDecisionTree:
             + (self.K_t + 1) * log(self.K)
         )
         ProbOfAttributeSelectionAmongSubsetAttributesPlusOne = log(self.K_t + 1) * (
-            len(self.internalIntervals) + 1
+            len(self.internalNodes) + 1
         )
 
-        EncodingOfBeingAnInternalIntervalPlusOne = (
-            self.EncodingOfBeingAnInternalInterval + log(2)
+        EncodingOfBeingAnInternalNodePlusOne = self.EncodingOfBeingAnInternalNode + log(
+            2
         )
 
         # When splitting a node to 2 nodes, the number of leaf nodes is incremented only by one, since the parent node was leaf and is now internal.
         # 2 for two extra leaf nodes multiplied by 2 for W. Total = 4.
-        EncodingOfBeingALeafIntervalAndContainingTEPlusTWO = (
-            self.EncodingOfBeingALeafIntervalAndContainingTE + (2 * log(2))
+        EncodingOfBeingALeafNodeAndContainingTEPlusTWO = (
+            self.EncodingOfBeingALeafNodeAndContainingTE + (2 * log(2))
         )
 
-        EncodingOfInternalAndLeavesAndWWithExtraIntervals = (
-            EncodingOfBeingAnInternalIntervalPlusOne
-            + EncodingOfBeingALeafIntervalAndContainingTEPlusTWO
+        EncodingOfInternalAndLeavesAndWWithExtraNodes = (
+            EncodingOfBeingAnInternalNodePlusOne
+            + EncodingOfBeingALeafNodeAndContainingTEPlusTWO
         )
 
         i = 0
         while True:
-            IntervalVsBestAttributeCorrespondingToTheBestCost = {}
-            IntervalVsBestCost = {}
-            IntervalVsCandidateSplitsCosts = (
+            NodeVsBestAttributeCorrespondingToTheBestCost = {}
+            NodeVsBestCost = {}
+            NodeVsCandidateSplitsCosts = (
                 {}
-            )  # Dictionary containing Intervals as key and their values are another dictionary each with attribute:CostSplit
+            )  # Dictionary containing Nodes as key and their values are another dictionary each with attribute:CostSplit
 
-            for terminalInterval in self.terminalIntervals:
+            for terminalNode in self.terminalNodes:
                 # This if condition is here to not to repeat calculations of candidate splits
-                if terminalInterval.CandidateSplitsVsCriterion == None:
-                    IntervalVsCandidateSplitsCosts[
-                        terminalInterval
-                    ] = terminalInterval.discretizeVarsAndGetAttributesSplitsCosts()
+                if terminalNode.CandidateSplitsVsCriterion == None:
+                    NodeVsCandidateSplitsCosts[
+                        terminalNode
+                    ] = terminalNode.discretizeVarsAndGetAttributesSplitsCosts()
                 else:
-                    IntervalVsCandidateSplitsCosts[
-                        terminalInterval
-                    ] = terminalInterval.CandidateSplitsVsCriterion.copy()
+                    NodeVsCandidateSplitsCosts[
+                        terminalNode
+                    ] = terminalNode.CandidateSplitsVsCriterion.copy()
 
-                if len(IntervalVsCandidateSplitsCosts[terminalInterval]) == 0:
+                if len(NodeVsCandidateSplitsCosts[terminalNode]) == 0:
                     continue
 
                 # Update Costs
-                for attribute in IntervalVsCandidateSplitsCosts[terminalInterval]:
+                for attribute in NodeVsCandidateSplitsCosts[terminalNode]:
                     if attribute in self.feature_subset:
-                        IntervalVsCandidateSplitsCosts[terminalInterval][attribute] += (
+                        NodeVsCandidateSplitsCosts[terminalNode][attribute] += (
                             self.Prob_Kt
                             + self.ProbAttributeSelection
-                            + EncodingOfInternalAndLeavesAndWWithExtraIntervals
+                            + EncodingOfInternalAndLeavesAndWWithExtraNodes
                             + self.LeafPrior
                             + self.TreeLikelihood
-                            + self.PriorOfInternalInterval
+                            + self.PriorOfInternalNode
                         )
                     else:
-                        IntervalVsCandidateSplitsCosts[terminalInterval][attribute] += (
+                        NodeVsCandidateSplitsCosts[terminalNode][attribute] += (
                             Prob_KtPlusOne
-                            + EncodingOfInternalAndLeavesAndWWithExtraIntervals
+                            + EncodingOfInternalAndLeavesAndWWithExtraNodes
                             + ProbOfAttributeSelectionAmongSubsetAttributesPlusOne
                             + self.LeafPrior
                             + self.TreeLikelihood
-                            + self.PriorOfInternalInterval
+                            + self.PriorOfInternalNode
                         )
 
-                # Once costs are updated, I get the key of the minimal value split for terminalInterval
+                # Once costs are updated, I get the key of the minimal value split for terminalNode
                 KeyOfTheMinimalVal = min(
-                    IntervalVsCandidateSplitsCosts[terminalInterval],
-                    key=IntervalVsCandidateSplitsCosts[terminalInterval].get,
+                    NodeVsCandidateSplitsCosts[terminalNode],
+                    key=NodeVsCandidateSplitsCosts[terminalNode].get,
                 )
 
-                IntervalVsBestAttributeCorrespondingToTheBestCost[
-                    terminalInterval
+                NodeVsBestAttributeCorrespondingToTheBestCost[
+                    terminalNode
                 ] = KeyOfTheMinimalVal
-                IntervalVsBestCost[terminalInterval] = IntervalVsCandidateSplitsCosts[
-                    terminalInterval
-                ][KeyOfTheMinimalVal]
+                NodeVsBestCost[terminalNode] = NodeVsCandidateSplitsCosts[terminalNode][
+                    KeyOfTheMinimalVal
+                ]
 
-            if len(list(IntervalVsBestCost)) == 0:
+            if len(list(NodeVsBestCost)) == 0:
                 break
 
-            OptimalIntervalAttributeToSplitUp = min(
-                IntervalVsBestCost, key=IntervalVsBestCost.get
-            )
-            OptimalVal = IntervalVsBestCost[OptimalIntervalAttributeToSplitUp]
-            OptimalInterval = OptimalIntervalAttributeToSplitUp
-            OptimalAttribute = IntervalVsBestAttributeCorrespondingToTheBestCost[
-                OptimalIntervalAttributeToSplitUp
+            OptimalNodeAttributeToSplitUp = min(NodeVsBestCost, key=NodeVsBestCost.get)
+            OptimalVal = NodeVsBestCost[OptimalNodeAttributeToSplitUp]
+            OptimalNode = OptimalNodeAttributeToSplitUp
+            OptimalAttribute = NodeVsBestAttributeCorrespondingToTheBestCost[
+                OptimalNodeAttributeToSplitUp
             ]
 
             if OptimalVal < self.TreeCriterion:
@@ -397,32 +395,30 @@ class BayesianDecisionTree:
                 if OptimalAttribute not in self.feature_subset:
                     self.feature_subset.append(OptimalAttribute)
                     self.K_t += 1
-                NewLeftLeaf, NewRightLeaf = OptimalInterval.performSplit(
-                    OptimalAttribute
-                )
-                self.terminalIntervals.append(NewLeftLeaf)
-                self.terminalIntervals.append(NewRightLeaf)
-                self.internalIntervals.append(OptimalInterval)
-                self.terminalIntervals.remove(OptimalInterval)
+                NewLeftLeaf, NewRightLeaf = OptimalNode.performSplit(OptimalAttribute)
+                self.terminalNodes.append(NewLeftLeaf)
+                self.terminalNodes.append(NewRightLeaf)
+                self.internalNodes.append(OptimalNode)
+                self.terminalNodes.remove(OptimalNode)
 
                 self.__calcCriterion()
             else:
                 break
         print("Learning Finished")
-        for interval in self.terminalIntervals:
-            print("Interval id ", interval.id)
-            print("Interval outcomeProbInTrt ", interval.outcomeProbInTrt)
-            print("Interval outcomeProbInCtrl ", interval.outcomeProbInCtrl)
-            print("self ntj ", interval.Ntj)
+        for node in self.terminalNodes:
+            print("Node id ", node.id)
+            print("Node outcomeProbInTrt ", node.outcomeProbInTrt)
+            print("Node outcomeProbInCtrl ", node.outcomeProbInCtrl)
+            print("self ntj ", node.Ntj)
         print("===============")
 
-    def __traverse_tree(self, x, interval):
-        if interval.isLeaf == True:
-            return interval.averageUplift
+    def __traverse_tree(self, x, node):
+        if node.isLeaf == True:
+            return node.averageUplift
 
-        if x[interval.Attribute] <= interval.SplitThreshold:
-            return self.__traverse_tree(x, interval.leftInterval)
-        return self.__traverse_tree(x, interval.rightInterval)
+        if x[node.Attribute] <= node.SplitThreshold:
+            return self.__traverse_tree(x, node.leftNode)
+        return self.__traverse_tree(x, node.rightNode)
 
     def predict(self, X_test):
         """Predict the uplift value for each example in X_test
@@ -438,7 +434,7 @@ class BayesianDecisionTree:
             An array containing the predicted treatment uplift for each sample.
         """
         predictions = [
-            self.__traverse_tree(X_test.iloc[x], self.rootInterval)
+            self.__traverse_tree(X_test.iloc[x], self.rootNode)
             for x in range(len(X_test))
         ]
         return np.array(predictions)

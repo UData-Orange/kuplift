@@ -16,7 +16,7 @@ from .HelperFunctions import log_fact, log_binomial_coefficient
 from .BinaryDiscretizationFunctions import start_counter, stop_counter
 
 
-class Node:
+class _Interval:
     def __init__(self, data):
         if len(data) == 3:
             self.nitj = data[0]
@@ -48,7 +48,7 @@ class Node:
             self.SumOfPriorsAndLikelihoods = data[11]
             self.SumOfPriorsAndLikelihoodsWithZeroW = None
 
-    def getNodeData(self):
+    def getIntervalData(self):
         return [
             self.nitj,
             self.IncludedRightFrontier,
@@ -169,12 +169,12 @@ class DLL:
     # append to the end of the list
     def append(self, listData):
         if self.head == None:
-            self.head = Node(listData)
+            self.head = _Interval(listData)
             self.tail = self.head
             self.count += 1
             self.I += 1
             return
-        self.tail.next = Node(listData)
+        self.tail.next = _Interval(listData)
         self.tail.next.previous = self.tail
         self.tail = self.tail.next
         self.count += 1
@@ -193,7 +193,7 @@ class DLL:
             return
 
         if index == 0:
-            self.head.previous = Node([nitj, IncludedRightFrontier, W_value])
+            self.head.previous = _Interval([nitj, IncludedRightFrontier, W_value])
             self.head.previous.next = self.head
             self.head = self.head.previous
             self.count += 1
@@ -203,7 +203,7 @@ class DLL:
         start = self.head
         for _ in range(index):
             start = start.next
-        start.previous.next = Node([nitj, IncludedRightFrontier, W_value])
+        start.previous.next = _Interval([nitj, IncludedRightFrontier, W_value])
         start.previous.next.previous = start.previous
         start.previous.next.next = start
         start.previous = start.previous.next
@@ -211,22 +211,25 @@ class DLL:
         self.I += 1
         return
 
-    def removeNode(self, node):
-        if node == self.head:
+    def removeInterval(self, interval):
+        if interval == self.head:
             self.head = self.head.next
             self.head.previous = None
             self.count -= 1
             self.I -= 1
             return
 
-        if node == self.tail:
+        if interval == self.tail:
             self.tail = self.tail.previous
             self.tail.next = None
             self.count -= 1
             self.I -= 1
             return
 
-        node.previous.next, node.next.previous = node.next, node.previous
+        interval.previous.next, interval.next.previous = (
+            interval.next,
+            interval.previous,
+        )
         self.count -= 1
         self.I -= 1
         return
@@ -262,7 +265,7 @@ class DLL:
 
     def getNth(self, index):
         current = self.head  # Initialise temp
-        count = 0  # Index of current node
+        count = 0  # Index of current interval
 
         # Loop while end of linked list is not reached
         while current:
@@ -272,21 +275,21 @@ class DLL:
             current = current.next
         return 0
 
-    def listprint(self, node):
-        while node is not None:
+    def listprint(self, interval):
+        while interval is not None:
             print("=======================================")
             print("=======================================")
-            print("NITJ ", node.nitj)
-            print("Frontier ", node.IncludedRightFrontier)
-            print("W value ", node.W)
-            print("Sum of priors and likelihoods ", node.SumOfPriorsAndLikelihoods)
-            print("node.Prior1 ", node.Prior1)
-            print("node.Prior2 ", node.Prior2)
-            print("node.Likelihood 1 ", node.Likelihood1)
-            print("node.Likelihood 2 ", node.Likelihood2)
+            print("NITJ ", interval.nitj)
+            print("Frontier ", interval.IncludedRightFrontier)
+            print("W value ", interval.W)
+            print("Sum of priors and likelihoods ", interval.SumOfPriorsAndLikelihoods)
+            print("interval.Prior1 ", interval.Prior1)
+            print("interval.Prior2 ", interval.Prior2)
+            print("interval.Likelihood 1 ", interval.Likelihood1)
+            print("interval.Likelihood 2 ", interval.Likelihood2)
             print("=======================================")
             print("=======================================\n")
-            node = node.next
+            interval = interval.next
 
     def getDiscretizationCriterionValue(self):
         start = self.head
@@ -303,12 +306,12 @@ class DLL:
         self.MODL_value = summations
         return summations
 
-    def getSortedListOfAddressAndRightMergeValue(self, node):
+    def getSortedListOfAddressAndRightMergeValue(self, interval):
         AddressAndVal = []  # list of lists
-        while node:
-            rightMergeVal = node.rightMergeDelta
-            AddressAndVal.append((rightMergeVal, node))
-            node = node.next
+        while interval:
+            rightMergeVal = interval.rightMergeDelta
+            AddressAndVal.append((rightMergeVal, interval))
+            interval = interval.next
         AddressAndVal = sorted(AddressAndVal, key=itemgetter(0))
         return sorted(AddressAndVal, key=itemgetter(0))
 
@@ -448,7 +451,7 @@ def greedySearch(best_merges, Intervals, N):
             best_merges.remove(
                 (IntervalRightOfTheMerge.rightMergeDelta, IntervalRightOfTheMerge)
             )
-            Intervals.removeNode(IntervalRightOfTheMerge)
+            Intervals.removeInterval(IntervalRightOfTheMerge)
 
             if IntervalRight_to_new_interval == None:  # last Interval
                 best_merges.remove(
@@ -534,7 +537,7 @@ def merge(interval, Intervals, NumberOfMerges=1):
     for i in range(
         1, len(NeighboursToMerge)
     ):  # Note the first element is the current interval that we are merging, no need to remove it!
-        Intervals.removeNode(NeighboursToMerge[i])
+        Intervals.removeInterval(NeighboursToMerge[i])
 
 
 def splitInterval(interval, Intervals, data, i):  # i is interval index in IntervalsList
@@ -576,11 +579,11 @@ def splitInterval(interval, Intervals, data, i):  # i is interval index in Inter
 
         rightInterval = list(map(sub, interval.nitj, leftInterval))
 
-        LeftNode = Node([leftInterval, val, 0])
-        RightNode = Node([rightInterval, interval.IncludedRightFrontier, 0])
+        LeftInterval = _Interval([leftInterval, val, 0])
+        RightInterval = _Interval([rightInterval, interval.IncludedRightFrontier, 0])
 
-        criterion1 = LeftNode.calculatePriorsAndLikelihoods(mode="MergeAndUpdate")
-        criterion2 = RightNode.calculatePriorsAndLikelihoods(mode="MergeAndUpdate")
+        criterion1 = LeftInterval.calculatePriorsAndLikelihoods(mode="MergeAndUpdate")
+        criterion2 = RightInterval.calculatePriorsAndLikelihoods(mode="MergeAndUpdate")
 
         SplitCriterionVal_leftAndRight = (
             Intervals.MODL_value
@@ -603,18 +606,20 @@ def splitInterval(interval, Intervals, data, i):  # i is interval index in Inter
         leftInterval = LeftAndRightIntervalOfSplits[bestSplit][0]
         rightInterval = LeftAndRightIntervalOfSplits[bestSplit][1]
 
-        LeftNode = interval
-        rightBoundOfTheRightNode = interval.IncludedRightFrontier
-        Intervals.insert(Node([rightInterval, rightBoundOfTheRightNode, 0]), i + 1)
-        RightNode = Intervals.getNth(i + 1)
+        LeftInterval = interval
+        rightBoundOfTheRightInterval = interval.IncludedRightFrontier
+        Intervals.insert(
+            _Interval([rightInterval, rightBoundOfTheRightInterval, 0]), i + 1
+        )
+        RightInterval = Intervals.getNth(i + 1)
 
-        LeftNode.nitj = leftInterval
-        LeftNode.IncludedRightFrontier = bestSplit
+        LeftInterval.nitj = leftInterval
+        LeftInterval.IncludedRightFrontier = bestSplit
 
-        LeftNode.calculatePriorsAndLikelihoods(
+        LeftInterval.calculatePriorsAndLikelihoods(
             mode="MergeAndUpdate"
         )  # it will update W, Priors, lkelihoods and SumOfPriorsAndLikelihoods
-        RightNode.calculatePriorsAndLikelihoods(
+        RightInterval.calculatePriorsAndLikelihoods(
             mode="MergeAndUpdate"
         )  # it will update W, Priors, lkelihoods and SumOfPriorsAndLikelihoods
 
@@ -735,21 +740,21 @@ def copyList(DLL_to_be_copied):
     current = DLL_to_be_copied.head  # used to iterate over the original list
 
     while current:
-        newList.append(current.getNodeData())
+        newList.append(current.getIntervalData())
         current = current.next
 
     return newList
 
 
 def CalculateFeatureLevel(Intervals, method="ED"):
-    node = Intervals.head
+    interval = Intervals.head
     AbsoluteSum = 0
 
     if Intervals.I == 1:
         return 0
 
-    while node:
-        nitj = node.nitj
+    while interval:
+        nitj = interval.nitj
         nit0j0 = nitj[0]
         nit0j1 = nitj[1]
         nit1j0 = nitj[2]
@@ -776,7 +781,7 @@ def CalculateFeatureLevel(Intervals, method="ED"):
             elif piYT0 > 1 - 0.1**6:
                 piYT0 = 1 - 0.1**6
             AbsoluteSum += ((piYT1) * log(piYT1 / piYT0)) * Ni / Intervals.N
-        node = node.next
+        interval = interval.next
     return AbsoluteSum
 
 
