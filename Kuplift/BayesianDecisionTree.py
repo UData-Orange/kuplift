@@ -18,7 +18,7 @@ from .HelperFunctions import (
 )
 
 
-class _Interval:
+class _Node:
     """Private class
 
     Parameters
@@ -176,7 +176,7 @@ class _Interval:
         for (
             NewIntervalEffectifs
         ) in LeftAndRightData:  # Loop on Left and Right candidate nodes
-            L = _Interval(NewIntervalEffectifs, self.treatment, self.output)
+            L = _Node(NewIntervalEffectifs, self.treatment, self.output)
             LeavesVals += L.PriorLeaf + L.LikelihoodLeaf
             del L
         return LeavesVals
@@ -186,13 +186,13 @@ class _Interval:
             raise
         else:
             self.isLeaf = False
-            self.leftInterval = _Interval(
+            self.leftInterval = _Node(
                 self.CandidateSplitsVsDataLeftDataRight[Attribute][0],
                 self.treatment,
                 self.output,
                 ID=self.id * 2,
             )
-            self.rightInterval = _Interval(
+            self.rightInterval = _Node(
                 self.CandidateSplitsVsDataLeftDataRight[Attribute][1],
                 self.treatment,
                 self.output,
@@ -204,11 +204,14 @@ class _Interval:
 
 
 class BayesianDecisionTree:
-    """Main class"""
+    """
+    The BayesianDecisionTree class implements the UB-DT algorithm described in:
+    Rafla, M., Voisine, N., Crémilleux, B., \& Boullé, M. (2023, May). A Non-Parametric Bayesian Decision Trees for Uplift modelling. In PAKDD.
+    """
 
     def __init__(self, data, treatmentName, outcomeName):  # ordered data as argument
         self.intervalsIds = 0
-        self.rootInterval = _Interval(
+        self.rootInterval = _Node(
             data, treatmentName, outcomeName, ID=self.intervalsIds + 1
         )
         self.terminalIntervals = [self.rootInterval]
@@ -284,8 +287,8 @@ class BayesianDecisionTree:
             leafPriors += leafInterval.PriorLeaf
         self.LeafPrior = leafPriors
 
-    def fit(self, X_train, treatment_col, outcome_col):
-        """Description?
+    def fit(self):
+        """Fit an uplift decision tree model using UB-DT
 
         Parameters
         ----------
@@ -422,7 +425,7 @@ class BayesianDecisionTree:
         return self.__traverse_tree(x, interval.rightInterval)
 
     def predict(self, X_test):
-        """Description?
+        """Predict the uplift value for each example in X_test
 
         Parameters
         ----------
