@@ -442,10 +442,18 @@ class UpliftTreeClassifier:
 
 
 class BayesianRandomForest:
-    """Main class
+    """
+    The BayesianRandomForest class implements the UB-RF algorithm described in:
+    Rafla, M., Voisine, N., Crémilleux, B., \& Boullé, M. (2023, May). A Non-Parametric Bayesian Decision Trees for Uplift modelling. In PAKDD.
 
     Parameters
     ----------
+    data : pd.Dataframe
+        Dataframe containing data.
+    treatment_col : pd.Series
+        Treatment column.
+    outcome_col : pd.Series
+        Outcome column.
     n_trees : int
         Number of trees in a forest.
     """
@@ -466,33 +474,27 @@ class BayesianRandomForest:
             Tree = UpliftTreeClassifier(self.data.copy(), treatmentName, outcomeName)
             self.ListOfTrees.append(Tree)
 
-    def fit(self, X_train, treatment_col, outcome_col):
-        """Description?
-
-        Parameters
-        ----------
-        X_train : pd.Dataframe
-            Dataframe containing feature variables.
-        treatment_col : pd.Series
-            Treatment column.
-        outcome_col : pd.Series
-            Outcome column.
+    def fit(self):
+        """
+        Fit a decision tree algorithm
+        
         """
         for tree in self.ListOfTrees:
             tree.growTree()
 
     def predict(self, X_test):
-        """Description?
+        """
+        Predict the uplift value for each example in X_test
 
         Parameters
         ----------
-        X_train : pd.Dataframe
-            Dataframe containing feature variables.
+        X_test : pd.Dataframe
+            Dataframe containing test data.
 
         Returns
         -------
         y_pred_list(ndarray, shape=(num_samples, 1))
-            An array containing the predicted treatment uplift for each sample.
+            An array containing the predicted uplift for each sample.
         """
         ListOfPreds = []
 
