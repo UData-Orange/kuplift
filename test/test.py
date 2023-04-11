@@ -10,12 +10,12 @@ from Kuplift.BayesianRandomForest import BayesianRandomForest
 from Kuplift.UnivariateEncoding import UnivariateEncoding
 
 # change the booleans of the classes to be tested
-testFeatureSelection = False
+testFeatureSelection = True
 testBayesianDecisionTree = False
 testBayesianRandomForest = False
-testUnvariateEncoding = True
+testUnvariateEncoding = False
 
-df = pd.read_csv("../data/zenodo_sample.csv")
+df = pd.read_csv("data/zenodo_sample.csv")
 print(df.head())
 
 stdoutOrigin=sys.stdout
@@ -29,7 +29,7 @@ if testFeatureSelection:
 if testBayesianDecisionTree:
     features = list(df.columns[:-2])
     tree = BayesianDecisionTree(df, "segment", "visit")
-    tree.fit(df, "segment", "visit")
+    tree.fit()
     preds = tree.predict(df[features])
     print(list(preds))
 
