@@ -7,14 +7,13 @@
 # * Unauthorized copying of this file, via any medium is strictly prohibited.        #
 # * See the "LICENSE.md" file for more details.                                      #
 ######################################################################################
-"""Description?"""
 import pandas as pd
-from .HelperFunctions import preprocessData
-from .UMODL_SearchAlgorithm import ExecuteGreedySearchAndPostOpt
+from .HelperFunctions import preprocess_data
+from .UMODL_SearchAlgorithm import execute_greedy_search_and_post_opt
 
 
 class UnivariateEncoding:
-    """Main class"""
+    """Description ?"""
 
     def __init__(self):
         self.VarVsDisc = {}
@@ -63,13 +62,16 @@ class UnivariateEncoding:
 
         Data_features = Data_features[cols + [treatment_col, y_col]]
 
-        Data_features = preprocessData(Data_features, treatment_col, y_col)
+        Data_features = preprocess_data(Data_features, treatment_col, y_col)
 
         VarVsImportance = {}
         self.VarVsDisc = {}
 
         for col in cols:
-            VarVsImportance[col], self.VarVsDisc[col] = ExecuteGreedySearchAndPostOpt(
+            (
+                VarVsImportance[col],
+                self.VarVsDisc[col],
+            ) = execute_greedy_search_and_post_opt(
                 Data_features[[col, treatment_col, y_col]]
             )
             if len(self.VarVsDisc[col]) == 1:

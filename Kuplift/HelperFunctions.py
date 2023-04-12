@@ -7,7 +7,6 @@
 # * Unauthorized copying of this file, via any medium is strictly prohibited.        #
 # * See the "LICENSE.md" file for more details.                                      #
 ######################################################################################
-"""Description?"""
 from math import log
 
 _Log_Fact_Table = []
@@ -15,10 +14,17 @@ binomialFunctionAccessCount = 0
 
 
 def log_fact(n):
-    """
-    Compute log(fact(n))
-    :param n:
-    :return: value of log(fact(n))
+    """Compute log(fact(n)).
+
+    Parameters
+    ----------
+    n : int
+        Number on which to do the calculation.
+
+    Returns
+    -------
+    float
+        Value of log(fact(n)).
     """
     # Use approximation for large n
     if n > 1e6:
@@ -36,12 +42,19 @@ def log_fact(n):
         return _Log_Fact_Table[n]
 
 
-def log_2_star(k: int):
-    """
-    Computes the term log_2*(k)=log_2(k) + log_2(log_2(k)) + ...  of Rissanen's code for integers
-    so long as the terms are positive
-    :param k:
-    :return:
+def log_2_star(k):
+    """Computes the term log_2*(k)=log_2(k) + log_2(log_2(k)) + ...  of Rissanen's code for integers
+    so long as the terms are positive.
+
+    Parameters
+    ----------
+    k : int
+        Number on which to do the calculation.
+
+    Returns
+    -------
+    float
+        Value of the result.
     """
     d_log2 = log(2.0)
     d_cost = 0.0
@@ -56,17 +69,22 @@ def log_2_star(k: int):
         return d_cost
 
 
-#
+def log_binomial_coefficient(n, k):
+    """Computes the log of the binomial coefficient (n
+                                                     k)
+    (log of the total number of combinations of k elements from n).
 
+    Parameters
+    ----------
+    n : int
+        Total number of elements.
+    k : int
+        Number of selected elements.
 
-def log_binomial_coefficient(n: int, k: int):
-    """
-    Computes the log of the binomial coefficient  (n
-                                                   k)
-    (log of the total number of combinations of k elements from n)
-    :param n: Total number of elements
-    :param k: Number of selected elements
-    :return:
+    Returns
+    -------
+    float
+        Value of the result.
     """
     # start_counter(5)
     nf = log_fact(n)
@@ -76,12 +94,18 @@ def log_binomial_coefficient(n: int, k: int):
     return (nf - nkf) - kf
 
 
-def universal_code_natural_numbers(k: int):
-    """
-    Compute the universal code for integers presented by Rissanen in
-    'A Universal Prior for Integers and Estimation by Minimum Description Length', Rissanen 1983
-    :param k:
-    :return:
+def universal_code_natural_numbers(k):
+    """Compute the universal code for integers presented by Rissanen in
+    'A Universal Prior for Integers and Estimation by Minimum Description Length', Rissanen 1983.
+
+    Parameters
+    ----------
+    k : int
+
+    Returns
+    -------
+    float
+        Value of the result.
     """
     dC0 = 2.86511  # First value computed following the given estimation formula, as e(3)=65536 + d_log2^5 / (1-d_log2)
     d_log2 = log(2.0)
@@ -89,19 +113,29 @@ def universal_code_natural_numbers(k: int):
     if k < 1:
         raise ValueError("Universal code is defined for natural numbers over 1")
     else:
-        # Initialize code length cost to log_2(dC0)
-        d_cost = log(dC0) / d_log2
-
-        # Add log_2*(k)
-        d_cost += log_2_star(k)
-
-        # Go back to the natural log
-        d_cost *= d_log2
-
+        d_cost = log(dC0) / d_log2  # Initialize code length cost to log_2(dC0)
+        d_cost += log_2_star(k)  # Add log_2*(k)
+        d_cost *= d_log2  # Go back to the natural log
         return d_cost
 
 
-def preprocessData(Data_features, treatment_col="segment", y_col="visit"):
+def preprocess_data(Data_features, treatment_col="segment", y_col="visit"):
+    """Description?
+
+    Parameters
+    ----------
+    Data_features : pd.Dataframe
+        Dataframe containing feature variables.
+    treatment_col : pd.Series, optional
+        Treatment column.
+    y_col : pd.Series, optional
+        Outcome column.
+
+    Returns
+    -------
+    pd.Dataframe
+        Pandas Dataframe that contains encoded Data_features.
+    """
     cols = Data_features.columns
     num_cols = list(Data_features._get_numeric_data().columns)
 

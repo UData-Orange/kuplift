@@ -7,10 +7,9 @@
 # * Unauthorized copying of this file, via any medium is strictly prohibited.        #
 # * See the "LICENSE.md" file for more details.                                      #
 ######################################################################################
-"""Description?"""
 import numpy as np
 from math import log
-from .BinaryDiscretizationFunctions import UMODL_BinaryDiscretization
+from .BinaryDiscretizationFunctions import umodl_binary_discretization
 from .HelperFunctions import (
     log_fact,
     universal_code_natural_numbers,
@@ -31,8 +30,6 @@ class _Node:
         Outcome column.
     ID : ?, optional
         ?
-    debug : bool
-        Print the performance time
     """
 
     def __init__(self, data, treatmentName, outcomeName, ID=None):
@@ -79,17 +76,17 @@ class _Node:
         self.CandidateSplitsVsCriterion = None
         self.leftNode = None
         self.rightNode = None
-        self.PriorOfInternalNode = self.__calcPriorOfInternalNode()
+        self.PriorOfInternalNode = self.__calc_prior_of_internal_node()
         (
             self.PriorLeaf,
             self.LikelihoodLeaf,
             self.W,
-        ) = self.__calcPriorAndLikelihoodLeaf()
+        ) = self.__calc_prior_and_likelihood_leaf()
 
-    def __calcPriorOfInternalNode(self):
+    def __calc_prior_of_internal_node(self):
         return log_binomial_coefficient(sum(self.Ntj) + 1, 1)
 
-    def __calcPriorAndLikelihoodLeaf(self):
+    def __calc_prior_and_likelihood_leaf(self):
         NumberOfTreatment = self.Ntj[2] + self.Ntj[3]
         NumberOfControl = self.Ntj[0] + self.Ntj[1]
         NumberOfPosOutcome = self.Ntj[1] + self.Ntj[3]
@@ -119,17 +116,17 @@ class _Node:
             TreeLikelihood = TreeLikelihood_W1
         return LeafPrior, TreeLikelihood, W
 
-    def discretizeVarsAndGetAttributesSplitsCosts(self):
-        """
-        For this node loop on all attributes and get the optimal split for each one
+    def discretize_vars_and_get_attributes_splits_costs(self):
+        """For this node loop on all attributes and get the optimal split for each one.
 
-        return a dictionary of lists
-        {age: Cost, sex: Cost}
+        Returns
+        -------
+        Dictionary of lists
+
+        For example: return a dictionnary {age: Cost, sex: Cost}
         The cost here corresponds to
         1- the cost of this node to internal instead of leaf (CriterionToBeInternal-PriorLeaf)
         2- The combinatorial terms of the leaf prior and likelihood
-
-        NOTE: Maybe I should save the AttributeToSplitVsLeftAndRightData in this node.
         """
         features = list(self.X.columns)
         AttributeToSplitVsLeftAndRightData = {}
@@ -139,7 +136,7 @@ class _Node:
                 or len(self.X[attribute].value_counts()) == 0
             ):
                 continue
-            DiscRes = UMODL_BinaryDiscretization(self.X, self.T, self.Y, attribute)
+            DiscRes = umodl_binary_discretization(self.X, self.T, self.Y, attribute)
             if DiscRes == -1:
                 continue
             dataLeft, dataRight, threshold = DiscRes[0], DiscRes[1], DiscRes[2]
@@ -152,26 +149,26 @@ class _Node:
         self.CandidateSplitsVsDataLeftDataRight = (
             AttributeToSplitVsLeftAndRightData.copy()
         )
-        CandidateSplitsVsCriterion = self.__getAttributesSplitsCosts(
+        CandidateSplitsVsCriterion = self.__get_attributes_splits_costs(
             AttributeToSplitVsLeftAndRightData
         )
         self.CandidateSplitsVsCriterion = CandidateSplitsVsCriterion.copy()
         return CandidateSplitsVsCriterion.copy()
 
-    def __getAttributesSplitsCosts(self, DictOfEachAttVsEffectifs):
+    def __get_attributes_splits_costs(self, DictOfEachAttVsEffectifs):
         # Prior of Internal node is only the combinatorial calculations
         CriterionToBeInternal = (
-            self.__calcPriorOfInternalNode()
+            self.__calc_prior_of_internal_node()
         )  # In case we split this node, it will be no more a leaf but an internal node
         NewPriorVals = CriterionToBeInternal - self.PriorLeaf - self.LikelihoodLeaf
 
         CandidateSplitsVsCriterion = {}
         for key in DictOfEachAttVsEffectifs:
-            LeavesVal = self.__updateTreeCriterion(DictOfEachAttVsEffectifs[key][:2])
+            LeavesVal = self.__update_tree_criterion(DictOfEachAttVsEffectifs[key][:2])
             CandidateSplitsVsCriterion[key] = NewPriorVals + LeavesVal
         return CandidateSplitsVsCriterion.copy()
 
-    def __updateTreeCriterion(self, LeftAndRightData, simulate=True):
+    def __update_tree_criterion(self, LeftAndRightData, simulate=True):
         LeavesVals = 0
         for (
             NewNodeEffectifs
@@ -181,7 +178,7 @@ class _Node:
             del L
         return LeavesVals
 
-    def performSplit(self, Attribute):
+    def perform_split(self, Attribute):
         if self.CandidateSplitsVsDataLeftDataRight == None:
             raise
         else:
@@ -211,9 +208,7 @@ class BayesianDecisionTree:
 
     def __init__(self, data, treatmentName, outcomeName):  # ordered data as argument
         self.nodesIds = 0
-        self.rootNode = _Node(
-            data, treatmentName, outcomeName, ID=self.nodesIds + 1
-        )
+        self.rootNode = _Node(data, treatmentName, outcomeName, ID=self.nodesIds + 1)
         self.terminalNodes = [self.rootNode]
         self.internalNodes = []
 
@@ -232,7 +227,7 @@ class BayesianDecisionTree:
         self.LeafPrior = None
         self.TreeLikelihood = None
 
-        self.__calcCriterion()
+        self.__calc_criterion()
 
         self.TreeCriterion = (
             self.Prob_Kt
@@ -244,21 +239,21 @@ class BayesianDecisionTree:
             + self.TreeLikelihood
         )
 
-    def __calcCriterion(self):
-        self.__calcProb_kt()
-        self.__calcPriorOfInternalNode()
-        self.__calcEncoding()
-        self.__calcLeafPrior()
-        self.__calcTreeLikelihood()
+    def __calc_criterion(self):
+        self.__calc_prob_kt()
+        self.__calc_prior_of_internal_node()
+        self.__calc_encoding()
+        self.__calc_leaf_prior()
+        self.__calc_tree_likelihood()
 
-    def __calcProb_kt(self):
+    def __calc_prob_kt(self):
         self.Prob_Kt = (
             universal_code_natural_numbers(self.K_t)
             - log_fact(self.K_t)
             + self.K_t * log(self.K)
         )
 
-    def __calcPriorOfInternalNode(self):
+    def __calc_prior_of_internal_node(self):
         if len(self.internalNodes) == 0:
             self.PriorOfInternalNode = 0
             self.ProbAttributeSelection = 0
@@ -269,23 +264,23 @@ class BayesianDecisionTree:
             self.PriorOfInternalNode = PriorOfInternalNode
             self.ProbAttributeSelection = log(self.K_t) * len(self.internalNodes)
 
-    def __calcEncoding(self):
+    def __calc_encoding(self):
         self.EncodingOfBeingALeafNodeAndContainingTE = (
             len(self.terminalNodes) * log(2) * 2
         )
         self.EncodingOfBeingAnInternalNode = len(self.internalNodes) * log(2)
 
-    def __calcTreeLikelihood(self):
-        LeafLikelihoods = 0
-        for leafNode in self.terminalNodes:
-            LeafLikelihoods += leafNode.LikelihoodLeaf
-        self.TreeLikelihood = LeafLikelihoods
-
-    def __calcLeafPrior(self):
+    def __calc_leaf_prior(self):
         leafPriors = 0
         for leafNode in self.terminalNodes:
             leafPriors += leafNode.PriorLeaf
         self.LeafPrior = leafPriors
+
+    def __calc_tree_likelihood(self):
+        LeafLikelihoods = 0
+        for leafNode in self.terminalNodes:
+            LeafLikelihoods += leafNode.LikelihoodLeaf
+        self.TreeLikelihood = LeafLikelihoods
 
     def fit(self):
         """Fit an uplift decision tree model using UB-DT
@@ -337,7 +332,7 @@ class BayesianDecisionTree:
                 if terminalNode.CandidateSplitsVsCriterion == None:
                     NodeVsCandidateSplitsCosts[
                         terminalNode
-                    ] = terminalNode.discretizeVarsAndGetAttributesSplitsCosts()
+                    ] = terminalNode.discretize_vars_and_get_attributes_splits_costs()
                 else:
                     NodeVsCandidateSplitsCosts[
                         terminalNode
@@ -395,13 +390,13 @@ class BayesianDecisionTree:
                 if OptimalAttribute not in self.feature_subset:
                     self.feature_subset.append(OptimalAttribute)
                     self.K_t += 1
-                NewLeftLeaf, NewRightLeaf = OptimalNode.performSplit(OptimalAttribute)
+                NewLeftLeaf, NewRightLeaf = OptimalNode.perform_split(OptimalAttribute)
                 self.terminalNodes.append(NewLeftLeaf)
                 self.terminalNodes.append(NewRightLeaf)
                 self.internalNodes.append(OptimalNode)
                 self.terminalNodes.remove(OptimalNode)
 
-                self.__calcCriterion()
+                self.__calc_criterion()
             else:
                 break
         print("Learning Finished")

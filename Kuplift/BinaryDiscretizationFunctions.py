@@ -7,7 +7,6 @@
 # * Unauthorized copying of this file, via any medium is strictly prohibited.        #
 # * See the "LICENSE.md" file for more details.                                      #
 ######################################################################################
-"""Description?"""
 import bisect
 from math import log
 import pandas as pd
@@ -41,7 +40,7 @@ def stop_counter(i):
     _start_time_counter[i] = time.time()
 
 
-def calcCriterion(NITJ_Interval, NUllModel=False):
+def calc_criterion(NITJ_Interval, NUllModel=False):
     NITJ_Interval_sum = sum(NITJ_Interval)
     Fact_Class0Freq = _Log_Fact_Table[(NITJ_Interval[0] + NITJ_Interval[2])]
     Fact_Class1Freq = _Log_Fact_Table[(NITJ_Interval[1] + NITJ_Interval[3])]
@@ -126,7 +125,7 @@ def calcCriterion(NITJ_Interval, NUllModel=False):
     return SumOfPriorsAndLikelihoods
 
 
-def splitInterval(
+def split_interval(
     df, colName, treatmentColName, outputColName, NullModelValue, granularite=16
 ):  # i is interval index in IntervalsList
     data = df[[colName, treatmentColName, outputColName]].values.tolist()
@@ -191,8 +190,8 @@ def splitInterval(
 
         # Calculate criterion manually
         start_counter(22)
-        criterion1 = calcCriterion(leftInterval)  # prior and likelihood
-        criterion2 = calcCriterion(rightInterval)  # prior and likelihood
+        criterion1 = calc_criterion(leftInterval)  # prior and likelihood
+        criterion2 = calc_criterion(rightInterval)  # prior and likelihood
         stop_counter(22)
 
         start_counter(24)
@@ -227,7 +226,7 @@ def splitInterval(
     return -1
 
 
-def calcNullModel(dff, att, treatmentColName, outputColName):
+def calc_null_model(dff, att, treatmentColName, outputColName):
     data = dff[[att, treatmentColName, outputColName]].values.tolist()
 
     data = SortedKeyList(data, key=itemgetter(0))
@@ -244,19 +243,19 @@ def calcNullModel(dff, att, treatmentColName, outputColName):
         log_fact(NumberOfIndividualsWithClass1)
         + log_fact(NumberOfIndividualsWithClass0)
     )
-    return (2 * log(2)) + calcCriterion(dataNITJ)
+    return (2 * log(2)) + calc_criterion(dataNITJ)
 
 
-def Exec(df, attributeToDiscretize, treatmentColName, outputColName):
-    NullModelValue = calcNullModel(
+def exec(df, attributeToDiscretize, treatmentColName, outputColName):
+    NullModelValue = calc_null_model(
         df, attributeToDiscretize, treatmentColName, outputColName
     )
-    return splitInterval(
+    return split_interval(
         df, attributeToDiscretize, treatmentColName, outputColName, NullModelValue
     )
 
 
-def UMODL_BinaryDiscretization(data, T, Y, attributeToDiscretize):
+def umodl_binary_discretization(data, T, Y, attributeToDiscretize):
     df = pd.DataFrame()
     df = data.copy()
     treatmentColName = T.name
@@ -266,4 +265,4 @@ def UMODL_BinaryDiscretization(data, T, Y, attributeToDiscretize):
     df.sort_values(by=attributeToDiscretize, inplace=True)
     df.reset_index(inplace=True, drop=True)
     log_fact(df.shape[0] + 1)
-    return Exec(df, attributeToDiscretize, treatmentColName, outputColName)
+    return exec(df, attributeToDiscretize, treatmentColName, outputColName)

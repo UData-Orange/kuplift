@@ -7,7 +7,6 @@
 # * Unauthorized copying of this file, via any medium is strictly prohibited.        #
 # * See the "LICENSE.md" file for more details.                                      #
 ######################################################################################
-"""Description?"""
 import numpy as np
 from math import log
 from operator import add, sub, itemgetter
@@ -48,7 +47,7 @@ class _Interval:
             self.SumOfPriorsAndLikelihoods = data[11]
             self.SumOfPriorsAndLikelihoodsWithZeroW = None
 
-    def getIntervalData(self):
+    def get_interval_data(self):
         return [
             self.nitj,
             self.IncludedRightFrontier,
@@ -64,7 +63,7 @@ class _Interval:
             self.SumOfPriorsAndLikelihoods,
         ]
 
-    def calculatePriorsAndLikelihoods(
+    def calculate_priors_and_likelihoods(
         self, mode="init", CalcNull1=False, CalcNull2=False
     ):
         if mode == "DeltaCalc":
@@ -157,7 +156,7 @@ class _Interval:
         return SumOfPriorsAndLikelihoods
 
 
-class DLL:
+class _DLL:
     def __init__(self):
         self.head = None
         self.tail = None
@@ -211,7 +210,7 @@ class DLL:
         self.I += 1
         return
 
-    def removeInterval(self, interval):
+    def remove_interval(self, interval):
         if interval == self.head:
             self.head = self.head.next
             self.head.previous = None
@@ -263,7 +262,7 @@ class DLL:
     def size(self):
         return self.count
 
-    def getNth(self, index):
+    def get_nth(self, index):
         current = self.head  # Initialise temp
         count = 0  # Index of current interval
 
@@ -275,23 +274,7 @@ class DLL:
             current = current.next
         return 0
 
-    def listprint(self, interval):
-        while interval is not None:
-            print("=======================================")
-            print("=======================================")
-            print("NITJ ", interval.nitj)
-            print("Frontier ", interval.IncludedRightFrontier)
-            print("W value ", interval.W)
-            print("Sum of priors and likelihoods ", interval.SumOfPriorsAndLikelihoods)
-            print("interval.Prior1 ", interval.Prior1)
-            print("interval.Prior2 ", interval.Prior2)
-            print("interval.Likelihood 1 ", interval.Likelihood1)
-            print("interval.Likelihood 2 ", interval.Likelihood2)
-            print("=======================================")
-            print("=======================================\n")
-            interval = interval.next
-
-    def getDiscretizationCriterionValue(self):
+    def get_discretization_criterion_value(self):
         start = self.head
         summations = 0
         while start:
@@ -306,7 +289,7 @@ class DLL:
         self.MODL_value = summations
         return summations
 
-    def getSortedListOfAddressAndRightMergeValue(self, interval):
+    def get_sorted_list_of_address_and_right_merge_value(self, interval):
         AddressAndVal = []  # list of lists
         while interval:
             rightMergeVal = interval.rightMergeDelta
@@ -315,7 +298,7 @@ class DLL:
         AddressAndVal = sorted(AddressAndVal, key=itemgetter(0))
         return sorted(AddressAndVal, key=itemgetter(0))
 
-    def getDiscretizationInfo(self):
+    def get_discretization_info(self):
         start = self.head
         IntervalBounds = []
         ListOfWs = []
@@ -327,7 +310,7 @@ class DLL:
         return [self.MODL_value, self.count, IntervalBounds, ListOfWs]
 
 
-def createElementaryDiscretization(dll, data):
+def create_elementary_discretization(dll, data):
     """
     params
     data : list of lists, each internal list contains [data value, treatment value, y value]
@@ -344,16 +327,16 @@ def createElementaryDiscretization(dll, data):
     for intervalList in data:
         if intervalList[0] != prev:
             if i != -1:
-                dll.tail.calculatePriorsAndLikelihoods()
+                dll.tail.calculate_priors_and_likelihoods()
             dll.append([[0, 0, 0, 0], intervalList[0], 0])
             prev = intervalList[0]
             i += 1
         dll.tail.nitj[int((intervalList[1] * 2) + intervalList[2])] += 1
-    dll.tail.calculatePriorsAndLikelihoods()
+    dll.tail.calculate_priors_and_likelihoods()
     stop_counter(0)
 
     # calculating whole criterion
-    return dll, dll.getDiscretizationCriterionValue(), dll.size()
+    return dll, dll.get_discretization_criterion_value(), dll.size()
 
 
 def criterion_delta_for_one_adjacent_interval_merge(
@@ -361,7 +344,7 @@ def criterion_delta_for_one_adjacent_interval_merge(
 ):
     start_counter(1)
     if indexPassed:
-        LeftIntervalNode = dll.getNth(LeftIntervalNode)
+        LeftIntervalNode = dll.get_nth(LeftIntervalNode)
 
     RightIntervalNode = LeftIntervalNode.next
     if RightIntervalNode == None:
@@ -370,7 +353,7 @@ def criterion_delta_for_one_adjacent_interval_merge(
         return
     OldLeftIntervalNodeCriterion = LeftIntervalNode.SumOfPriorsAndLikelihoods
 
-    LeftIntervalNodeCriterion = LeftIntervalNode.calculatePriorsAndLikelihoods(mode)
+    LeftIntervalNodeCriterion = LeftIntervalNode.calculate_priors_and_likelihoods(mode)
 
     RightIntervalNodeCriterion = RightIntervalNode.SumOfPriorsAndLikelihoods
 
@@ -397,7 +380,7 @@ def compute_criterion_delta_for_all_possible_merges(dll):
     stop_counter(2)
 
 
-def greedySearch(best_merges, Intervals, N):
+def greedy_search(best_merges, Intervals, N):
     start_counter(3)
     for step in range(N):
         if len(best_merges) > 0:
@@ -428,7 +411,9 @@ def greedySearch(best_merges, Intervals, N):
             )
 
             LeftIntervalNodeCriterion = (
-                IntervalToBeMerged.calculatePriorsAndLikelihoods(mode="MergeAndUpdate")
+                IntervalToBeMerged.calculate_priors_and_likelihoods(
+                    mode="MergeAndUpdate"
+                )
             )  # it will update W, Priors, lkelihoods and SumOfPriorsAndLikelihoods
             Intervals.MODL_value = (
                 Intervals.MODL_value
@@ -451,7 +436,7 @@ def greedySearch(best_merges, Intervals, N):
             best_merges.remove(
                 (IntervalRightOfTheMerge.rightMergeDelta, IntervalRightOfTheMerge)
             )
-            Intervals.removeInterval(IntervalRightOfTheMerge)
+            Intervals.remove_interval(IntervalRightOfTheMerge)
 
             if IntervalRight_to_new_interval == None:  # last Interval
                 best_merges.remove(
@@ -518,7 +503,7 @@ def merge(interval, Intervals, NumberOfMerges=1):
     interval.nitj = MergedIntervals
     interval.IncludedRightFrontier = NeighboursToMerge[-1].IncludedRightFrontier
     # NOW WE HAVE TO SEARCH for the old values of the sum of prior and likelihoods !!!!
-    LeftIntervalNodeCriterion = interval.calculatePriorsAndLikelihoods(
+    LeftIntervalNodeCriterion = interval.calculate_priors_and_likelihoods(
         mode="MergeAndUpdate"
     )  # it will update W, Priors, lkelihoods and SumOfPriorsAndLikelihoods
     Intervals.MODL_value = (
@@ -537,10 +522,12 @@ def merge(interval, Intervals, NumberOfMerges=1):
     for i in range(
         1, len(NeighboursToMerge)
     ):  # Note the first element is the current interval that we are merging, no need to remove it!
-        Intervals.removeInterval(NeighboursToMerge[i])
+        Intervals.remove_interval(NeighboursToMerge[i])
 
 
-def splitInterval(interval, Intervals, data, i):  # i is interval index in IntervalsList
+def split_interval(
+    interval, Intervals, data, i
+):  # i is interval index in IntervalsList
     if interval == Intervals.head:
         IncludingLeftBorder = True
         LeftBound = data[0][0]
@@ -582,8 +569,12 @@ def splitInterval(interval, Intervals, data, i):  # i is interval index in Inter
         LeftInterval = _Interval([leftInterval, val, 0])
         RightInterval = _Interval([rightInterval, interval.IncludedRightFrontier, 0])
 
-        criterion1 = LeftInterval.calculatePriorsAndLikelihoods(mode="MergeAndUpdate")
-        criterion2 = RightInterval.calculatePriorsAndLikelihoods(mode="MergeAndUpdate")
+        criterion1 = LeftInterval.calculate_priors_and_likelihoods(
+            mode="MergeAndUpdate"
+        )
+        criterion2 = RightInterval.calculate_priors_and_likelihoods(
+            mode="MergeAndUpdate"
+        )
 
         SplitCriterionVal_leftAndRight = (
             Intervals.MODL_value
@@ -611,15 +602,15 @@ def splitInterval(interval, Intervals, data, i):  # i is interval index in Inter
         Intervals.insert(
             _Interval([rightInterval, rightBoundOfTheRightInterval, 0]), i + 1
         )
-        RightInterval = Intervals.getNth(i + 1)
+        RightInterval = Intervals.get_nth(i + 1)
 
         LeftInterval.nitj = leftInterval
         LeftInterval.IncludedRightFrontier = bestSplit
 
-        LeftInterval.calculatePriorsAndLikelihoods(
+        LeftInterval.calculate_priors_and_likelihoods(
             mode="MergeAndUpdate"
         )  # it will update W, Priors, lkelihoods and SumOfPriorsAndLikelihoods
-        RightInterval.calculatePriorsAndLikelihoods(
+        RightInterval.calculate_priors_and_likelihoods(
             mode="MergeAndUpdate"
         )  # it will update W, Priors, lkelihoods and SumOfPriorsAndLikelihoods
 
@@ -628,7 +619,7 @@ def splitInterval(interval, Intervals, data, i):  # i is interval index in Inter
     return splitDone, bestSplit, Intervals
 
 
-def PostOptimizationToBeRepeated(Intervals, data, i=0):
+def post_optimization_to_be_repeated(Intervals, data, i=0):
     data = SortedKeyList(data, key=itemgetter(0))
     interval = Intervals.head
     OlD_MODL_CRITERION_VALUE = Intervals.MODL_value
@@ -639,10 +630,12 @@ def PostOptimizationToBeRepeated(Intervals, data, i=0):
         LoopingCount += 1
         i = 0
         while True:
-            interval = Intervals.getNth(i)
+            interval = Intervals.get_nth(i)
             if interval == 0:
                 break
-            SplitDone, SplitVal, Intervals = splitInterval(interval, Intervals, data, i)
+            SplitDone, SplitVal, Intervals = split_interval(
+                interval, Intervals, data, i
+            )
             if SplitDone:
                 i += 2
             else:
@@ -650,7 +643,7 @@ def PostOptimizationToBeRepeated(Intervals, data, i=0):
 
         i = 0
         while True:
-            interval = Intervals.getNth(i)
+            interval = Intervals.get_nth(i)
             if interval == 0:
                 break
             if interval == Intervals.tail:
@@ -659,16 +652,13 @@ def PostOptimizationToBeRepeated(Intervals, data, i=0):
                 # Arrived to the most left interval
                 break
 
-            ################################################
             OldSplitVal = interval.IncludedRightFrontier
-            ####MERGESPLIT###############
             merge(interval, Intervals, 1)
-
             # Merge finished successfully
-            SplitAfterMergeDone, SplitVal, Intervals = splitInterval(
+            SplitAfterMergeDone, SplitVal, Intervals = split_interval(
                 interval, Intervals, data, i
             )
-            ################################################
+
             if SplitAfterMergeDone and SplitVal != OldSplitVal:
                 i += 2
             else:
@@ -677,7 +667,7 @@ def PostOptimizationToBeRepeated(Intervals, data, i=0):
         # MergeMegeSplit
         i = 0
         while True:
-            interval = Intervals.getNth(i)
+            interval = Intervals.get_nth(i)
 
             if interval == 0:
                 break
@@ -689,18 +679,15 @@ def PostOptimizationToBeRepeated(Intervals, data, i=0):
             if interval.next.next == None:
                 break
 
-            OriginalIntervalsList = copyList(Intervals)
-            ################################################
-            ####MERGESPLIT###############
+            OriginalIntervalsList = copy_list(Intervals)
             merge(interval, Intervals, 2)
-
-            OriginalIntervalsListAfterMerge = copyList(Intervals)
+            OriginalIntervalsListAfterMerge = copy_list(Intervals)
 
             # Merge finished successfully
-            SplitAfterMergeDone, SplitVal, Intervals = splitInterval(
+            SplitAfterMergeDone, SplitVal, Intervals = split_interval(
                 interval, Intervals, data, i
             )
-            ################################################
+
             if (
                 Intervals.MODL_value < OriginalIntervalsList.MODL_value
                 and Intervals.MODL_value < OriginalIntervalsListAfterMerge.MODL_value
@@ -710,10 +697,10 @@ def PostOptimizationToBeRepeated(Intervals, data, i=0):
                 OriginalIntervalsList.MODL_value
                 < OriginalIntervalsListAfterMerge.MODL_value
             ):
-                Intervals = copyList(OriginalIntervalsList)
+                Intervals = copy_list(OriginalIntervalsList)
                 i += 3
             else:
-                Intervals = copyList(OriginalIntervalsListAfterMerge)
+                Intervals = copy_list(OriginalIntervalsListAfterMerge)
                 i += 1
 
         CriterionValueAfterOptimization = Intervals.MODL_value
@@ -729,24 +716,24 @@ def PostOptimizationToBeRepeated(Intervals, data, i=0):
         Intervals.size(),
         Intervals.MODL_value,
         Intervals,
-        Intervals.getDiscretizationInfo(),
+        Intervals.get_discretization_info(),
     )
 
 
-def copyList(DLL_to_be_copied):
-    newList = DLL()  # head of the new list
+def copy_list(DLL_to_be_copied):
+    newList = _DLL()  # head of the new list
     newList.N = DLL_to_be_copied.N
     newList.MODL_value = DLL_to_be_copied.MODL_value
     current = DLL_to_be_copied.head  # used to iterate over the original list
 
     while current:
-        newList.append(current.getIntervalData())
+        newList.append(current.get_interval_data())
         current = current.next
 
     return newList
 
 
-def CalculateFeatureLevel(Intervals, method="ED"):
+def calculate_feature_level(Intervals, method="ED"):
     interval = Intervals.head
     AbsoluteSum = 0
 
@@ -785,7 +772,7 @@ def CalculateFeatureLevel(Intervals, method="ED"):
     return AbsoluteSum
 
 
-def ExecuteGreedySearchAndPostOpt(df):
+def execute_greedy_search_and_post_opt(df):
     treatmentCol_name = df.columns[1]
     y_name = df.columns[2]
 
@@ -794,10 +781,10 @@ def ExecuteGreedySearchAndPostOpt(df):
 
     df = df.values.tolist()
     df = sorted(df, key=itemgetter(0))
-    Intervals = DLL()
+    Intervals = _DLL()
     Intervals.N = len(df)
 
-    Intervals, Intervals.MODL_value, I = createElementaryDiscretization(
+    Intervals, Intervals.MODL_value, I = create_elementary_discretization(
         Intervals, df
     )  # Elementary discretization
 
@@ -805,20 +792,20 @@ def ExecuteGreedySearchAndPostOpt(df):
         Intervals
     )  # Compute the cost of all possible merges of two adjacent intervals
 
-    best_merges = Intervals.getSortedListOfAddressAndRightMergeValue(
+    best_merges = Intervals.get_sorted_list_of_address_and_right_merge_value(
         Intervals.head
     )  # Get all the costs of 'all possible merges of two adjacent intervals' sorted
     best_merges = SortedKeyList(best_merges, key=itemgetter(0))
 
     # Start greedy search
-    greedySearch(best_merges, Intervals, Intervals.N)
+    greedy_search(best_merges, Intervals, Intervals.N)
 
     # Post Optimization steps
-    IntervalsNUM, umodl_val, Intervals, Info = PostOptimizationToBeRepeated(
+    IntervalsNUM, umodl_val, Intervals, Info = post_optimization_to_be_repeated(
         Intervals, df
     )
 
     Bounds = Info[2]
-    FeatureLevel_ED = CalculateFeatureLevel(Intervals)
+    FeatureLevel_ED = calculate_feature_level(Intervals)
 
     return [FeatureLevel_ED, Bounds]

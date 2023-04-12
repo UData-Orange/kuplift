@@ -7,10 +7,9 @@
 # * Unauthorized copying of this file, via any medium is strictly prohibited.        #
 # * See the "LICENSE.md" file for more details.                                      #
 ######################################################################################
-"""Description?"""
 import sys
-from .HelperFunctions import preprocessData
-from .UMODL_SearchAlgorithm import ExecuteGreedySearchAndPostOpt
+from .HelperFunctions import preprocess_data
+from .UMODL_SearchAlgorithm import execute_greedy_search_and_post_opt
 
 
 class FeatureSelection:
@@ -19,7 +18,7 @@ class FeatureSelection:
     Rafla, M., Voisine, N., Crémilleux, B., & Boullé, M. (2023, March). A non-parametric bayesian approach for uplift discretization and feature selection. In Machine Learning and Knowledge Discovery in Databases: European Conference, ECML PKDD 2022, Grenoble, France, September 19–23, 2022, Proceedings, Part V (pp. 239-254). Cham: Springer Nature Switzerland.
     """
 
-    def __getTheBestVar(self, data, treatment_col, y_col):
+    def __get_the_best_var(self, data, treatment_col, y_col):
         """Description?
 
         Parameters
@@ -38,10 +37,10 @@ class FeatureSelection:
 
         For example: return a dictionary VarVsImportance={"age":2.2,"job":2.3}
         """
-        features=list(data.columns)
+        features = list(data.columns)
         features.remove(treatment_col)
         features.remove(y_col)
-        
+
         VarVsImportance = {}
         VarVsDisc = {}
         for feature in features:
@@ -49,7 +48,7 @@ class FeatureSelection:
             (
                 VarVsImportance[feature],
                 VarVsDisc[feature],
-            ) = ExecuteGreedySearchAndPostOpt(
+            ) = execute_greedy_search_and_post_opt(
                 data[[feature, treatment_col, y_col]]
             )
         # sort the dictionary by values in ascending order
@@ -84,14 +83,9 @@ class FeatureSelection:
         cols.remove(treatment_col)
         cols.remove(y_col)
         data = data[cols + [treatment_col, y_col]]
+        data = preprocess_data(data, treatment_col, y_col)
 
-        features = list(data.columns[:-2])
-
-        data = preprocessData(data, treatment_col, y_col)
-
-        ListOfVarsImportance = self.__getTheBestVar(
-            data, treatment_col, y_col
-        )
+        ListOfVarsImportance = self.__get_the_best_var(data, treatment_col, y_col)
 
         sys.stdout.close()
         sys.stdout = stdoutOrigin
