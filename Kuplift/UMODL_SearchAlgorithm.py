@@ -547,9 +547,9 @@ def merge(interval, intervals, number_of_merges=1):
 
 
 def split_interval(
-    interval, Intervals, data, i
+    interval, intervals, data, i
 ):  # i is interval index in intervalsList
-    if interval == Intervals.head:
+    if interval == intervals.head:
         including_left_border = True
         left_bound = data[0][0]
     else:
@@ -602,17 +602,17 @@ def split_interval(
         )
 
         split_criterion_val_left_and_right = (
-            Intervals.modl_value
+            intervals.modl_value
             - interval.sum_of_priors_and_likelihoods
-            - log_binomial_coefficient(Intervals.n + Intervals.i - 1, Intervals.i - 1)
-            - ((Intervals.i) * log(2))
+            - log_binomial_coefficient(intervals.n + intervals.i - 1, intervals.i - 1)
+            - ((intervals.i) * log(2))
             + criterion_one
             + criterion_two
-            + log_binomial_coefficient(Intervals.n + Intervals.i, Intervals.i)
-            + ((Intervals.i + 1) * log(2))
+            + log_binomial_coefficient(intervals.n + intervals.i, intervals.i)
+            + ((intervals.i + 1) * log(2))
         )
 
-        if split_criterion_val_left_and_right < Intervals.modl_value:
+        if split_criterion_val_left_and_right < intervals.modl_value:
             splits[val] = split_criterion_val_left_and_right
             left_and_right_interval_of_splits[val] = [left_interval, right_interval]
     split_done = False
@@ -624,10 +624,10 @@ def split_interval(
 
         Left_interval = interval
         right_bound_of_the_right_interval = interval.included_right_frontier
-        Intervals.insert(
+        intervals.insert(
             _Interval([right_interval, right_bound_of_the_right_interval, 0]), i + 1
         )
-        Right_interval = Intervals.get_nth(i + 1)
+        Right_interval = intervals.get_nth(i + 1)
 
         Left_interval.nitj = left_interval
         Left_interval.included_right_frontier = best_split
@@ -639,9 +639,9 @@ def split_interval(
             mode="MergeAndUpdate"
         )  # it will update W, Priors, lkelihoods and sum_of_priors_and_likelihoods
 
-        Intervals.modl_value = splits[best_split]
+        intervals.modl_value = splits[best_split]
         split_done = True
-    return split_done, best_split, Intervals
+    return split_done, best_split, intervals
 
 
 def post_optimization_to_be_repeated(intervals, data, i=0):

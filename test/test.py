@@ -12,7 +12,7 @@ from Kuplift.UnivariateEncoding import UnivariateEncoding
 # change the booleans of the classes to be tested
 test_feature_selection = False
 test_bayesian_decision_tree = False
-test_bayesian_random_forest = True
+test_bayesian_random_forest = False
 test_unvariate_encoding = False
 
 df = pd.read_csv("data/zenodo_sample.csv")
