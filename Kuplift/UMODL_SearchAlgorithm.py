@@ -330,7 +330,7 @@ def create_elementary_discretization(dll, data):
     returns
     1- a list of lists. Each internal list represents an interval and contains Effectifs of T0J0, T0J1, T1J0, T1J1 respectively.
     2- frontier value per interval
-    3- W : list containing the Wi value for each interval, the initial discretization has Wi = 0 for all i
+    3- w : list containing the Wi value for each interval, the initial discretization has Wi = 0 for all i
     """
     start_counter(0)
     # This is a list of lists, each internal list represents an interval and contains Effectifs of T0J0, T0J1, T1J0, T1J1 respectively
@@ -430,7 +430,7 @@ def greedy_search(best_merges, intervals, N):
                 interval_to_be_merged.calculate_priors_and_likelihoods(
                     mode="MergeAndUpdate"
                 )
-            )  # it will update W, Priors, lkelihoods and sum_of_priors_and_likelihoods
+            )  # it will update w, Priors, lkelihoods and sum_of_priors_and_likelihoods
             intervals.modl_value = (
                 intervals.modl_value
                 - old_right_interval_node_criterion
@@ -526,7 +526,7 @@ def merge(interval, intervals, number_of_merges=1):
     # NOW WE HAVE TO SEARCH for the old values of the sum of prior and likelihoods !!!!
     left_interval_node_criterion = interval.calculate_priors_and_likelihoods(
         mode="MergeAndUpdate"
-    )  # it will update W, Priors, lkelihoods and sum_of_priors_and_likelihoods
+    )  # it will update w, Priors, lkelihoods and sum_of_priors_and_likelihoods
     intervals.modl_value = (
         intervals.modl_value
         - sum_of_old_priors_and_likelihoods
@@ -634,10 +634,10 @@ def split_interval(
 
         Left_interval.calculate_priors_and_likelihoods(
             mode="MergeAndUpdate"
-        )  # it will update W, Priors, lkelihoods and sum_of_priors_and_likelihoods
+        )  # it will update w, Priors, lkelihoods and sum_of_priors_and_likelihoods
         Right_interval.calculate_priors_and_likelihoods(
             mode="MergeAndUpdate"
-        )  # it will update W, Priors, lkelihoods and sum_of_priors_and_likelihoods
+        )  # it will update w, Priors, lkelihoods and sum_of_priors_and_likelihoods
 
         intervals.modl_value = splits[best_split]
         split_done = True

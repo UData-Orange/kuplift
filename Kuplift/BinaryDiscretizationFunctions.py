@@ -54,7 +54,7 @@ def calc_criterion(nitj_interval, null_model=False):
     Fact_T1Class0Freq = _log_fact_table[nitj_interval[2]]
     Fact_T1Class1Freq = _log_fact_table[nitj_interval[3]]
 
-    # Likelihood 1 W=0
+    # Likelihood 1 w=0
     start_counter(0)
     likelihood_denum = 0
     j = 0
@@ -64,7 +64,7 @@ def calc_criterion(nitj_interval, null_model=False):
 
     likelihood_one_tmp = _log_fact_table[nitj_interval_sum] - likelihood_denum
 
-    # Likelihood 2 W=1
+    # Likelihood 2 w=1
     res_t = 0
     t = 0
     likelihood_denum = 0
@@ -87,9 +87,9 @@ def calc_criterion(nitj_interval, null_model=False):
 
     likelihood_two_tmp = res_t
 
-    # Prior 1 W=0
+    # Prior 1 w=0
     prior_one_tmp = log_binomial_coefficient(nitj_interval_sum + 1, 1)
-    # Prior 2 W=1
+    # Prior 2 w=1
     res_t = 0
     t = 0
     res_t_temp = log_binomial_coefficient(

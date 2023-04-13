@@ -46,114 +46,118 @@ class BayesianDecisionTree(_Tree):
             Outcome column.
         """
         # In case if we have a new attribute for splitting
-        Prob_KtPlusOne = (
-            universal_code_natural_numbers(self.K_t + 1)
-            - log_fact(self.K_t + 1)
-            + (self.K_t + 1) * log(self.K)
+        prob_kt_plus_one = (
+            universal_code_natural_numbers(self.k_t + 1)
+            - log_fact(self.k_t + 1)
+            + (self.k_t + 1) * log(self.k)
         )
-        ProbOfAttributeSelectionAmongSubsetAttributesPlusOne = log(self.K_t + 1) * (
-            len(self.internalNodes) + 1
-        )
+        prob_of_attribute_selection_among_subset_attributes_plus_one = log(
+            self.k_t + 1
+        ) * (len(self.internal_nodes) + 1)
 
-        EncodingOfBeingAnInternalNodePlusOne = self.EncodingOfBeingAnInternalNode + log(
-            2
+        encoding_of_being_an_internal_node_plus_one = (
+            self.encoding_of_being_an_internal_node + log(2)
         )
 
         # When splitting a node to 2 nodes, the number of leaf nodes is incremented only by one, since the parent node was leaf and is now internal.
-        # 2 for two extra leaf nodes multiplied by 2 for W. Total = 4.
-        EncodingOfBeingALeafNodeAndContainingTEPlusTWO = (
-            self.EncodingOfBeingALeafNodeAndContainingTE + (2 * log(2))
+        # 2 for two extra leaf nodes multiplied by 2 for w. Total = 4.
+        encoding_of_being_a_leaf_node_and_containing_te_plus_two = (
+            self.encoding_of_being_a_leaf_node_and_containing_te + (2 * log(2))
         )
 
-        EncodingOfInternalAndLeavesAndWWithExtraNodes = (
-            EncodingOfBeingAnInternalNodePlusOne
-            + EncodingOfBeingALeafNodeAndContainingTEPlusTWO
+        encoding_of_internal_and_leaves_and_w_with_extra_nodes = (
+            encoding_of_being_an_internal_node_plus_one
+            + encoding_of_being_a_leaf_node_and_containing_te_plus_two
         )
 
         i = 0
         while True:
-            NodeVsBestAttributeCorrespondingToTheBestCost = {}
-            NodeVsBestCost = {}
-            NodeVsCandidateSplitsCosts = (
+            node_vs_best_attribute_corresponding_to_the_best_cost = {}
+            node_vs_best_cost = {}
+            node_vs_candidate_splits_costs = (
                 {}
             )  # Dictionary containing Nodes as key and their values are another dictionary each with attribute:CostSplit
 
-            for terminalNode in self.terminalNodes:
+            for terminal_node in self.terminal_nodes:
                 # This if condition is here to not to repeat calculations of candidate splits
-                if terminalNode.CandidateSplitsVsCriterion == None:
-                    NodeVsCandidateSplitsCosts[
-                        terminalNode
-                    ] = terminalNode.discretize_vars_and_get_attributes_splits_costs()
+                if terminal_node.candidate_splits_vs_criterion == None:
+                    node_vs_candidate_splits_costs[
+                        terminal_node
+                    ] = terminal_node.discretize_vars_and_get_attributes_splits_costs()
                 else:
-                    NodeVsCandidateSplitsCosts[
-                        terminalNode
-                    ] = terminalNode.CandidateSplitsVsCriterion.copy()
+                    node_vs_candidate_splits_costs[
+                        terminal_node
+                    ] = terminal_node.candidate_splits_vs_criterion.copy()
 
-                if len(NodeVsCandidateSplitsCosts[terminalNode]) == 0:
+                if len(node_vs_candidate_splits_costs[terminal_node]) == 0:
                     continue
 
                 # Update Costs
-                for attribute in NodeVsCandidateSplitsCosts[terminalNode]:
+                for attribute in node_vs_candidate_splits_costs[terminal_node]:
                     if attribute in self.feature_subset:
-                        NodeVsCandidateSplitsCosts[terminalNode][attribute] += (
-                            self.Prob_Kt
-                            + self.ProbAttributeSelection
-                            + EncodingOfInternalAndLeavesAndWWithExtraNodes
-                            + self.LeafPrior
-                            + self.TreeLikelihood
-                            + self.PriorOfInternalNodes
+                        node_vs_candidate_splits_costs[terminal_node][attribute] += (
+                            self.prob_kt
+                            + self.prob_attribute_selection
+                            + encoding_of_internal_and_leaves_and_w_with_extra_nodes
+                            + self.leaf_prior
+                            + self.tree_likelihood
+                            + self.prior_of_internal_nodes
                         )
                     else:
-                        NodeVsCandidateSplitsCosts[terminalNode][attribute] += (
-                            Prob_KtPlusOne
-                            + EncodingOfInternalAndLeavesAndWWithExtraNodes
-                            + ProbOfAttributeSelectionAmongSubsetAttributesPlusOne
-                            + self.LeafPrior
-                            + self.TreeLikelihood
-                            + self.PriorOfInternalNodes
+                        node_vs_candidate_splits_costs[terminal_node][attribute] += (
+                            prob_kt_plus_one
+                            + encoding_of_internal_and_leaves_and_w_with_extra_nodes
+                            + prob_of_attribute_selection_among_subset_attributes_plus_one
+                            + self.leaf_prior
+                            + self.tree_likelihood
+                            + self.prior_of_internal_nodes
                         )
 
-                # Once costs are updated, I get the key of the minimal value split for terminalNode
-                KeyOfTheMinimalVal = min(
-                    NodeVsCandidateSplitsCosts[terminalNode],
-                    key=NodeVsCandidateSplitsCosts[terminalNode].get,
+                # Once costs are updated, I get the key of the minimal value split for terminal_node
+                key_of_the_minimal_val = min(
+                    node_vs_candidate_splits_costs[terminal_node],
+                    key=node_vs_candidate_splits_costs[terminal_node].get,
                 )
 
-                NodeVsBestAttributeCorrespondingToTheBestCost[
-                    terminalNode
-                ] = KeyOfTheMinimalVal
-                NodeVsBestCost[terminalNode] = NodeVsCandidateSplitsCosts[terminalNode][
-                    KeyOfTheMinimalVal
-                ]
+                node_vs_best_attribute_corresponding_to_the_best_cost[
+                    terminal_node
+                ] = key_of_the_minimal_val
+                node_vs_best_cost[terminal_node] = node_vs_candidate_splits_costs[
+                    terminal_node
+                ][key_of_the_minimal_val]
 
-            if len(list(NodeVsBestCost)) == 0:
+            if len(list(node_vs_best_cost)) == 0:
                 break
 
-            OptimalNodeAttributeToSplitUp = min(NodeVsBestCost, key=NodeVsBestCost.get)
-            OptimalVal = NodeVsBestCost[OptimalNodeAttributeToSplitUp]
-            OptimalNode = OptimalNodeAttributeToSplitUp
-            OptimalAttribute = NodeVsBestAttributeCorrespondingToTheBestCost[
-                OptimalNodeAttributeToSplitUp
+            optimal_node_attribute_to_split_up = min(
+                node_vs_best_cost, key=node_vs_best_cost.get
+            )
+            optimal_val = node_vs_best_cost[optimal_node_attribute_to_split_up]
+            optimal_node = optimal_node_attribute_to_split_up
+            optimal_attribute = node_vs_best_attribute_corresponding_to_the_best_cost[
+                optimal_node_attribute_to_split_up
             ]
 
-            if OptimalVal < self.TreeCriterion:
-                self.TreeCriterion = OptimalVal
-                if OptimalAttribute not in self.feature_subset:
-                    self.feature_subset.append(OptimalAttribute)
-                    self.K_t += 1
-                NewLeftLeaf, NewRightLeaf = OptimalNode.perform_split(OptimalAttribute)
-                self.terminalNodes.append(NewLeftLeaf)
-                self.terminalNodes.append(NewRightLeaf)
-                self.internalNodes.append(OptimalNode)
-                self.terminalNodes.remove(OptimalNode)
+            if optimal_val < self.tree_criterion:
+                self.tree_criterion = optimal_val
+                if optimal_attribute not in self.feature_subset:
+                    self.feature_subset.append(optimal_attribute)
+                    self.k_t += 1
+                new_left_leaf, new_right_leaf = optimal_node.perform_split(
+                    optimal_attribute
+                )
+                self.terminal_nodes.append(new_left_leaf)
+                self.terminal_nodes.append(new_right_leaf)
+                self.internal_nodes.append(optimal_node)
+                self.terminal_nodes.remove(optimal_node)
 
                 self.calc_criterion()
             else:
                 break
         print("Learning Finished")
-        for node in self.terminalNodes:
+        for node in self.terminal_nodes:
             print("Node id ", node.id)
-            print("Node outcomeProbInTrt ", node.outcomeProbInTrt)
-            print("Node outcomeProbInCtrl ", node.outcomeProbInCtrl)
-            print("self ntj ", node.Ntj)
+            print("Node outcome_prob_in_trt ", node.outcome_prob_in_trt)
+            print("Node outcome_prob_in_ctrl ", node.outcome_prob_in_ctrl)
+            print("self ntj ", node.ntj)
         print("===============")

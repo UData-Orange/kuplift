@@ -19,7 +19,7 @@ class _Node:
 
     Parameters
     ----------
-    Data_features : pd.Dataframe
+    data : pd.Dataframe
         Dataframe containing feature variables.
     treatment_col : pd.Series
         Treatment column.
@@ -29,89 +29,95 @@ class _Node:
         ?
     """
 
-    def __init__(self, data, treatmentName, outcomeName, ID=None):
+    def __init__(self, data, treatment_col, y_col, ID=None):
         # Initialize attributes
         self.id = ID
         self.data = data.copy()
-        self.treatment = treatmentName
-        self.output = outcomeName
-        self.N = data.shape[0]
-        self.Nj = data[data[self.output] == 1].shape[0]
-        self.Ntj = [
+        self.treatment = treatment_col
+        self.output = y_col
+        self.n = data.shape[0]
+        self.nj = data[data[self.output] == 1].shape[0]
+        self.ntj = [
             data[(data[self.treatment] == 0) & (data[self.output] == 0)].shape[0],
             data[(data[self.treatment] == 0) & (data[self.output] == 1)].shape[0],
             data[(data[self.treatment] == 1) & (data[self.output] == 0)].shape[0],
             data[(data[self.treatment] == 1) & (data[self.output] == 1)].shape[0],
         ]
-        self.X = data.iloc[:, :-2].copy()
-        self.T = data.iloc[:, -2].copy()
-        self.Y = data.iloc[:, -1].copy()
+        self.x = data.iloc[:, :-2].copy()
+        self.t = data.iloc[:, -2].copy()
+        self.y = data.iloc[:, -1].copy()
 
         try:
-            if (self.Ntj[2] + self.Ntj[3]) == 0:
+            if (self.ntj[2] + self.ntj[3]) == 0:
                 denum = 0.00001
             else:
-                denum = self.Ntj[2] + self.Ntj[3]
-            self.outcomeProbInTrt = self.Ntj[3] / denum
+                denum = self.ntj[2] + self.ntj[3]
+            self.outcome_prob_in_trt = self.ntj[3] / denum
         except:
-            self.outcomeProbInTrt = 0
+            self.outcome_prob_in_trt = 0
 
         try:
-            if (self.Ntj[0] + self.Ntj[1]) == 0:
+            if (self.ntj[0] + self.ntj[1]) == 0:
                 denum = 0.00001
             else:
-                denum = self.Ntj[0] + self.Ntj[1]
-            self.outcomeProbInCtrl = self.Ntj[1] / denum
+                denum = self.ntj[0] + self.ntj[1]
+            self.outcome_prob_in_ctrl = self.ntj[1] / denum
         except:
-            self.outcomeProbInCtrl = 0
+            self.outcome_prob_in_ctrl = 0
 
-        self.averageUplift = self.outcomeProbInTrt - self.outcomeProbInCtrl
-        self.Attribute = None
-        self.SplitThreshold = None
-        self.isLeaf = True
-        self.CandidateSplitsVsDataLeftDataRight = None
-        self.CandidateSplitsVsCriterion = None
-        self.leftNode = None
-        self.rightNode = None
-        self.PriorOfInternalNode = self.__calc_prior_of_internal_node()
+        self.average_uplift = self.outcome_prob_in_trt - self.outcome_prob_in_ctrl
+        self.attribute = None
+        self.split_threshold = None
+        self.is_leaf = True
+        self.candidate_splits_vs_data_left_data_right = None
+        self.candidate_splits_vs_criterion = None
+        self.left_node = None
+        self.right_node = None
+        self.prior_of_internal_node = self.__calc_prior_of_internal_node()
         (
-            self.PriorLeaf,
-            self.LikelihoodLeaf,
-            self.W,
+            self.prior_leaf,
+            self.likelihood_leaf,
+            self.w,
         ) = self.__calc_prior_and_likelihood_leaf()
 
     def __calc_prior_of_internal_node(self):
-        return log_binomial_coefficient(sum(self.Ntj) + 1, 1)
+        return log_binomial_coefficient(sum(self.ntj) + 1, 1)
 
     def __calc_prior_and_likelihood_leaf(self):
-        NumberOfTreatment = self.Ntj[2] + self.Ntj[3]
-        NumberOfControl = self.Ntj[0] + self.Ntj[1]
-        NumberOfPosOutcome = self.Ntj[1] + self.Ntj[3]
-        NumberOfZeroOutcome = self.Ntj[0] + self.Ntj[2]
+        number_of_treatment = self.ntj[2] + self.ntj[3]
+        number_of_control = self.ntj[0] + self.ntj[1]
+        number_of_pos_outcome = self.ntj[1] + self.ntj[3]
+        number_of_zero_outcome = self.ntj[0] + self.ntj[2]
 
-        LeafPrior_W0 = log_binomial_coefficient(sum(self.Ntj) + 1, 1)
-        TreeLikelihood_W0 = (
-            log_fact(sum(self.Ntj))
-            - log_fact(NumberOfPosOutcome)
-            - log_fact(NumberOfZeroOutcome)
+        leaf_prior_w_zero = log_binomial_coefficient(sum(self.ntj) + 1, 1)
+        tree_likelihood_w_zero = (
+            log_fact(sum(self.ntj))
+            - log_fact(number_of_pos_outcome)
+            - log_fact(number_of_zero_outcome)
         )
 
-        LeafPrior_W1 = log_binomial_coefficient(
-            NumberOfTreatment + 1, 1
-        ) + log_binomial_coefficient(NumberOfControl + 1, 1)
-        TreeLikelihood_W1 = (
-            log_fact(NumberOfTreatment) - log_fact(self.Ntj[2]) - log_fact(self.Ntj[3])
-        ) + (log_fact(NumberOfControl) - log_fact(self.Ntj[0]) - log_fact(self.Ntj[1]))
+        leaf_prior_w_one = log_binomial_coefficient(
+            number_of_treatment + 1, 1
+        ) + log_binomial_coefficient(number_of_control + 1, 1)
+        tree_likelihood_w_one = (
+            log_fact(number_of_treatment)
+            - log_fact(self.ntj[2])
+            - log_fact(self.ntj[3])
+        ) + (
+            log_fact(number_of_control) - log_fact(self.ntj[0]) - log_fact(self.ntj[1])
+        )
 
-        if (LeafPrior_W0 + TreeLikelihood_W0) < (LeafPrior_W1 + TreeLikelihood_W1):
-            W = 0
-            LeafPrior = LeafPrior_W0
-            TreeLikelihood = TreeLikelihood_W0
+        if (leaf_prior_w_zero + tree_likelihood_w_zero) < (
+            leaf_prior_w_one + tree_likelihood_w_one
+        ):
+            w = 0
+            leaf_prior = leaf_prior_w_zero
+            tree_likelihood = tree_likelihood_w_zero
         else:
-            W = 1
-            LeafPrior = LeafPrior_W1
-            TreeLikelihood = TreeLikelihood_W1
-        return LeafPrior, TreeLikelihood, W
+            w = 1
+            leaf_prior = leaf_prior_w_one
+            tree_likelihood = tree_likelihood_w_one
+        return leaf_prior, tree_likelihood, w
 
     def discretize_vars_and_get_attributes_splits_costs(self):
         """For this node loop on all attributes and get the optimal split for each one.
@@ -122,76 +128,82 @@ class _Node:
 
         For example: return a dictionnary {age: Cost, sex: Cost}
         The cost here corresponds to
-        1- the cost of this node to internal instead of leaf (CriterionToBeInternal-PriorLeaf)
+        1- the cost of this node to internal instead of leaf (criterion_to_be_internal-prior_leaf)
         2- The combinatorial terms of the leaf prior and likelihood
         """
-        features = list(self.X.columns)
-        AttributeToSplitVsLeftAndRightData = {}
+        features = list(self.x.columns)
+        attribute_to_split_vs_left_and_right_data = {}
         for attribute in features:
             if (
-                len(self.X[attribute].value_counts()) == 1
-                or len(self.X[attribute].value_counts()) == 0
+                len(self.x[attribute].value_counts()) == 1
+                or len(self.x[attribute].value_counts()) == 0
             ):
                 continue
-            DiscRes = umodl_binary_discretization(self.X, self.T, self.Y, attribute)
-            if DiscRes == -1:
+            disc_res = umodl_binary_discretization(self.x, self.t, self.y, attribute)
+            if disc_res == -1:
                 continue
-            dataLeft, dataRight, threshold = DiscRes[0], DiscRes[1], DiscRes[2]
-            AttributeToSplitVsLeftAndRightData[attribute] = [
-                dataLeft,
-                dataRight,
+            data_left, data_right, threshold = disc_res[0], disc_res[1], disc_res[2]
+            attribute_to_split_vs_left_and_right_data[attribute] = [
+                data_left,
+                data_right,
                 threshold,
             ]
 
-        self.CandidateSplitsVsDataLeftDataRight = (
-            AttributeToSplitVsLeftAndRightData.copy()
+        self.candidate_splits_vs_data_left_data_right = (
+            attribute_to_split_vs_left_and_right_data.copy()
         )
-        CandidateSplitsVsCriterion = self.__get_attributes_splits_costs(
-            AttributeToSplitVsLeftAndRightData
+        candidate_splits_vs_criterion = self.__get_attributes_splits_costs(
+            attribute_to_split_vs_left_and_right_data
         )
-        self.CandidateSplitsVsCriterion = CandidateSplitsVsCriterion.copy()
-        return CandidateSplitsVsCriterion.copy()
+        self.candidate_splits_vs_criterion = candidate_splits_vs_criterion.copy()
+        return candidate_splits_vs_criterion.copy()
 
-    def __get_attributes_splits_costs(self, DictOfEachAttVsEffectifs):
+    def __get_attributes_splits_costs(self, dict_of_each_att_vs_effectifs):
         # Prior of Internal node is only the combinatorial calculations
-        CriterionToBeInternal = (
+        criterion_to_be_internal = (
             self.__calc_prior_of_internal_node()
         )  # In case we split this node, it will be no more a leaf but an internal node
-        NewPriorVals = CriterionToBeInternal - self.PriorLeaf - self.LikelihoodLeaf
+        new_prior_vals = (
+            criterion_to_be_internal - self.prior_leaf - self.likelihood_leaf
+        )
 
-        CandidateSplitsVsCriterion = {}
-        for key in DictOfEachAttVsEffectifs:
-            LeavesVal = self.__update_tree_criterion(DictOfEachAttVsEffectifs[key][:2])
-            CandidateSplitsVsCriterion[key] = NewPriorVals + LeavesVal
-        return CandidateSplitsVsCriterion.copy()
+        candidate_splits_vs_criterion = {}
+        for key in dict_of_each_att_vs_effectifs:
+            leaves_val = self.__update_tree_criterion(
+                dict_of_each_att_vs_effectifs[key][:2]
+            )
+            candidate_splits_vs_criterion[key] = new_prior_vals + leaves_val
+        return candidate_splits_vs_criterion.copy()
 
-    def __update_tree_criterion(self, LeftAndRightData, simulate=True):
-        LeavesVals = 0
+    def __update_tree_criterion(self, left_and_right_data):
+        leaves_vals = 0
         for (
-            NewNodeEffectifs
-        ) in LeftAndRightData:  # Loop on Left and Right candidate nodes
-            L = _Node(NewNodeEffectifs, self.treatment, self.output)
-            LeavesVals += L.PriorLeaf + L.LikelihoodLeaf
-            del L
-        return LeavesVals
+            new_node_effectifs
+        ) in left_and_right_data:  # Loop on Left and Right candidate nodes
+            l = _Node(new_node_effectifs, self.treatment, self.output)
+            leaves_vals += l.prior_leaf + l.likelihood_leaf
+            del l
+        return leaves_vals
 
-    def perform_split(self, Attribute):
-        if self.CandidateSplitsVsDataLeftDataRight == None:
+    def perform_split(self, attribute):
+        if self.candidate_splits_vs_data_left_data_right == None:
             raise
         else:
-            self.isLeaf = False
-            self.leftNode = _Node(
-                self.CandidateSplitsVsDataLeftDataRight[Attribute][0],
+            self.is_leaf = False
+            self.left_node = _Node(
+                self.candidate_splits_vs_data_left_data_right[attribute][0],
                 self.treatment,
                 self.output,
                 ID=self.id * 2,
             )
-            self.rightNode = _Node(
-                self.CandidateSplitsVsDataLeftDataRight[Attribute][1],
+            self.right_node = _Node(
+                self.candidate_splits_vs_data_left_data_right[attribute][1],
                 self.treatment,
                 self.output,
                 ID=self.id * 2 + 1,
             )
-            self.Attribute = Attribute
-            self.SplitThreshold = self.CandidateSplitsVsDataLeftDataRight[Attribute][2]
-            return self.leftNode, self.rightNode
+            self.attribute = attribute
+            self.split_threshold = self.candidate_splits_vs_data_left_data_right[
+                attribute
+            ][2]
+            return self.left_node, self.right_node
