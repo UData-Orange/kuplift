@@ -11,7 +11,7 @@ import bisect
 from math import log
 import pandas as pd
 import time
-from .HelperFunctions import _Log_Fact_Table, log_fact, log_binomial_coefficient
+from .HelperFunctions import _log_fact_table, log_fact, log_binomial_coefficient
 from operator import itemgetter, add, sub
 from sortedcontainers import SortedKeyList
 
@@ -19,8 +19,8 @@ _nb_counter = []
 _start_counter = []
 _start_time_counter = []
 _deltatime_counter = []
-_NumberOfCounters = 25
-for i in range(_NumberOfCounters):
+_number_of_counters = 25
+for i in range(_number_of_counters):
     _nb_counter.append(0)
     _start_counter.append(False)
     _start_time_counter.append(time.time())
@@ -40,19 +40,19 @@ def stop_counter(i):
     _start_time_counter[i] = time.time()
 
 
-def calc_criterion(NITJ_Interval, NUllModel=False):
-    NITJ_Interval_sum = sum(NITJ_Interval)
-    Fact_Class0Freq = _Log_Fact_Table[(NITJ_Interval[0] + NITJ_Interval[2])]
-    Fact_Class1Freq = _Log_Fact_Table[(NITJ_Interval[1] + NITJ_Interval[3])]
+def calc_criterion(nitj_interval, null_model=False):
+    nitj_interval_sum = sum(nitj_interval)
+    Fact_Class0Freq = _log_fact_table[(nitj_interval[0] + nitj_interval[2])]
+    Fact_Class1Freq = _log_fact_table[(nitj_interval[1] + nitj_interval[3])]
 
-    Fact_T0Freq = _Log_Fact_Table[(NITJ_Interval[0] + NITJ_Interval[1])]
-    Fact_T1Freq = _Log_Fact_Table[(NITJ_Interval[2] + NITJ_Interval[3])]
+    Fact_T0Freq = _log_fact_table[(nitj_interval[0] + nitj_interval[1])]
+    Fact_T1Freq = _log_fact_table[(nitj_interval[2] + nitj_interval[3])]
 
-    Fact_T0Class0Freq = _Log_Fact_Table[NITJ_Interval[0]]
-    Fact_T0Class1Freq = _Log_Fact_Table[NITJ_Interval[1]]
+    Fact_T0Class0Freq = _log_fact_table[nitj_interval[0]]
+    Fact_T0Class1Freq = _log_fact_table[nitj_interval[1]]
 
-    Fact_T1Class0Freq = _Log_Fact_Table[NITJ_Interval[2]]
-    Fact_T1Class1Freq = _Log_Fact_Table[NITJ_Interval[3]]
+    Fact_T1Class0Freq = _log_fact_table[nitj_interval[2]]
+    Fact_T1Class1Freq = _log_fact_table[nitj_interval[3]]
 
     # Likelihood 1 W=0
     start_counter(0)
@@ -62,7 +62,7 @@ def calc_criterion(NITJ_Interval, NUllModel=False):
     j = 1
     likelihood_denum += Fact_Class1Freq
 
-    likelihood1_tmp = _Log_Fact_Table[NITJ_Interval_sum] - likelihood_denum
+    likelihood_one_tmp = _log_fact_table[nitj_interval_sum] - likelihood_denum
 
     # Likelihood 2 W=1
     res_t = 0
@@ -85,184 +85,182 @@ def calc_criterion(NITJ_Interval, NUllModel=False):
 
     res_t += Fact_T1Freq - likelihood_denum
 
-    likelihood2_tmp = res_t
+    likelihood_two_tmp = res_t
 
     # Prior 1 W=0
-    prior1_tmp = log_binomial_coefficient(NITJ_Interval_sum + 1, 1)
+    prior_one_tmp = log_binomial_coefficient(nitj_interval_sum + 1, 1)
     # Prior 2 W=1
     res_t = 0
     t = 0
     res_t_temp = log_binomial_coefficient(
-        (NITJ_Interval[2 * t] + NITJ_Interval[2 * t + 1]) + 1, 1
+        (nitj_interval[2 * t] + nitj_interval[2 * t + 1]) + 1, 1
     )
     res_t += res_t_temp
     t = 1
     res_t_temp = log_binomial_coefficient(
-        (NITJ_Interval[2 * t] + NITJ_Interval[2 * t + 1]) + 1, 1
+        (nitj_interval[2 * t] + nitj_interval[2 * t + 1]) + 1, 1
     )
     res_t += res_t_temp
 
-    prior2_tmp = res_t
+    prior_two_tmp = res_t
     stop_counter(0)
 
-    righMergeW = None
-    if NUllModel == False:
-        if (prior1_tmp + likelihood1_tmp) < (prior2_tmp + likelihood2_tmp):
-            righMergeW = 0
+    right_merge_w = None
+    if null_model == False:
+        if (prior_one_tmp + likelihood_one_tmp) < (prior_two_tmp + likelihood_two_tmp):
+            right_merge_w = 0
         else:
-            righMergeW = 1
+            right_merge_w = 1
     else:
-        if (prior1_tmp + likelihood1_tmp) > (prior2_tmp + likelihood2_tmp):
-            righMergeW = 0
+        if (prior_one_tmp + likelihood_one_tmp) > (prior_two_tmp + likelihood_two_tmp):
+            right_merge_w = 0
         else:
-            righMergeW = 1
+            right_merge_w = 1
 
-    Prior1 = (1 - righMergeW) * prior1_tmp
-    Prior2 = righMergeW * prior2_tmp
-    Likelihood1 = (1 - righMergeW) * likelihood1_tmp
-    Likelihood2 = (righMergeW) * likelihood2_tmp
-    SumOfPriorsAndLikelihoods = Prior1 + Prior2 + Likelihood1 + Likelihood2
-    return SumOfPriorsAndLikelihoods
+    prior_one = (1 - right_merge_w) * prior_one_tmp
+    prior_two = right_merge_w * prior_two_tmp
+    likelihood_one = (1 - right_merge_w) * likelihood_one_tmp
+    likelihood_two = (right_merge_w) * likelihood_two_tmp
+    sum_of_priors_and_likelihoods = (
+        prior_one + prior_two + likelihood_one + likelihood_two
+    )
+    return sum_of_priors_and_likelihoods
 
 
 def split_interval(
-    df, colName, treatmentColName, outputColName, NullModelValue, granularite=16
+    df, col_name, treatment_col_name, output_col_name, null_model_value, granularite=16
 ):  # i is interval index in IntervalsList
-    data = df[[colName, treatmentColName, outputColName]].values.tolist()
+    data = df[[col_name, treatment_col_name, output_col_name]].values.tolist()
 
     data = SortedKeyList(data, key=itemgetter(0))
-    Count = 2  # We only have two intervals
-    dataNITJ = [0, 0, 0, 0]  # The frequency of treatment class
-    for intervalList in data:
-        dataNITJ[int((intervalList[1] * 2) + intervalList[2])] += 1
+    data_nitj = [0, 0, 0, 0]  # The frequency of treatment class
+    for interval_list in data:
+        data_nitj[int((interval_list[1] * 2) + interval_list[2])] += 1
 
     N = len(data)
-    IncludingLeftBorder = True
-    LeftBound = data[0][0]  # The smallest value
-    RightBound = data[-1][0]  # The biggest value
+    including_left_border = True
+    left_bound = data[0][0]  # The smallest value
+    right_bound = data[-1][0]  # The biggest value
 
     # Get all the unique values in the data i.e All unique values between left and right bounds
-    uniqueValuesInBothIntervals = list(
-        data.irange_key(LeftBound, RightBound, (IncludingLeftBorder, True))
+    unique_values_in_both_intervals = list(
+        data.irange_key(left_bound, right_bound, (including_left_border, True))
     )
-    uniqueValuesInBothIntervals = list(map(itemgetter(0), uniqueValuesInBothIntervals))
-    uniqueValuesInBothIntervals = list(set(uniqueValuesInBothIntervals))
-    uniqueValuesInBothIntervals.sort()  # Sort the unique values
+    unique_values_in_both_intervals = list(
+        map(itemgetter(0), unique_values_in_both_intervals)
+    )
+    unique_values_in_both_intervals = list(set(unique_values_in_both_intervals))
+    unique_values_in_both_intervals.sort()  # Sort the unique values
 
-    Splits = {}
+    splits = {}
 
-    previousLeftInterval = [0, 0, 0, 0]
-    prevVal = None
+    previous_left_interval = [0, 0, 0, 0]
+    prev_val = None
 
     # Classical prior vs new prior of rissannen !!!
-    PriorRissanen = log(2) + log_binomial_coefficient(N + 1, 1) + 2 * log(2)
+    prior_rissanen = log(2) + log_binomial_coefficient(N + 1, 1) + 2 * log(2)
 
-    for val in uniqueValuesInBothIntervals:
-        if (len(uniqueValuesInBothIntervals) <= 1) or (val == RightBound):
+    for val in unique_values_in_both_intervals:
+        if (len(unique_values_in_both_intervals) <= 1) or (val == right_bound):
             break
 
-        if prevVal == None:  # Enters here only for the first unique value
-            leftSplit = list(
-                data.irange_key(LeftBound, val, (True, True))
-            )  # Get a list of all data between LeftBound and current unique value
-            leftInterval = [0, 0, 0, 0]
-            for intervalList in leftSplit:
-                leftInterval[int((intervalList[1] * 2) + intervalList[2])] += 1
+        if prev_val == None:  # Enters here only for the first unique value
+            left_split = list(
+                data.irange_key(left_bound, val, (True, True))
+            )  # Get a list of all data between left_bound and current unique value
+            left_interval = [0, 0, 0, 0]
+            for interval_list in left_split:
+                left_interval[int((interval_list[1] * 2) + interval_list[2])] += 1
         else:
-            leftSplit = list(data.irange_key(prevVal, val, (False, True)))
-            leftInterval = [0, 0, 0, 0]
-            for intervalList in leftSplit:
-                leftInterval[int((intervalList[1] * 2) + intervalList[2])] += 1
+            left_split = list(data.irange_key(prev_val, val, (False, True)))
+            left_interval = [0, 0, 0, 0]
+            for interval_list in left_split:
+                left_interval[int((interval_list[1] * 2) + interval_list[2])] += 1
             """
-            New Left Interval frequencies is the sum of the previous left interval (bounded between Smallest value and prevVal) and the 
-            new left interval (bounded between prevVal and val)
+            New Left Interval frequencies is the sum of the previous left interval (bounded between Smallest value and prev_val) and the 
+            new left interval (bounded between prev_val and val)
             """
-            leftInterval = list(map(add, previousLeftInterval, leftInterval))
+            left_interval = list(map(add, previous_left_interval, left_interval))
 
-        # the nitj for the right split (Which we call the rightInterval) will be the difference between the old nitj and the leftInterval
-        prevVal = val
-        previousLeftInterval = leftInterval.copy()
+        # the nitj for the right split (Which we call the right_interval) will be the difference between the old nitj and the left_interval
+        prev_val = val
+        previous_left_interval = left_interval.copy()
 
         """
         The new rigt interval is the soustraction of all the data and the new left interval
         """
-        rightInterval = list(map(sub, dataNITJ, leftInterval))
+        right_interval = list(map(sub, data_nitj, left_interval))
 
         # Calculate criterion manually
         start_counter(22)
-        criterion1 = calc_criterion(leftInterval)  # prior and likelihood
-        criterion2 = calc_criterion(rightInterval)  # prior and likelihood
+        criterion_one = calc_criterion(left_interval)  # prior and likelihood
+        criterion_two = calc_criterion(right_interval)  # prior and likelihood
         stop_counter(22)
 
-        start_counter(24)
         # MODL value
-        SplitCriterionVal_leftAndRight = PriorRissanen + criterion1 + criterion2
+        start_counter(24)
+        split_criterion_val_left_and_right = (
+            prior_rissanen + criterion_one + criterion_two
+        )
         stop_counter(24)
         # If the MODL value is smaller than the null model value add it to the splits dictionary
-        if SplitCriterionVal_leftAndRight < NullModelValue:
-            if sum(rightInterval) == 0:
+        if split_criterion_val_left_and_right < null_model_value:
+            if sum(right_interval) == 0:
                 print("strange case")
-                print("NullModelValue ", NullModelValue)
-                print("SplitCriterionVal_leftAndRight ", SplitCriterionVal_leftAndRight)
-            Splits[val] = SplitCriterionVal_leftAndRight
-    bestSplit = None
+                print("null_model_value ", null_model_value)
+                print(
+                    "split_criterion_val_left_and_right ",
+                    split_criterion_val_left_and_right,
+                )
+            splits[val] = split_criterion_val_left_and_right
+    best_split = None
 
-    # If dictionary Splits contain value, get the minimal one
-    if Splits:
-        bestSplit = min(Splits, key=Splits.get)  # To be optimized maybe
-        leftSplit = list(data.irange_key(LeftBound, bestSplit, (True, True)))
-        leftInterval = [0, 0, 0, 0]
-        for intervalList in leftSplit:
-            leftInterval[int((intervalList[1] * 2) + intervalList[2])] += 1
-        rightInterval = list(map(sub, dataNITJ, leftInterval))
+    # If dictionary splits contain value, get the minimal one
+    if splits:
+        best_split = min(splits, key=splits.get)  # To be optimized maybe
+        left_split = list(data.irange_key(left_bound, best_split, (True, True)))
+        left_interval = [0, 0, 0, 0]
+        for interval_list in left_split:
+            left_interval[int((interval_list[1] * 2) + interval_list[2])] += 1
+        right_interval = list(map(sub, data_nitj, left_interval))
 
-        IndexOfLastRowInLeftData = bisect.bisect_right(df[colName].tolist(), bestSplit)
-        LeftData = df.iloc[:IndexOfLastRowInLeftData, :]
-        RightData = df.iloc[IndexOfLastRowInLeftData:, :]
-        return LeftData, RightData, bestSplit, Splits[bestSplit]
+        index_of_last_row_in_left_data = bisect.bisect_right(
+            df[col_name].tolist(), best_split
+        )
+        left_data = df.iloc[:index_of_last_row_in_left_data, :]
+        right_data = df.iloc[index_of_last_row_in_left_data:, :]
+        return left_data, right_data, best_split, splits[best_split]
     else:
-        SplitCriterionVal_leftAndRight = None
-
+        split_criterion_val_left_and_right = None
     return -1
 
 
-def calc_null_model(dff, att, treatmentColName, outputColName):
-    data = dff[[att, treatmentColName, outputColName]].values.tolist()
-
+def calc_null_model(dff, att, treatment_col_name, output_col_name):
+    data = dff[[att, treatment_col_name, output_col_name]].values.tolist()
     data = SortedKeyList(data, key=itemgetter(0))
-    dataNITJ = [0, 0, 0, 0]  # The frequency of treatment class
-    for intervalList in data:
-        dataNITJ[int((intervalList[1] * 2) + intervalList[2])] += 1
-
-    N_instances = dff.shape[0]
-
-    NumberOfIndividualsWithClass1 = dff[dff[outputColName] == 1].shape[0]
-    NumberOfIndividualsWithClass0 = dff[dff[outputColName] == 0].shape[0]
-
-    LastTermInNullModel = log_fact(N_instances) - (
-        log_fact(NumberOfIndividualsWithClass1)
-        + log_fact(NumberOfIndividualsWithClass0)
-    )
-    return (2 * log(2)) + calc_criterion(dataNITJ)
+    data_nitj = [0, 0, 0, 0]  # The frequency of treatment class
+    for interval_list in data:
+        data_nitj[int((interval_list[1] * 2) + interval_list[2])] += 1
+    return (2 * log(2)) + calc_criterion(data_nitj)
 
 
-def exec(df, attributeToDiscretize, treatmentColName, outputColName):
-    NullModelValue = calc_null_model(
-        df, attributeToDiscretize, treatmentColName, outputColName
+def exec(df, attributeToDiscretize, treatment_col_name, output_col_name):
+    null_model_value = calc_null_model(
+        df, attributeToDiscretize, treatment_col_name, output_col_name
     )
     return split_interval(
-        df, attributeToDiscretize, treatmentColName, outputColName, NullModelValue
+        df, attributeToDiscretize, treatment_col_name, output_col_name, null_model_value
     )
 
 
 def umodl_binary_discretization(data, T, Y, attributeToDiscretize):
     df = pd.DataFrame()
     df = data.copy()
-    treatmentColName = T.name
-    outputColName = Y.name
-    df[treatmentColName] = T
-    df[outputColName] = Y
+    treatment_col_name = T.name
+    output_col_name = Y.name
+    df[treatment_col_name] = T
+    df[output_col_name] = Y
     df.sort_values(by=attributeToDiscretize, inplace=True)
     df.reset_index(inplace=True, drop=True)
     log_fact(df.shape[0] + 1)
-    return exec(df, attributeToDiscretize, treatmentColName, outputColName)
+    return exec(df, attributeToDiscretize, treatment_col_name, output_col_name)

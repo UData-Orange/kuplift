@@ -16,7 +16,7 @@ class UnivariateEncoding:
     """Description ?"""
 
     def __init__(self):
-        self.VarVsDisc = {}
+        self.var_vs_disc = {}
         self.treatment_col = ""
         self.y_col = ""
 
@@ -61,23 +61,22 @@ class UnivariateEncoding:
         cols.remove(y_col)
 
         Data_features = Data_features[cols + [treatment_col, y_col]]
-
         Data_features = preprocess_data(Data_features, treatment_col, y_col)
 
-        VarVsImportance = {}
-        self.VarVsDisc = {}
+        var_vs_importance = {}
+        self.var_vs_disc = {}
 
         for col in cols:
             (
-                VarVsImportance[col],
-                self.VarVsDisc[col],
+                var_vs_importance[col],
+                self.var_vs_disc[col],
             ) = execute_greedy_search_and_post_opt(
                 Data_features[[col, treatment_col, y_col]]
             )
-            if len(self.VarVsDisc[col]) == 1:
-                self.VarVsDisc[col] = None
+            if len(self.var_vs_disc[col]) == 1:
+                self.var_vs_disc[col] = None
             else:
-                self.VarVsDisc[col] = self.VarVsDisc[col][:-1]
+                self.var_vs_disc[col] = self.var_vs_disc[col][:-1]
 
     def transform(self, Data_features):
         """Description?
@@ -93,21 +92,18 @@ class UnivariateEncoding:
             Pandas Dataframe that contains encoded Data_features.
         """
         cols = list(Data_features.columns)
-
         cols.remove(self.treatment_col)
         cols.remove(self.y_col)
-
         for col in cols:
-            if self.VarVsDisc[col] == None:
+            if self.var_vs_disc[col] == None:
                 Data_features.drop(col, inplace=True, axis=1)
             else:
                 Data_features[col] = pd.cut(
                     Data_features[col],
                     bins=[Data_features[col].min() - 0.001]
-                    + self.VarVsDisc[col]
+                    + self.var_vs_disc[col]
                     + [Data_features[col].max() + 0.001],
                 )
-
                 Data_features[col] = Data_features[col].astype("category")
                 Data_features[col] = Data_features[col].cat.codes
         return Data_features

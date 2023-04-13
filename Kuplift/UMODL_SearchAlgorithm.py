@@ -19,151 +19,163 @@ class _Interval:
     def __init__(self, data):
         if len(data) == 3:
             self.nitj = data[0]
-            self.IncludedRightFrontier = data[1]
-            self.W = data[2]
-            self.rightMergeDelta = None
-            self.righMergeW = None
-            self.Prior1 = None
-            self.Prior2 = None
-            self.Likelihood1 = None
-            self.Likelihood2 = None
+            self.included_right_frontier = data[1]
+            self.w = data[2]
+            self.right_merge_delta = None
+            self.right_merge_w = None
+            self.prior_one = None
+            self.prior_two = None
+            self.likelihood_one = None
+            self.likelihood_two = None
             self.next = None
             self.previous = None
-            self.SumOfPriorsAndLikelihoods = None
-            self.SumOfPriorsAndLikelihoodsWithZeroW = None
-            self.SumOfPriorsAndLikelihoodsWithOneW = None
+            self.sum_of_priors_and_likelihoods = None
+            self.sum_of_priors_and_likelihoods_with_zero_w = None
+            self.sum_of_priors_and_likelihoods_with_one_w = None
         else:
             self.nitj = data[0]
-            self.IncludedRightFrontier = data[1]
-            self.W = data[2]
-            self.rightMergeDelta = data[3]
-            self.righMergeW = data[4]
-            self.Prior1 = data[5]
-            self.Prior2 = data[6]
-            self.Likelihood1 = data[7]
-            self.Likelihood2 = data[8]
+            self.included_right_frontier = data[1]
+            self.w = data[2]
+            self.right_merge_delta = data[3]
+            self.right_merge_w = data[4]
+            self.prior_one = data[5]
+            self.prior_two = data[6]
+            self.likelihood_one = data[7]
+            self.likelihood_two = data[8]
             self.next = data[9]
             self.previous = data[10]
-            self.SumOfPriorsAndLikelihoods = data[11]
-            self.SumOfPriorsAndLikelihoodsWithZeroW = None
+            self.sum_of_priors_and_likelihoods = data[11]
+            self.sum_of_priors_and_likelihoods_with_zero_w = None
 
     def get_interval_data(self):
         return [
             self.nitj,
-            self.IncludedRightFrontier,
-            self.W,
-            self.rightMergeDelta,
-            self.righMergeW,
-            self.Prior1,
-            self.Prior2,
-            self.Likelihood1,
-            self.Likelihood2,
+            self.included_right_frontier,
+            self.w,
+            self.right_merge_delta,
+            self.right_merge_w,
+            self.prior_one,
+            self.prior_two,
+            self.likelihood_one,
+            self.likelihood_two,
             self.next,
             self.previous,
-            self.SumOfPriorsAndLikelihoods,
+            self.sum_of_priors_and_likelihoods,
         ]
 
     def calculate_priors_and_likelihoods(
-        self, mode="init", CalcNull1=False, CalcNull2=False
+        self, mode="init", calc_null_one=False, calc_null_two=False
     ):
         if mode == "DeltaCalc":
-            interval1_to_be_merged = self.nitj.copy()
-            interval2_to_be_merged = self.next.nitj.copy()
-            NITJ_Interval = list(
-                map(add, interval1_to_be_merged, interval2_to_be_merged)
+            interval_one_to_be_merged = self.nitj.copy()
+            interval_two_to_be_merged = self.next.nitj.copy()
+            nitj_interval = list(
+                map(add, interval_one_to_be_merged, interval_two_to_be_merged)
             )
         else:
-            NITJ_Interval = self.nitj.copy()
+            nitj_interval = self.nitj.copy()
 
         # Likelihood 1
         likelihood_denum = 0
         for j in range(2):
-            likelihood_denum += log_fact((NITJ_Interval[j] + NITJ_Interval[j + 2]))
-        likelihood1_tmp = log_fact(np.sum(NITJ_Interval)) - likelihood_denum
+            likelihood_denum += log_fact((nitj_interval[j] + nitj_interval[j + 2]))
+        likelihood_one_tmp = log_fact(np.sum(nitj_interval)) - likelihood_denum
         # Likelihood 2
         res_t = 0
         for t in range(2):
             likelihood_denum = 0
             for j in range(2):
-                likelihood_denum += log_fact(NITJ_Interval[t + t * 1 + j])
+                likelihood_denum += log_fact(nitj_interval[t + t * 1 + j])
             res_t += (
-                log_fact(NITJ_Interval[t + t * 1] + NITJ_Interval[t + t * 1 + 1])
+                log_fact(nitj_interval[t + t * 1] + nitj_interval[t + t * 1 + 1])
                 - likelihood_denum
             )
-        likelihood2_tmp = res_t
+        likelihood_two_tmp = res_t
         # Prior 1
-        prior1_tmp = log_binomial_coefficient(np.sum(NITJ_Interval) + 1, 1)
+        prior_one_tmp = log_binomial_coefficient(np.sum(nitj_interval) + 1, 1)
         # Prior 2
         res_t = 0
         for t in range(2):
             res_t_temp = log_binomial_coefficient(
-                (NITJ_Interval[t + t * 1] + NITJ_Interval[t + t * 1 + 1]) + 1, 1
+                (nitj_interval[t + t * 1] + nitj_interval[t + t * 1 + 1]) + 1, 1
             )
             res_t += res_t_temp
-        prior2_tmp = res_t
+        prior_two_tmp = res_t
 
         if mode == "DeltaCalc":
-            if (prior1_tmp + likelihood1_tmp) < (prior2_tmp + likelihood2_tmp):
-                self.righMergeW = 0
+            if (prior_one_tmp + likelihood_one_tmp) < (
+                prior_two_tmp + likelihood_two_tmp
+            ):
+                self.right_merge_w = 0
             else:
-                self.righMergeW = 1
-            SumOfPriorsAndLikelihoods = (
-                (1 - self.righMergeW) * prior1_tmp
-                + self.righMergeW * prior2_tmp
-                + (1 - self.righMergeW) * likelihood1_tmp
-                + (self.righMergeW) * likelihood2_tmp
+                self.right_merge_w = 1
+            sum_of_priors_and_likelihoods = (
+                (1 - self.right_merge_w) * prior_one_tmp
+                + self.right_merge_w * prior_two_tmp
+                + (1 - self.right_merge_w) * likelihood_one_tmp
+                + (self.right_merge_w) * likelihood_two_tmp
             )
 
         elif mode == "MergeAndUpdate":
             if (
-                ((prior1_tmp + likelihood1_tmp) < (prior2_tmp + likelihood2_tmp))
-                or CalcNull1 == True
-                or CalcNull2 == True
+                (
+                    (prior_one_tmp + likelihood_one_tmp)
+                    < (prior_two_tmp + likelihood_two_tmp)
+                )
+                or calc_null_one == True
+                or calc_null_two == True
             ):
-                if CalcNull2 == True:
-                    self.righMergeW = 1
+                if calc_null_two == True:
+                    self.right_merge_w = 1
                 else:
-                    self.righMergeW = 0
+                    self.right_merge_w = 0
             else:
-                self.righMergeW = 1
-            self.Prior1 = (1 - self.righMergeW) * prior1_tmp
-            self.Prior2 = self.righMergeW * prior2_tmp
-            self.Likelihood1 = (1 - self.righMergeW) * likelihood1_tmp
-            self.Likelihood2 = (self.righMergeW) * likelihood2_tmp
-            self.W = self.righMergeW
-            SumOfPriorsAndLikelihoods = (
-                self.Prior1 + self.Prior2 + self.Likelihood1 + self.Likelihood2
+                self.right_merge_w = 1
+            self.prior_one = (1 - self.right_merge_w) * prior_one_tmp
+            self.prior_two = self.right_merge_w * prior_two_tmp
+            self.likelihood_one = (1 - self.right_merge_w) * likelihood_one_tmp
+            self.likelihood_two = (self.right_merge_w) * likelihood_two_tmp
+            self.w = self.right_merge_w
+            sum_of_priors_and_likelihoods = (
+                self.prior_one
+                + self.prior_two
+                + self.likelihood_one
+                + self.likelihood_two
             )
-            if CalcNull1 == True:
-                self.SumOfPriorsAndLikelihoodsWithZeroW = SumOfPriorsAndLikelihoods
-            if CalcNull2 == True:
-                self.SumOfPriorsAndLikelihoodsWithOneW = SumOfPriorsAndLikelihoods
+            if calc_null_one == True:
+                self.sum_of_priors_and_likelihoods_with_zero_w = (
+                    sum_of_priors_and_likelihoods
+                )
+            if calc_null_two == True:
+                self.sum_of_priors_and_likelihoods_with_one_w = (
+                    sum_of_priors_and_likelihoods
+                )
             else:
-                self.SumOfPriorsAndLikelihoods = SumOfPriorsAndLikelihoods
+                self.sum_of_priors_and_likelihoods = sum_of_priors_and_likelihoods
 
         elif mode == "init":
-            SumOfPriorsAndLikelihoods = (
-                ((1 - self.W) * prior1_tmp)
-                + (self.W * prior2_tmp)
-                + ((1 - self.W) * likelihood1_tmp)
-                + ((self.W) * likelihood2_tmp)
+            sum_of_priors_and_likelihoods = (
+                ((1 - self.w) * prior_one_tmp)
+                + (self.w * prior_two_tmp)
+                + ((1 - self.w) * likelihood_one_tmp)
+                + ((self.w) * likelihood_two_tmp)
             )
-            self.SumOfPriorsAndLikelihoods = SumOfPriorsAndLikelihoods
-            self.Prior1 = (1 - self.W) * prior1_tmp
-            self.Prior2 = self.W * prior2_tmp
-            self.Likelihood1 = (1 - self.W) * likelihood1_tmp
-            self.Likelihood2 = (self.W) * likelihood2_tmp
-        return SumOfPriorsAndLikelihoods
+            self.sum_of_priors_and_likelihoods = sum_of_priors_and_likelihoods
+            self.prior_one = (1 - self.w) * prior_one_tmp
+            self.prior_two = self.w * prior_two_tmp
+            self.likelihood_one = (1 - self.w) * likelihood_one_tmp
+            self.likelihood_two = (self.w) * likelihood_two_tmp
+        return sum_of_priors_and_likelihoods
 
 
 class _DLL:
     def __init__(self):
         self.head = None
         self.tail = None
-        self.N = None
-        self.MODL_value = None
+        self.n = None
+        self.modl_value = None
         self.count = 0
-        self.I = self.count
+        self.i = self.count
 
     # append to the end of the list
     def append(self, listData):
@@ -171,43 +183,43 @@ class _DLL:
             self.head = _Interval(listData)
             self.tail = self.head
             self.count += 1
-            self.I += 1
+            self.i += 1
             return
         self.tail.next = _Interval(listData)
         self.tail.next.previous = self.tail
         self.tail = self.tail.next
         self.count += 1
-        self.I += 1
+        self.i += 1
 
     def insert(self, interval, index):
         nitj = interval.nitj
-        IncludedRightFrontier = interval.IncludedRightFrontier
-        W_value = interval.W
+        included_right_frontier = interval.included_right_frontier
+        W_value = interval.w
 
         if (index > self.count) | (index < 0):
             raise ValueError(f"Index out of range: {index}, size: {self.count}")
 
         if index == self.count:
-            self.append([nitj, IncludedRightFrontier, W_value])
+            self.append([nitj, included_right_frontier, W_value])
             return
 
         if index == 0:
-            self.head.previous = _Interval([nitj, IncludedRightFrontier, W_value])
+            self.head.previous = _Interval([nitj, included_right_frontier, W_value])
             self.head.previous.next = self.head
             self.head = self.head.previous
             self.count += 1
-            self.I += 1
+            self.i += 1
             return
 
         start = self.head
         for _ in range(index):
             start = start.next
-        start.previous.next = _Interval([nitj, IncludedRightFrontier, W_value])
+        start.previous.next = _Interval([nitj, included_right_frontier, W_value])
         start.previous.next.previous = start.previous
         start.previous.next.next = start
         start.previous = start.previous.next
         self.count += 1
-        self.I += 1
+        self.i += 1
         return
 
     def remove_interval(self, interval):
@@ -215,14 +227,14 @@ class _DLL:
             self.head = self.head.next
             self.head.previous = None
             self.count -= 1
-            self.I -= 1
+            self.i -= 1
             return
 
         if interval == self.tail:
             self.tail = self.tail.previous
             self.tail.next = None
             self.count -= 1
-            self.I -= 1
+            self.i -= 1
             return
 
         interval.previous.next, interval.next.previous = (
@@ -230,7 +242,7 @@ class _DLL:
             interval.previous,
         )
         self.count -= 1
-        self.I -= 1
+        self.i -= 1
         return
 
     def remove(self, index):
@@ -241,14 +253,14 @@ class _DLL:
             self.head = self.head.next
             self.head.previous = None
             self.count -= 1
-            self.I -= 1
+            self.i -= 1
             return
 
         if index == (self.count - 1):
             self.tail = self.tail.previous
             self.tail.next = None
             self.count -= 1
-            self.I -= 1
+            self.i -= 1
             return
 
         start = self.head
@@ -256,7 +268,7 @@ class _DLL:
             start = start.next
         start.previous.next, start.next.previous = start.next, start.previous
         self.count -= 1
-        self.I -= 1
+        self.i -= 1
         return
 
     def size(self):
@@ -278,36 +290,36 @@ class _DLL:
         start = self.head
         summations = 0
         while start:
-            summations += start.SumOfPriorsAndLikelihoods
+            summations += start.sum_of_priors_and_likelihoods
             start = start.next
         summations = (
             summations
-            + log_binomial_coefficient(self.N + self.count - 1, self.count - 1)
+            + log_binomial_coefficient(self.n + self.count - 1, self.count - 1)
             + self.count * log(2)
-            + log(self.N)
+            + log(self.n)
         )
-        self.MODL_value = summations
+        self.modl_value = summations
         return summations
 
     def get_sorted_list_of_address_and_right_merge_value(self, interval):
-        AddressAndVal = []  # list of lists
+        address_and_val = []  # list of lists
         while interval:
-            rightMergeVal = interval.rightMergeDelta
-            AddressAndVal.append((rightMergeVal, interval))
+            rightMergeVal = interval.right_merge_delta
+            address_and_val.append((rightMergeVal, interval))
             interval = interval.next
-        AddressAndVal = sorted(AddressAndVal, key=itemgetter(0))
-        return sorted(AddressAndVal, key=itemgetter(0))
+        address_and_val = sorted(address_and_val, key=itemgetter(0))
+        return sorted(address_and_val, key=itemgetter(0))
 
     def get_discretization_info(self):
         start = self.head
-        IntervalBounds = []
-        ListOfWs = []
+        interval_bounds = []
+        list_of_ws = []
         while start:
-            IntervalBounds.append(start.IncludedRightFrontier)
-            ListOfWs.append(start.W)
+            interval_bounds.append(start.included_right_frontier)
+            list_of_ws.append(start.w)
             start = start.next
 
-        return [self.MODL_value, self.count, IntervalBounds, ListOfWs]
+        return [self.modl_value, self.count, interval_bounds, list_of_ws]
 
 
 def create_elementary_discretization(dll, data):
@@ -324,14 +336,14 @@ def create_elementary_discretization(dll, data):
     # This is a list of lists, each internal list represents an interval and contains Effectifs of T0J0, T0J1, T1J0, T1J1 respectively
     prev = None
     i = -1
-    for intervalList in data:
-        if intervalList[0] != prev:
+    for interval_list in data:
+        if interval_list[0] != prev:
             if i != -1:
                 dll.tail.calculate_priors_and_likelihoods()
-            dll.append([[0, 0, 0, 0], intervalList[0], 0])
-            prev = intervalList[0]
+            dll.append([[0, 0, 0, 0], interval_list[0], 0])
+            prev = interval_list[0]
             i += 1
-        dll.tail.nitj[int((intervalList[1] * 2) + intervalList[2])] += 1
+        dll.tail.nitj[int((interval_list[1] * 2) + interval_list[2])] += 1
     dll.tail.calculate_priors_and_likelihoods()
     stop_counter(0)
 
@@ -340,35 +352,37 @@ def create_elementary_discretization(dll, data):
 
 
 def criterion_delta_for_one_adjacent_interval_merge(
-    dll, LeftIntervalNode, indexPassed=True, mode="DeltaCalc"
+    dll, left_interval_node, index_passed=True, mode="DeltaCalc"
 ):
     start_counter(1)
-    if indexPassed:
-        LeftIntervalNode = dll.get_nth(LeftIntervalNode)
+    if index_passed:
+        left_interval_node = dll.get_nth(left_interval_node)
 
-    RightIntervalNode = LeftIntervalNode.next
-    if RightIntervalNode == None:
+    right_interval_node = left_interval_node.next
+    if right_interval_node == None:
         # it means the left interval node is the last node and cannot be merged
-        LeftIntervalNode.rightMergeDelta = -1
+        left_interval_node.right_merge_delta = -1
         return
-    OldLeftIntervalNodeCriterion = LeftIntervalNode.SumOfPriorsAndLikelihoods
+    old_left_interval_node_criterion = left_interval_node.sum_of_priors_and_likelihoods
 
-    LeftIntervalNodeCriterion = LeftIntervalNode.calculate_priors_and_likelihoods(mode)
-
-    RightIntervalNodeCriterion = RightIntervalNode.SumOfPriorsAndLikelihoods
-
-    newCriterionValue = (
-        dll.MODL_value
-        - RightIntervalNodeCriterion
-        - OldLeftIntervalNodeCriterion
-        - log_binomial_coefficient(dll.N + dll.I - 1, dll.I - 1)
-        - ((dll.I) * log(2))
-        + log_binomial_coefficient(dll.N + dll.I - 2, dll.I - 2)
-        + ((dll.I - 1) * log(2))
-        + LeftIntervalNodeCriterion
+    left_interval_node_criterion = left_interval_node.calculate_priors_and_likelihoods(
+        mode
     )
 
-    LeftIntervalNode.rightMergeDelta = dll.MODL_value - newCriterionValue
+    right_interval_node_criterion = right_interval_node.sum_of_priors_and_likelihoods
+
+    new_criterion_value = (
+        dll.modl_value
+        - right_interval_node_criterion
+        - old_left_interval_node_criterion
+        - log_binomial_coefficient(dll.n + dll.i - 1, dll.i - 1)
+        - ((dll.i) * log(2))
+        + log_binomial_coefficient(dll.n + dll.i - 2, dll.i - 2)
+        + ((dll.i - 1) * log(2))
+        + left_interval_node_criterion
+    )
+
+    left_interval_node.right_merge_delta = dll.modl_value - new_criterion_value
     stop_counter(1)
 
 
@@ -380,7 +394,7 @@ def compute_criterion_delta_for_all_possible_merges(dll):
     stop_counter(2)
 
 
-def greedy_search(best_merges, Intervals, N):
+def greedy_search(best_merges, intervals, N):
     start_counter(3)
     for step in range(N):
         if len(best_merges) > 0:
@@ -388,278 +402,289 @@ def greedy_search(best_merges, Intervals, N):
         else:
             break
         if best_merge_tuple[0] >= 0:
-            IntervalToBeMerged = best_merge_tuple[1]
-            IntervalRightOfTheMerge = IntervalToBeMerged.next
+            interval_to_be_merged = best_merge_tuple[1]
+            interval_right_of_the_merge = interval_to_be_merged.next
 
-            interval1_to_be_merged = IntervalToBeMerged.nitj.copy()
-            interval2_to_be_merged = IntervalRightOfTheMerge.nitj.copy()
+            interval_one_to_be_merged = interval_to_be_merged.nitj.copy()
+            interval_two_to_be_merged = interval_right_of_the_merge.nitj.copy()
             start_counter(6)
 
-            MergedIntervals = list(
-                map(add, interval1_to_be_merged, interval2_to_be_merged)
+            merged_intervals = list(
+                map(add, interval_one_to_be_merged, interval_two_to_be_merged)
             )
             stop_counter(6)
 
-            IntervalToBeMerged.nitj = MergedIntervals
-            IntervalToBeMerged.IncludedRightFrontier = (
-                IntervalRightOfTheMerge.IncludedRightFrontier
+            interval_to_be_merged.nitj = merged_intervals
+            interval_to_be_merged.included_right_frontier = (
+                interval_right_of_the_merge.included_right_frontier
             )
 
-            OldLeftIntervalNodeCriterion = IntervalToBeMerged.SumOfPriorsAndLikelihoods
-            OldRightIntervalNodeCriterion = (
-                IntervalRightOfTheMerge.SumOfPriorsAndLikelihoods
+            old_left_interval_node_criterion = (
+                interval_to_be_merged.sum_of_priors_and_likelihoods
+            )
+            old_right_interval_node_criterion = (
+                interval_right_of_the_merge.sum_of_priors_and_likelihoods
             )
 
-            LeftIntervalNodeCriterion = (
-                IntervalToBeMerged.calculate_priors_and_likelihoods(
+            left_interval_node_criterion = (
+                interval_to_be_merged.calculate_priors_and_likelihoods(
                     mode="MergeAndUpdate"
                 )
-            )  # it will update W, Priors, lkelihoods and SumOfPriorsAndLikelihoods
-            Intervals.MODL_value = (
-                Intervals.MODL_value
-                - OldRightIntervalNodeCriterion
-                - OldLeftIntervalNodeCriterion
+            )  # it will update W, Priors, lkelihoods and sum_of_priors_and_likelihoods
+            intervals.modl_value = (
+                intervals.modl_value
+                - old_right_interval_node_criterion
+                - old_left_interval_node_criterion
                 - log_binomial_coefficient(
-                    Intervals.N + Intervals.I - 1, Intervals.I - 1
+                    intervals.n + intervals.i - 1, intervals.i - 1
                 )
-                - ((Intervals.I) * log(2))
+                - ((intervals.i) * log(2))
                 + log_binomial_coefficient(
-                    Intervals.N + Intervals.I - 2, Intervals.I - 2
+                    intervals.n + intervals.i - 2, intervals.i - 2
                 )
-                + ((Intervals.I - 1) * log(2))
-                + LeftIntervalNodeCriterion
+                + ((intervals.i - 1) * log(2))
+                + left_interval_node_criterion
             )
 
-            IntervalRight_to_new_interval = IntervalToBeMerged.next
-            IntervalLeft_to_new_interval = IntervalToBeMerged.previous
+            interval_right_to_new_interval = interval_to_be_merged.next
+            interval_left_to_new_interval = interval_to_be_merged.previous
 
             best_merges.remove(
-                (IntervalRightOfTheMerge.rightMergeDelta, IntervalRightOfTheMerge)
+                (
+                    interval_right_of_the_merge.right_merge_delta,
+                    interval_right_of_the_merge,
+                )
             )
-            Intervals.remove_interval(IntervalRightOfTheMerge)
+            intervals.remove_interval(interval_right_of_the_merge)
 
-            if IntervalRight_to_new_interval == None:  # last Interval
+            if interval_right_to_new_interval == None:  # last Interval
                 best_merges.remove(
                     (
-                        IntervalLeft_to_new_interval.rightMergeDelta,
-                        IntervalLeft_to_new_interval,
+                        interval_left_to_new_interval.right_merge_delta,
+                        interval_left_to_new_interval,
                     )
                 )
                 criterion_delta_for_one_adjacent_interval_merge(
-                    Intervals, IntervalLeft_to_new_interval, indexPassed=False
+                    intervals, interval_left_to_new_interval, index_passed=False
                 )
                 best_merges.add(
                     (
-                        IntervalLeft_to_new_interval.rightMergeDelta,
-                        IntervalLeft_to_new_interval,
+                        interval_left_to_new_interval.right_merge_delta,
+                        interval_left_to_new_interval,
                     )
                 )
-            elif IntervalLeft_to_new_interval == None:
+            elif interval_left_to_new_interval == None:
                 criterion_delta_for_one_adjacent_interval_merge(
-                    Intervals, IntervalToBeMerged, indexPassed=False
+                    intervals, interval_to_be_merged, index_passed=False
                 )
                 best_merges.add(
-                    (IntervalToBeMerged.rightMergeDelta, IntervalToBeMerged)
+                    (interval_to_be_merged.right_merge_delta, interval_to_be_merged)
                 )
             else:
                 best_merges.remove(
                     (
-                        IntervalLeft_to_new_interval.rightMergeDelta,
-                        IntervalLeft_to_new_interval,
+                        interval_left_to_new_interval.right_merge_delta,
+                        interval_left_to_new_interval,
                     )
                 )
                 criterion_delta_for_one_adjacent_interval_merge(
-                    Intervals, IntervalLeft_to_new_interval, indexPassed=False
+                    intervals, interval_left_to_new_interval, index_passed=False
                 )
                 best_merges.add(
                     (
-                        IntervalLeft_to_new_interval.rightMergeDelta,
-                        IntervalLeft_to_new_interval,
+                        interval_left_to_new_interval.right_merge_delta,
+                        interval_left_to_new_interval,
                     )
                 )
                 criterion_delta_for_one_adjacent_interval_merge(
-                    Intervals, IntervalToBeMerged, indexPassed=False
+                    intervals, interval_to_be_merged, index_passed=False
                 )
                 best_merges.add(
-                    (IntervalToBeMerged.rightMergeDelta, IntervalToBeMerged)
+                    (interval_to_be_merged.right_merge_delta, interval_to_be_merged)
                 )
         else:
             break
     stop_counter(3)
 
 
-def merge(interval, Intervals, NumberOfMerges=1):
-    NeighboursToMerge = [interval]
-    MergedIntervals = interval.nitj.copy()
-    SumOfOldPriorsAndLikelihoods = interval.SumOfPriorsAndLikelihoods
-    for i in range(NumberOfMerges):
-        lastInterval = NeighboursToMerge[-1].next
-        NeighboursToMerge.append(lastInterval)
-        MergedIntervals = list(
-            map(add, NeighboursToMerge[-1].nitj.copy(), MergedIntervals)
+def merge(interval, intervals, number_of_merges=1):
+    neighbours_to_merge = [interval]
+    merged_intervals = interval.nitj.copy()
+    sum_of_old_priors_and_likelihoods = interval.sum_of_priors_and_likelihoods
+    for i in range(number_of_merges):
+        last_interval = neighbours_to_merge[-1].next
+        neighbours_to_merge.append(last_interval)
+        merged_intervals = list(
+            map(add, neighbours_to_merge[-1].nitj.copy(), merged_intervals)
         )
-        SumOfOldPriorsAndLikelihoods += NeighboursToMerge[-1].SumOfPriorsAndLikelihoods
+        sum_of_old_priors_and_likelihoods += neighbours_to_merge[
+            -1
+        ].sum_of_priors_and_likelihoods
 
-    interval.nitj = MergedIntervals
-    interval.IncludedRightFrontier = NeighboursToMerge[-1].IncludedRightFrontier
+    interval.nitj = merged_intervals
+    interval.included_right_frontier = neighbours_to_merge[-1].included_right_frontier
     # NOW WE HAVE TO SEARCH for the old values of the sum of prior and likelihoods !!!!
-    LeftIntervalNodeCriterion = interval.calculate_priors_and_likelihoods(
+    left_interval_node_criterion = interval.calculate_priors_and_likelihoods(
         mode="MergeAndUpdate"
-    )  # it will update W, Priors, lkelihoods and SumOfPriorsAndLikelihoods
-    Intervals.MODL_value = (
-        Intervals.MODL_value
-        - SumOfOldPriorsAndLikelihoods
-        - log_binomial_coefficient(Intervals.N + Intervals.I - 1, Intervals.I - 1)
-        - ((Intervals.I) * log(2))
+    )  # it will update W, Priors, lkelihoods and sum_of_priors_and_likelihoods
+    intervals.modl_value = (
+        intervals.modl_value
+        - sum_of_old_priors_and_likelihoods
+        - log_binomial_coefficient(intervals.n + intervals.i - 1, intervals.i - 1)
+        - ((intervals.i) * log(2))
         + log_binomial_coefficient(
-            Intervals.N + Intervals.I - NumberOfMerges - 1,
-            Intervals.I - NumberOfMerges - 1,
+            intervals.n + intervals.i - number_of_merges - 1,
+            intervals.i - number_of_merges - 1,
         )
-        + ((Intervals.I - NumberOfMerges) * log(2))
-        + LeftIntervalNodeCriterion
+        + ((intervals.i - number_of_merges) * log(2))
+        + left_interval_node_criterion
     )
 
     for i in range(
-        1, len(NeighboursToMerge)
+        1, len(neighbours_to_merge)
     ):  # Note the first element is the current interval that we are merging, no need to remove it!
-        Intervals.remove_interval(NeighboursToMerge[i])
+        intervals.remove_interval(neighbours_to_merge[i])
 
 
 def split_interval(
     interval, Intervals, data, i
-):  # i is interval index in IntervalsList
+):  # i is interval index in intervalsList
     if interval == Intervals.head:
-        IncludingLeftBorder = True
-        LeftBound = data[0][0]
+        including_left_border = True
+        left_bound = data[0][0]
     else:
-        IncludingLeftBorder = False
-        LeftBound = interval.previous.IncludedRightFrontier
-    RightBound = interval.IncludedRightFrontier
-    uniqueValuesInBothIntervals = list(
-        data.irange_key(LeftBound, RightBound, (IncludingLeftBorder, True))
+        including_left_border = False
+        left_bound = interval.previous.included_right_frontier
+    right_bound = interval.included_right_frontier
+    unique_values_in_both_intervals = list(
+        data.irange_key(left_bound, right_bound, (including_left_border, True))
     )
-    uniqueValuesInBothIntervals = list(map(itemgetter(0), uniqueValuesInBothIntervals))
-    uniqueValuesInBothIntervals = list(set(uniqueValuesInBothIntervals))
-    uniqueValuesInBothIntervals.sort()
-    Splits = {}
-    LeftAndRightIntervalOfSplits = {}
-    previousLeftInterval = [0, 0, 0, 0]
-    prevVal = None
+    unique_values_in_both_intervals = list(
+        map(itemgetter(0), unique_values_in_both_intervals)
+    )
+    unique_values_in_both_intervals = list(set(unique_values_in_both_intervals))
+    unique_values_in_both_intervals.sort()
+    splits = {}
+    left_and_right_interval_of_splits = {}
+    previous_left_interval = [0, 0, 0, 0]
+    prev_val = None
 
-    for val in uniqueValuesInBothIntervals:
-        if prevVal == None:
-            leftSplit = list(
-                data.irange_key(LeftBound, val, (IncludingLeftBorder, True))
+    for val in unique_values_in_both_intervals:
+        if prev_val == None:
+            left_split = list(
+                data.irange_key(left_bound, val, (including_left_border, True))
             )
-            leftInterval = [0, 0, 0, 0]
-            for intervalList in leftSplit:
-                leftInterval[int((intervalList[1] * 2) + intervalList[2])] += 1
+            left_interval = [0, 0, 0, 0]
+            for interval_list in left_split:
+                left_interval[int((interval_list[1] * 2) + interval_list[2])] += 1
         else:
-            leftSplit = list(data.irange_key(prevVal, val, (False, True)))
-            leftInterval = [0, 0, 0, 0]
-            for intervalList in leftSplit:
-                leftInterval[int((intervalList[1] * 2) + intervalList[2])] += 1
-            leftInterval = list(map(add, previousLeftInterval, leftInterval))
+            left_split = list(data.irange_key(prev_val, val, (False, True)))
+            left_interval = [0, 0, 0, 0]
+            for interval_list in left_split:
+                left_interval[int((interval_list[1] * 2) + interval_list[2])] += 1
+            left_interval = list(map(add, previous_left_interval, left_interval))
 
-        prevVal = val
-        previousLeftInterval = leftInterval
+        prev_val = val
+        previous_left_interval = left_interval
 
-        rightInterval = list(map(sub, interval.nitj, leftInterval))
+        right_interval = list(map(sub, interval.nitj, left_interval))
 
-        LeftInterval = _Interval([leftInterval, val, 0])
-        RightInterval = _Interval([rightInterval, interval.IncludedRightFrontier, 0])
+        Left_interval = _Interval([left_interval, val, 0])
+        Right_interval = _Interval(
+            [right_interval, interval.included_right_frontier, 0]
+        )
 
-        criterion1 = LeftInterval.calculate_priors_and_likelihoods(
+        criterion_one = Left_interval.calculate_priors_and_likelihoods(
             mode="MergeAndUpdate"
         )
-        criterion2 = RightInterval.calculate_priors_and_likelihoods(
+        criterion_two = Right_interval.calculate_priors_and_likelihoods(
             mode="MergeAndUpdate"
         )
 
-        SplitCriterionVal_leftAndRight = (
-            Intervals.MODL_value
-            - interval.SumOfPriorsAndLikelihoods
-            - log_binomial_coefficient(Intervals.N + Intervals.I - 1, Intervals.I - 1)
-            - ((Intervals.I) * log(2))
-            + criterion1
-            + criterion2
-            + log_binomial_coefficient(Intervals.N + Intervals.I, Intervals.I)
-            + ((Intervals.I + 1) * log(2))
+        split_criterion_val_left_and_right = (
+            Intervals.modl_value
+            - interval.sum_of_priors_and_likelihoods
+            - log_binomial_coefficient(Intervals.n + Intervals.i - 1, Intervals.i - 1)
+            - ((Intervals.i) * log(2))
+            + criterion_one
+            + criterion_two
+            + log_binomial_coefficient(Intervals.n + Intervals.i, Intervals.i)
+            + ((Intervals.i + 1) * log(2))
         )
 
-        if SplitCriterionVal_leftAndRight < Intervals.MODL_value:
-            Splits[val] = SplitCriterionVal_leftAndRight
-            LeftAndRightIntervalOfSplits[val] = [leftInterval, rightInterval]
-    splitDone = False
-    bestSplit = None
-    if Splits:
-        bestSplit = min(Splits, key=Splits.get)  # To be optimized maybe
-        leftInterval = LeftAndRightIntervalOfSplits[bestSplit][0]
-        rightInterval = LeftAndRightIntervalOfSplits[bestSplit][1]
+        if split_criterion_val_left_and_right < Intervals.modl_value:
+            splits[val] = split_criterion_val_left_and_right
+            left_and_right_interval_of_splits[val] = [left_interval, right_interval]
+    split_done = False
+    best_split = None
+    if splits:
+        best_split = min(splits, key=splits.get)  # To be optimized maybe
+        left_interval = left_and_right_interval_of_splits[best_split][0]
+        right_interval = left_and_right_interval_of_splits[best_split][1]
 
-        LeftInterval = interval
-        rightBoundOfTheRightInterval = interval.IncludedRightFrontier
+        Left_interval = interval
+        right_bound_of_the_right_interval = interval.included_right_frontier
         Intervals.insert(
-            _Interval([rightInterval, rightBoundOfTheRightInterval, 0]), i + 1
+            _Interval([right_interval, right_bound_of_the_right_interval, 0]), i + 1
         )
-        RightInterval = Intervals.get_nth(i + 1)
+        Right_interval = Intervals.get_nth(i + 1)
 
-        LeftInterval.nitj = leftInterval
-        LeftInterval.IncludedRightFrontier = bestSplit
+        Left_interval.nitj = left_interval
+        Left_interval.included_right_frontier = best_split
 
-        LeftInterval.calculate_priors_and_likelihoods(
+        Left_interval.calculate_priors_and_likelihoods(
             mode="MergeAndUpdate"
-        )  # it will update W, Priors, lkelihoods and SumOfPriorsAndLikelihoods
-        RightInterval.calculate_priors_and_likelihoods(
+        )  # it will update W, Priors, lkelihoods and sum_of_priors_and_likelihoods
+        Right_interval.calculate_priors_and_likelihoods(
             mode="MergeAndUpdate"
-        )  # it will update W, Priors, lkelihoods and SumOfPriorsAndLikelihoods
+        )  # it will update W, Priors, lkelihoods and sum_of_priors_and_likelihoods
 
-        Intervals.MODL_value = Splits[bestSplit]
-        splitDone = True
-    return splitDone, bestSplit, Intervals
+        Intervals.modl_value = splits[best_split]
+        split_done = True
+    return split_done, best_split, Intervals
 
 
-def post_optimization_to_be_repeated(Intervals, data, i=0):
+def post_optimization_to_be_repeated(intervals, data, i=0):
     data = SortedKeyList(data, key=itemgetter(0))
-    interval = Intervals.head
-    OlD_MODL_CRITERION_VALUE = Intervals.MODL_value
-    CriterionValueAfterOptimization = None
-    LoopingCount = 0
+    interval = intervals.head
+    old_modl_criterion_value = intervals.modl_value
+    criterion_value_after_optimization = None
+    looping_count = 0
     # Merge Split
     while True:
-        LoopingCount += 1
+        looping_count += 1
         i = 0
         while True:
-            interval = Intervals.get_nth(i)
+            interval = intervals.get_nth(i)
             if interval == 0:
                 break
-            SplitDone, SplitVal, Intervals = split_interval(
-                interval, Intervals, data, i
+            split_done, split_val, intervals = split_interval(
+                interval, intervals, data, i
             )
-            if SplitDone:
+            if split_done:
                 i += 2
             else:
                 i += 1
 
         i = 0
         while True:
-            interval = Intervals.get_nth(i)
+            interval = intervals.get_nth(i)
             if interval == 0:
                 break
-            if interval == Intervals.tail:
+            if interval == intervals.tail:
                 break
             if interval.next == None:
                 # Arrived to the most left interval
                 break
 
-            OldSplitVal = interval.IncludedRightFrontier
-            merge(interval, Intervals, 1)
+            old_split_val = interval.included_right_frontier
+            merge(interval, intervals, 1)
             # Merge finished successfully
-            SplitAfterMergeDone, SplitVal, Intervals = split_interval(
-                interval, Intervals, data, i
+            split_after_merge_done, split_val, intervals = split_interval(
+                interval, intervals, data, i
             )
 
-            if SplitAfterMergeDone and SplitVal != OldSplitVal:
+            if split_after_merge_done and split_val != old_split_val:
                 i += 2
             else:
                 i += 1
@@ -667,11 +692,11 @@ def post_optimization_to_be_repeated(Intervals, data, i=0):
         # MergeMegeSplit
         i = 0
         while True:
-            interval = Intervals.get_nth(i)
+            interval = intervals.get_nth(i)
 
             if interval == 0:
                 break
-            if interval == Intervals.tail:
+            if interval == intervals.tail:
                 break
             if interval.next == None:
                 # Arrived to the most left interval
@@ -679,65 +704,66 @@ def post_optimization_to_be_repeated(Intervals, data, i=0):
             if interval.next.next == None:
                 break
 
-            OriginalIntervalsList = copy_list(Intervals)
-            merge(interval, Intervals, 2)
-            OriginalIntervalsListAfterMerge = copy_list(Intervals)
+            original_intervals_list = copy_list(intervals)
+            merge(interval, intervals, 2)
+            original_intervals_list_after_merge = copy_list(intervals)
 
             # Merge finished successfully
-            SplitAfterMergeDone, SplitVal, Intervals = split_interval(
-                interval, Intervals, data, i
+            split_after_merge_done, split_val, intervals = split_interval(
+                interval, intervals, data, i
             )
 
             if (
-                Intervals.MODL_value < OriginalIntervalsList.MODL_value
-                and Intervals.MODL_value < OriginalIntervalsListAfterMerge.MODL_value
+                intervals.modl_value < original_intervals_list.modl_value
+                and intervals.modl_value
+                < original_intervals_list_after_merge.modl_value
             ):
                 i += 2
             elif (
-                OriginalIntervalsList.MODL_value
-                < OriginalIntervalsListAfterMerge.MODL_value
+                original_intervals_list.modl_value
+                < original_intervals_list_after_merge.modl_value
             ):
-                Intervals = copy_list(OriginalIntervalsList)
+                intervals = copy_list(original_intervals_list)
                 i += 3
             else:
-                Intervals = copy_list(OriginalIntervalsListAfterMerge)
+                intervals = copy_list(original_intervals_list_after_merge)
                 i += 1
 
-        CriterionValueAfterOptimization = Intervals.MODL_value
+        criterion_value_after_optimization = intervals.modl_value
 
-        if round(CriterionValueAfterOptimization, 5) < round(
-            OlD_MODL_CRITERION_VALUE, 5
+        if round(criterion_value_after_optimization, 5) < round(
+            old_modl_criterion_value, 5
         ):
-            OlD_MODL_CRITERION_VALUE = CriterionValueAfterOptimization
+            old_modl_criterion_value = criterion_value_after_optimization
             continue
         else:
             break
     return (
-        Intervals.size(),
-        Intervals.MODL_value,
-        Intervals,
-        Intervals.get_discretization_info(),
+        intervals.size(),
+        intervals.modl_value,
+        intervals,
+        intervals.get_discretization_info(),
     )
 
 
-def copy_list(DLL_to_be_copied):
-    newList = _DLL()  # head of the new list
-    newList.N = DLL_to_be_copied.N
-    newList.MODL_value = DLL_to_be_copied.MODL_value
-    current = DLL_to_be_copied.head  # used to iterate over the original list
+def copy_list(dll_to_be_copied):
+    new_list = _DLL()  # head of the new list
+    new_list.n = dll_to_be_copied.n
+    new_list.modl_value = dll_to_be_copied.modl_value
+    current = dll_to_be_copied.head  # used to iterate over the original list
 
     while current:
-        newList.append(current.get_interval_data())
+        new_list.append(current.get_interval_data())
         current = current.next
 
-    return newList
+    return new_list
 
 
-def calculate_feature_level(Intervals, method="ED"):
-    interval = Intervals.head
-    AbsoluteSum = 0
+def calculate_feature_level(intervals, method="ED"):
+    interval = intervals.head
+    absolute_sum = 0
 
-    if Intervals.I == 1:
+    if intervals.i == 1:
         return 0
 
     while interval:
@@ -757,55 +783,55 @@ def calculate_feature_level(Intervals, method="ED"):
         except:
             piYT0 = 0
         if method == "ED":
-            AbsoluteSum += (((piYT1) - (piYT0)) ** 2) * Ni / Intervals.N  # ED
+            absolute_sum += (((piYT1) - (piYT0)) ** 2) * Ni / intervals.n  # ED
         elif method == "Chi":
             if piYT0 < 0.1**6:
                 piYT0 = 0.1**6
-            AbsoluteSum += ((((piYT1) - (piYT0)) ** 2) / piYT0) * Ni / Intervals.N
+            absolute_sum += ((((piYT1) - (piYT0)) ** 2) / piYT0) * Ni / intervals.n
         elif method == "KL":
             if piYT0 < 0.1**6:
                 piYT0 = 0.1**6
             elif piYT0 > 1 - 0.1**6:
                 piYT0 = 1 - 0.1**6
-            AbsoluteSum += ((piYT1) * log(piYT1 / piYT0)) * Ni / Intervals.N
+            absolute_sum += ((piYT1) * log(piYT1 / piYT0)) * Ni / intervals.n
         interval = interval.next
-    return AbsoluteSum
+    return absolute_sum
 
 
 def execute_greedy_search_and_post_opt(df):
-    treatmentCol_name = df.columns[1]
+    treatment_col_name = df.columns[1]
     y_name = df.columns[2]
 
-    df[treatmentCol_name] = df[treatmentCol_name].astype(int)
+    df[treatment_col_name] = df[treatment_col_name].astype(int)
     df[y_name] = df[y_name].astype(int)
 
     df = df.values.tolist()
     df = sorted(df, key=itemgetter(0))
-    Intervals = _DLL()
-    Intervals.N = len(df)
+    intervals = _DLL()
+    intervals.n = len(df)
 
-    Intervals, Intervals.MODL_value, I = create_elementary_discretization(
-        Intervals, df
+    intervals, intervals.modl_value, I = create_elementary_discretization(
+        intervals, df
     )  # Elementary discretization
 
     compute_criterion_delta_for_all_possible_merges(
-        Intervals
+        intervals
     )  # Compute the cost of all possible merges of two adjacent intervals
 
-    best_merges = Intervals.get_sorted_list_of_address_and_right_merge_value(
-        Intervals.head
+    best_merges = intervals.get_sorted_list_of_address_and_right_merge_value(
+        intervals.head
     )  # Get all the costs of 'all possible merges of two adjacent intervals' sorted
     best_merges = SortedKeyList(best_merges, key=itemgetter(0))
 
     # Start greedy search
-    greedy_search(best_merges, Intervals, Intervals.N)
+    greedy_search(best_merges, intervals, intervals.n)
 
     # Post Optimization steps
-    IntervalsNUM, umodl_val, Intervals, Info = post_optimization_to_be_repeated(
-        Intervals, df
+    intervals_num, umodl_val, intervals, info = post_optimization_to_be_repeated(
+        intervals, df
     )
 
-    Bounds = Info[2]
-    FeatureLevel_ED = calculate_feature_level(Intervals)
+    bounds = info[2]
+    feature_level_ed = calculate_feature_level(intervals)
 
-    return [FeatureLevel_ED, Bounds]
+    return [feature_level_ed, bounds]

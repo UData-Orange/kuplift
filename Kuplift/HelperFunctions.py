@@ -9,8 +9,7 @@
 ######################################################################################
 from math import log
 
-_Log_Fact_Table = []
-binomialFunctionAccessCount = 0
+_log_fact_table = []
 
 
 def log_fact(n):
@@ -31,15 +30,15 @@ def log_fact(n):
         raise ValueError("Value of n is too large")
     # computation of values, tabulation in private array
     else:
-        s = len(_Log_Fact_Table)
+        s = len(_log_fact_table)
         if n >= s:
             if s == 0:
-                _Log_Fact_Table.append(0)
-            size = len(_Log_Fact_Table)
+                _log_fact_table.append(0)
+            size = len(_log_fact_table)
             while size <= n:
-                _Log_Fact_Table.append(log(size) + _Log_Fact_Table[size - 1])
+                _log_fact_table.append(log(size) + _log_fact_table[size - 1])
                 size = size + 1
-        return _Log_Fact_Table[n]
+        return _log_fact_table[n]
 
 
 def log_2_star(k):
@@ -149,18 +148,18 @@ def preprocess_data(Data_features, treatment_col="segment", y_col="visit"):
                 Data_features[num_col].mean()
             )
 
-    categoricalCols = list(set(cols) - set(num_cols))
-    if treatment_col in categoricalCols:
-        categoricalCols.remove(treatment_col)
-    if y_col in categoricalCols:
-        categoricalCols.remove(y_col)
-    for catCol in categoricalCols:
-        Data_features[catCol] = Data_features[catCol].fillna(
-            Data_features[catCol].mode()[0]
+    categorical_cols = list(set(cols) - set(num_cols))
+    if treatment_col in categorical_cols:
+        categorical_cols.remove(treatment_col)
+    if y_col in categorical_cols:
+        categorical_cols.remove(y_col)
+    for cat_col in categorical_cols:
+        Data_features[cat_col] = Data_features[cat_col].fillna(
+            Data_features[cat_col].mode()[0]
         )
-        DictValVsUplift = {}
-        for val in Data_features[catCol].value_counts().index:
-            dataset_slice = Data_features[Data_features[catCol] == val]
+        dict_val_vs_uplift = {}
+        for val in Data_features[cat_col].value_counts().index:
+            dataset_slice = Data_features[Data_features[cat_col] == val]
             t0j0 = dataset_slice[
                 (dataset_slice[treatment_col] == 0) & (dataset_slice[y_col] == 0)
             ].shape[0]
@@ -175,18 +174,19 @@ def preprocess_data(Data_features, treatment_col="segment", y_col="visit"):
             ].shape[0]
 
             if (t1j1 + t1j0) == 0:
-                UpliftInThisSlice = -1
+                uplift_in_this_slice = -1
             elif (t0j1 + t0j1) == 0:
-                UpliftInThisSlice = 0
+                uplift_in_this_slice = 0
             else:
-                UpliftInThisSlice = (t1j1 / (t1j1 + t1j0)) - (t0j1 / (t0j1 + t0j1))
-            DictValVsUplift[val] = UpliftInThisSlice
-        OrderedDict = {
-            k: v for k, v in sorted(DictValVsUplift.items(), key=lambda item: item[1])
+                uplift_in_this_slice = (t1j1 / (t1j1 + t1j0)) - (t0j1 / (t0j1 + t0j1))
+            dict_val_vs_uplift[val] = uplift_in_this_slice
+        ordered_dict = {
+            k: v
+            for k, v in sorted(dict_val_vs_uplift.items(), key=lambda item: item[1])
         }
         encoded_i = 0
-        for k, v in OrderedDict.items():
-            Data_features[catCol] = Data_features[catCol].replace([k], encoded_i)
+        for k, v in ordered_dict.items():
+            Data_features[cat_col] = Data_features[cat_col].replace([k], encoded_i)
             encoded_i += 1
     Data_features[treatment_col] = Data_features[treatment_col].astype(str)
     return Data_features

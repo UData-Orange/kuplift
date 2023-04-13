@@ -35,27 +35,27 @@ class FeatureSelection:
         dict
             A Python dictionary containing the sorted variable importance, where the keys represent the variable names and the values denote their respective importance.
 
-        For example: return a dictionary VarVsImportance={"age":2.2,"job":2.3}
+        For example: return a dictionary var_vs_importance={"age":2.2,"job":2.3}
         """
         features = list(data.columns)
         features.remove(treatment_col)
         features.remove(y_col)
 
-        VarVsImportance = {}
-        VarVsDisc = {}
+        var_vs_importance = {}
+        var_vs_disc = {}
         for feature in features:
             print("feature is ", feature)
             (
-                VarVsImportance[feature],
-                VarVsDisc[feature],
+                var_vs_importance[feature],
+                var_vs_disc[feature],
             ) = execute_greedy_search_and_post_opt(
                 data[[feature, treatment_col, y_col]]
             )
         # sort the dictionary by values in ascending order
-        VarVsImportance = {
-            k: v for k, v in sorted(VarVsImportance.items(), key=lambda item: item[1])
+        var_vs_importance = {
+            k: v for k, v in sorted(var_vs_importance.items(), key=lambda item: item[1])
         }
-        return VarVsImportance
+        return var_vs_importance
 
     def filter(self, data, treatment_col, y_col):
         """
@@ -75,7 +75,7 @@ class FeatureSelection:
         Python Dictionary
             Variables names and their corresponding importance value (Sorted).
         """
-        stdoutOrigin = sys.stdout
+        stdout_origin = sys.stdout
         sys.stdout = open("log.txt", "w")
 
         cols = list(data.columns)
@@ -85,9 +85,9 @@ class FeatureSelection:
         data = data[cols + [treatment_col, y_col]]
         data = preprocess_data(data, treatment_col, y_col)
 
-        ListOfVarsImportance = self.__get_the_best_var(data, treatment_col, y_col)
+        list_of_vars_importance = self.__get_the_best_var(data, treatment_col, y_col)
 
         sys.stdout.close()
-        sys.stdout = stdoutOrigin
+        sys.stdout = stdout_origin
 
-        return ListOfVarsImportance
+        return list_of_vars_importance
