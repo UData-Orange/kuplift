@@ -11,7 +11,11 @@ import bisect
 from math import log
 import pandas as pd
 import time
-from .HelperFunctions import _log_fact_table, log_fact, log_binomial_coefficient
+from .HelperFunctions import (
+    _log_fact_table,
+    log_fact,
+    log_binomial_coefficient,
+)
 from operator import itemgetter, add, sub
 from sortedcontainers import SortedKeyList
 
@@ -106,7 +110,7 @@ def calc_criterion(nitj_interval, null_model=False):
     stop_counter(0)
 
     right_merge_w = None
-    if null_model == False:
+    if not null_model:
         if (prior_one_tmp + likelihood_one_tmp) < (prior_two_tmp + likelihood_two_tmp):
             right_merge_w = 0
         else:
@@ -164,7 +168,7 @@ def split_interval(
         if (len(unique_values_in_both_intervals) <= 1) or (val == right_bound):
             break
 
-        if prev_val == None:  # Enters here only for the first unique value
+        if prev_val is None:  # Enters here only for the first unique value
             left_split = list(
                 data.irange_key(left_bound, val, (True, True))
             )  # Get a list of all data between left_bound and current unique value
@@ -177,17 +181,20 @@ def split_interval(
             for interval_list in left_split:
                 left_interval[int((interval_list[1] * 2) + interval_list[2])] += 1
             """
-            New Left Interval frequencies is the sum of the previous left interval (bounded between Smallest value and prev_val) and the 
+            New Left Interval frequencies is the sum of the previous left
+            interval (bounded between Smallest value and prev_val) and the
             new left interval (bounded between prev_val and val)
             """
             left_interval = list(map(add, previous_left_interval, left_interval))
 
-        # the nitj for the right split (Which we call the right_interval) will be the difference between the old nitj and the left_interval
+        # the nitj for the right split (Which we call the right_interval)
+        # will be the difference between the old nitj and the left_interval
         prev_val = val
         previous_left_interval = left_interval.copy()
 
         """
-        The new rigt interval is the soustraction of all the data and the new left interval
+        The new rigt interval is the soustraction of all the data
+        and the new left interval
         """
         right_interval = list(map(sub, data_nitj, left_interval))
 
@@ -203,7 +210,8 @@ def split_interval(
             prior_rissanen + criterion_one + criterion_two
         )
         stop_counter(24)
-        # If the MODL value is smaller than the null model value add it to the splits dictionary
+        # If the MODL value is smaller than the null model value add it
+        # to the splits dictionary
         if split_criterion_val_left_and_right < null_model_value:
             if sum(right_interval) == 0:
                 print("strange case")

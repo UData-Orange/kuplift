@@ -42,8 +42,8 @@ def log_fact(n):
 
 
 def log_2_star(k):
-    """Computes the term log_2*(k)=log_2(k) + log_2(log_2(k)) + ...  of Rissanen's code for integers
-    so long as the terms are positive.
+    """Computes the term log_2*(k)=log_2(k) + log_2(log_2(k)) + ...
+    of Rissanen's code for integers so long as the terms are positive.
 
     Parameters
     ----------
@@ -95,7 +95,8 @@ def log_binomial_coefficient(n, k):
 
 def universal_code_natural_numbers(k):
     """Compute the universal code for integers presented by Rissanen in
-    'A Universal Prior for Integers and Estimation by Minimum Description Length', Rissanen 1983.
+    'A Universal Prior for Integers and Estimation by Minimum Description
+    Length', Rissanen 1983.
 
     Parameters
     ----------

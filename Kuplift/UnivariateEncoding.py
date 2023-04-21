@@ -95,7 +95,7 @@ class UnivariateEncoding:
         cols.remove(self.treatment_col)
         cols.remove(self.y_col)
         for col in cols:
-            if self.var_vs_disc[col] == None:
+            if self.var_vs_disc[col] is None:
                 Data_features.drop(col, inplace=True, axis=1)
             else:
                 Data_features[col] = pd.cut(

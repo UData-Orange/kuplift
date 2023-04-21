@@ -16,8 +16,6 @@ from .HelperFunctions import (
 )
 from .Tree import _Tree
 
-random.seed(10)  # to decomment for tests
-
 
 class _UpliftTreeClassifier(_Tree):
     """Private child class
@@ -50,7 +48,9 @@ class _UpliftTreeClassifier(_Tree):
             self.encoding_of_being_an_internal_node + log(2)
         )
 
-        # When splitting a node to 2 nodes, the number of leaf nodes is incremented only by one, since the parent node was leaf and is now internal.
+        # When splitting a node to 2 nodes, the number of leaf nodes is
+        # incremented only by one, since the parent node was leaf
+        # and is now internal.
         # 2 for two extra leaf nodes multiplied by 2 for w. Total = 4.
         encoding_of_being_a_leaf_node_and_containing_te_plus_two = (
             self.encoding_of_being_a_leaf_node_and_containing_te + (2 * log(2))
@@ -71,7 +71,7 @@ class _UpliftTreeClassifier(_Tree):
 
             for terminal_node in self.terminal_nodes:
                 # This if condition is here to not to repeat calculations of candidate splits
-                if terminal_node.candidate_splits_vs_criterion == None:
+                if terminal_node.candidate_splits_vs_criterion is None:
                     node_vs_candidate_splits_costs[
                         terminal_node
                     ] = terminal_node.discretize_vars_and_get_attributes_splits_costs()
@@ -156,7 +156,8 @@ class _UpliftTreeClassifier(_Tree):
 class BayesianRandomForest:
     """
     The BayesianRandomForest class implements the UB-RF algorithm described in:
-    Rafla, M., Voisine, N., Crémilleux, B., \& Boullé, M. (2023, May). A Non-Parametric Bayesian Decision Trees for Uplift modelling. In PAKDD.
+    Rafla, M., Voisine, N., Crémilleux, B., & Boullé, M. (2023, May).
+    A Non-Parametric Bayesian Decision Trees for Uplift modelling. In PAKDD.
 
     Parameters
     ----------
@@ -170,11 +171,14 @@ class BayesianRandomForest:
         Number of trees in a forest.
     """
 
-    def __init__(self, data, treatment_col, y_col, n_trees, not_all_vars=False):
+    def __init__(
+        self, data, treatment_col, y_col, n_trees, not_all_vars=False, random_state=10
+    ):
         self.list_of_trees = []
         self.data = data
+        random.seed(random_state)
         # Randomly select columns for the data
-        if not_all_vars == True:
+        if not_all_vars:
             cols = list(self.data.columns)
             cols.remove(treatment_col)
             cols.remove(y_col)

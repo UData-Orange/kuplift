@@ -14,8 +14,14 @@ from .UMODL_SearchAlgorithm import execute_greedy_search_and_post_opt
 
 class FeatureSelection:
     """
-    The FeatureSelection implements the feature selection algorithm 'UMODL-FS' described in:
-    Rafla, M., Voisine, N., Crémilleux, B., & Boullé, M. (2023, March). A non-parametric bayesian approach for uplift discretization and feature selection. In Machine Learning and Knowledge Discovery in Databases: European Conference, ECML PKDD 2022, Grenoble, France, September 19–23, 2022, Proceedings, Part V (pp. 239-254). Cham: Springer Nature Switzerland.
+    The FeatureSelection implements the feature selection algorithm 'UMODL-FS'
+    described in: Rafla, M., Voisine, N., Crémilleux, B., & Boullé, M.
+    (2023, March). A non-parametric bayesian approach for uplift
+    discretization and feature selection.
+    In Machine Learning and Knowledge Discovery in Databases:
+    European Conference, ECML PKDD 2022, Grenoble, France,
+    September 19–23, 2022, Proceedings, Part V (pp. 239-254).
+    Cham: Springer Nature Switzerland.
     """
 
     def __get_the_best_var(self, data, treatment_col, y_col):
@@ -33,9 +39,12 @@ class FeatureSelection:
         Returns
         -------
         dict
-            A Python dictionary containing the sorted variable importance, where the keys represent the variable names and the values denote their respective importance.
+            A Python dictionary containing the sorted variable importance,
+            where the keys represent the variable names and the values denote
+            their respective importance.
 
-        For example: return a dictionary var_vs_importance={"age":2.2,"job":2.3}
+        For example: return a dictionary
+                    var_vs_importance={"age":2.2,"job":2.3}
         """
         features = list(data.columns)
         features.remove(treatment_col)
@@ -59,7 +68,8 @@ class FeatureSelection:
 
     def filter(self, data, treatment_col, y_col):
         """
-        This function runs the feature selection algorithm 'UMODL-FS', ranking variables based on their importance in the given data.
+        This function runs the feature selection algorithm 'UMODL-FS',
+        ranking variables based on their importance in the given data.
 
         Parameters
         ----------

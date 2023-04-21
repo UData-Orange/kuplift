@@ -1,4 +1,5 @@
-import sys, os
+import os
+import sys
 import pandas as pd
 
 my_path = os.path.dirname(os.path.abspath(__file__))

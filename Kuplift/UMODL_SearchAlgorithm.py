@@ -122,10 +122,10 @@ class _Interval:
                     (prior_one_tmp + likelihood_one_tmp)
                     < (prior_two_tmp + likelihood_two_tmp)
                 )
-                or calc_null_one == True
-                or calc_null_two == True
+                or calc_null_one
+                or calc_null_two
             ):
-                if calc_null_two == True:
+                if calc_null_two:
                     self.right_merge_w = 1
                 else:
                     self.right_merge_w = 0
@@ -142,11 +142,11 @@ class _Interval:
                 + self.likelihood_one
                 + self.likelihood_two
             )
-            if calc_null_one == True:
+            if calc_null_one:
                 self.sum_of_priors_and_likelihoods_with_zero_w = (
                     sum_of_priors_and_likelihoods
                 )
-            if calc_null_two == True:
+            if calc_null_two:
                 self.sum_of_priors_and_likelihoods_with_one_w = (
                     sum_of_priors_and_likelihoods
                 )
@@ -179,7 +179,7 @@ class _DLL:
 
     # append to the end of the list
     def append(self, listData):
-        if self.head == None:
+        if self.head is None:
             self.head = _Interval(listData)
             self.tail = self.head
             self.count += 1
@@ -359,7 +359,7 @@ def criterion_delta_for_one_adjacent_interval_merge(
         left_interval_node = dll.get_nth(left_interval_node)
 
     right_interval_node = left_interval_node.next
-    if right_interval_node == None:
+    if right_interval_node is None:
         # it means the left interval node is the last node and cannot be merged
         left_interval_node.right_merge_delta = -1
         return
@@ -457,7 +457,7 @@ def greedy_search(best_merges, intervals, N):
             )
             intervals.remove_interval(interval_right_of_the_merge)
 
-            if interval_right_to_new_interval == None:  # last Interval
+            if interval_right_to_new_interval is None:  # last Interval
                 best_merges.remove(
                     (
                         interval_left_to_new_interval.right_merge_delta,
@@ -473,7 +473,7 @@ def greedy_search(best_merges, intervals, N):
                         interval_left_to_new_interval,
                     )
                 )
-            elif interval_left_to_new_interval == None:
+            elif interval_left_to_new_interval is None:
                 criterion_delta_for_one_adjacent_interval_merge(
                     intervals, interval_to_be_merged, index_passed=False
                 )
@@ -570,7 +570,7 @@ def split_interval(
     prev_val = None
 
     for val in unique_values_in_both_intervals:
-        if prev_val == None:
+        if prev_val is None:
             left_split = list(
                 data.irange_key(left_bound, val, (including_left_border, True))
             )
@@ -673,7 +673,7 @@ def post_optimization_to_be_repeated(intervals, data, i=0):
                 break
             if interval == intervals.tail:
                 break
-            if interval.next == None:
+            if interval.next is None:
                 # Arrived to the most left interval
                 break
 
@@ -698,10 +698,10 @@ def post_optimization_to_be_repeated(intervals, data, i=0):
                 break
             if interval == intervals.tail:
                 break
-            if interval.next == None:
+            if interval.next is None:
                 # Arrived to the most left interval
                 break
-            if interval.next.next == None:
+            if interval.next.next is None:
                 break
 
             original_intervals_list = copy_list(intervals)
@@ -776,11 +776,11 @@ def calculate_feature_level(intervals, method="ED"):
 
         try:
             piYT1 = nit1j1 / (nit1j1 + nit1j0)
-        except:
+        except Exception:
             piYT1 = 0
         try:
             piYT0 = nit0j1 / (nit0j1 + nit0j0)
-        except:
+        except Exception:
             piYT0 = 0
         if method == "ED":
             absolute_sum += (((piYT1) - (piYT0)) ** 2) * Ni / intervals.n  # ED
@@ -810,7 +810,7 @@ def execute_greedy_search_and_post_opt(df):
     intervals = _DLL()
     intervals.n = len(df)
 
-    intervals, intervals.modl_value, I = create_elementary_discretization(
+    intervals, intervals.modl_value, w = create_elementary_discretization(
         intervals, df
     )  # Elementary discretization
 

@@ -53,7 +53,7 @@ class _Node:
             else:
                 denum = self.ntj[2] + self.ntj[3]
             self.outcome_prob_in_trt = self.ntj[3] / denum
-        except:
+        except Exception:
             self.outcome_prob_in_trt = 0
 
         try:
@@ -62,7 +62,7 @@ class _Node:
             else:
                 denum = self.ntj[0] + self.ntj[1]
             self.outcome_prob_in_ctrl = self.ntj[1] / denum
-        except:
+        except Exception:
             self.outcome_prob_in_ctrl = 0
 
         self.average_uplift = self.outcome_prob_in_trt - self.outcome_prob_in_ctrl
@@ -120,7 +120,8 @@ class _Node:
         return leaf_prior, tree_likelihood, w
 
     def discretize_vars_and_get_attributes_splits_costs(self):
-        """For this node loop on all attributes and get the optimal split for each one.
+        """For this node loop on all attributes
+        and get the optimal split for each one.
 
         Returns
         -------
@@ -128,7 +129,8 @@ class _Node:
 
         For example: return a dictionnary {age: Cost, sex: Cost}
         The cost here corresponds to
-        1- the cost of this node to internal instead of leaf (criterion_to_be_internal-prior_leaf)
+        1- the cost of this node to internal instead of leaf
+            (criterion_to_be_internal-prior_leaf)
         2- The combinatorial terms of the leaf prior and likelihood
         """
         features = list(self.x.columns)
@@ -180,13 +182,13 @@ class _Node:
         for (
             new_node_effectifs
         ) in left_and_right_data:  # Loop on Left and Right candidate nodes
-            l = _Node(new_node_effectifs, self.treatment, self.output)
-            leaves_vals += l.prior_leaf + l.likelihood_leaf
-            del l
+            node = _Node(new_node_effectifs, self.treatment, self.output)
+            leaves_vals += node.prior_leaf + node.likelihood_leaf
+            del node
         return leaves_vals
 
     def perform_split(self, attribute):
-        if self.candidate_splits_vs_data_left_data_right == None:
+        if self.candidate_splits_vs_data_left_data_right is None:
             raise
         else:
             self.is_leaf = False

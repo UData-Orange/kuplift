@@ -18,7 +18,8 @@ from .Tree import _Tree
 class BayesianDecisionTree(_Tree):
     """
     The BayesianDecisionTree class implements the UB-DT algorithm described in:
-    Rafla, M., Voisine, N., Crémilleux, B., \& Boullé, M. (2023, May). A Non-Parametric Bayesian Decision Trees for Uplift modelling. In PAKDD.
+    Rafla, M., Voisine, N., Crémilleux, B., & Boullé, M. (2023, May).
+    A Non-Parametric Bayesian Decision Trees for Uplift modelling. In PAKDD.
 
     Parameters
     ----------
@@ -59,7 +60,9 @@ class BayesianDecisionTree(_Tree):
             self.encoding_of_being_an_internal_node + log(2)
         )
 
-        # When splitting a node to 2 nodes, the number of leaf nodes is incremented only by one, since the parent node was leaf and is now internal.
+        # When splitting a node to 2 nodes, the number of leaf nodes is
+        # incremented only by one, since the parent node was leaf
+        # and is now internal.
         # 2 for two extra leaf nodes multiplied by 2 for w. Total = 4.
         encoding_of_being_a_leaf_node_and_containing_te_plus_two = (
             self.encoding_of_being_a_leaf_node_and_containing_te + (2 * log(2))
@@ -80,7 +83,7 @@ class BayesianDecisionTree(_Tree):
 
             for terminal_node in self.terminal_nodes:
                 # This if condition is here to not to repeat calculations of candidate splits
-                if terminal_node.candidate_splits_vs_criterion == None:
+                if terminal_node.candidate_splits_vs_criterion is None:
                     node_vs_candidate_splits_costs[
                         terminal_node
                     ] = terminal_node.discretize_vars_and_get_attributes_splits_costs()
@@ -113,7 +116,8 @@ class BayesianDecisionTree(_Tree):
                             + self.prior_of_internal_nodes
                         )
 
-                # Once costs are updated, I get the key of the minimal value split for terminal_node
+                # Once costs are updated, I get the key of the minimal value
+                # split for terminal_node
                 key_of_the_minimal_val = min(
                     node_vs_candidate_splits_costs[terminal_node],
                     key=node_vs_candidate_splits_costs[terminal_node].get,

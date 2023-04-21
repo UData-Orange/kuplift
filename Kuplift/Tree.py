@@ -106,7 +106,7 @@ class _Tree:
         self.tree_likelihood = leaf_likelihoods
 
     def __traverse_tree(self, x, node):
-        if node.is_leaf == True:
+        if node.is_leaf:
             return node.average_uplift
 
         if x[node.attribute] <= node.split_threshold:

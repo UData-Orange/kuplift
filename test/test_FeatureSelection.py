@@ -1,5 +1,5 @@
 import os
-import sys, os
+import sys
 import pandas as pd
 
 my_path = os.path.dirname(os.path.abspath(__file__))

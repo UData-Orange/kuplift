@@ -1,0 +1,7 @@
+###### Requirements without Version Specifiers ######
+numpy
+pandas
+sortedcontainers
+
+###### Requirements with Version Specifiers ######
+python >= 3.7
