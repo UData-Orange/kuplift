@@ -19,24 +19,24 @@ import pandas as pd
 
 df = pd.read_csv("dataname.csv")
 
-# Discrétisation univariée:
+# Univariate encoding:
 ue=UnivariateEncoding()
 
 encoded_data=ue.fit_transform(df, "treatment", "outcome")
 
-# Sélection de variables
+# Feature selection
 fs=FeatureSelection()
 
 important_vars=fs.filter(df, "treatment", "outcome")
 
-# Arbre de décisions
+# Decision trees
 Tree=BayesianDecisionTree(df, "treatment", "outcome")
 
 Tree.fit()
 
 preds=Tree.predict(df[column_names])
 
-# Forêt d'arbres
+# Random forests
 forest=BayesianRandomForest(df, "treatment", "outcome", Nb_trees)
 
 forest.fit()
