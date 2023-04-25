@@ -12,7 +12,7 @@ Kuplift is a _Python_ package that provides a series of uplift modeling methods 
     
 4.  Learning a random forest model for uplift modeling with _UB-RF_.[^fn2]
 
-**Guide d'utilisateur**:
+**User Guide**:
 
 ```python
 import pandas as pd
