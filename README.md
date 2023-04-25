@@ -1,17 +1,14 @@
 ## Bibliothèque Kuplift
 
 
-Kuplift est un package _Python_ qui fournit une série de méthodes de modélisation d'uplift basées sur les travaux de recherches récentes. Kuplift permet aux utilisateurs d'utiliser facilement les algorithmes suivants :
+Kuplift is a Python package that provides a series of uplift modeling methods based on recent research work. Kuplift allows users to easily use the following algorithms:
 
-1.  Encodage des données selon une méthode de discrétisation des variables pour la modélisation de l'effet de traitement (uplift).[^fn1]
-    
-2.  Sélection des variables pour la modélisation de l'effet de traitement.[^fn1]
-    
-3.  Apprentissage d'un modèle d'arbre de décision pour la modélisation de l'effet de traitement.[^fn2]
-    
-4.  Apprentissage d'un modèle de forêt d'arbres de décision pour la modélisation de l'effet de traitement.[^fn2]
+    1- Encoding data using a discretization method for treatment effect (uplift) modeling called UMODL[^fn1].
+    2- Variable selection for treatment effect modeling using UMODL-FS[^fn1].
+    3- Learning a decision tree model for treatment effect modeling with UB-DT approach[^fn2]
+    4- Learning a decision forest model for treatment effect modeling with UB-RF approach [^fn2]
 
-**Guide d'utilisateur**:
+**User Guide**:
 
 ```python
 import pandas as pd
