@@ -6,11 +6,11 @@ Kuplift is a _Python_ package that provides a series of uplift modeling methods 
 
 1. Encoding data using a discretization method for treatment effect (uplift) modeling called _UMODL_[^fn1]
     
-2.  Sélection des variables pour la modélisation de l'effet de traitement _UMODL-FS_.[^fn1]
+2.  Variable selection for uplift modeling with _UMODL-FS_.[^fn1]
     
-3.  Apprentissage d'un modèle d'arbre de décision pour la modélisation de l'effet de traitement _UB-DT_.[^fn2]
+3. Learning a Bayesian decision tree model for uplift modeling with _UB-DT_.[^fn2]
     
-4.  Apprentissage d'un modèle de forêt d'arbres de décision pour la modélisation de l'effet de traitement _UB-RF_.[^fn2]
+4.  Learning a random forest model for uplift modeling with _UB-RF_.[^fn2]
 
 **Guide d'utilisateur**:
 
