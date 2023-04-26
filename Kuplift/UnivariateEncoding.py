@@ -13,7 +13,12 @@ from .UMODL_SearchAlgorithm import execute_greedy_search_and_post_opt
 
 
 class UnivariateEncoding:
-    """Description ?"""
+    """
+    The UnivariateEncoding class implements the UMODL algorithm for uplift data encoding described in:
+    Rafla, M., Voisine, N., Crémilleux, B., & Boullé, M.
+    (2023, March). A non-parametric bayesian approach for uplift
+    discretization and feature selection. ECML PKDD
+    """
 
     def __init__(self):
         self.var_vs_disc = {}
@@ -21,8 +26,9 @@ class UnivariateEncoding:
         self.y_col = ""
 
     def fit_transform(self, Data_features, treatment_col, y_col):
-        """Description?
-
+        """
+        fit_transform() learns a discretisation model using UMODL and transforms the data.
+        
         Parameters
         ----------
         Data_features : pd.Dataframe
@@ -42,8 +48,9 @@ class UnivariateEncoding:
         return Data_features
 
     def fit(self, Data_features, treatment_col, y_col):
-        """Description?
-
+        """
+         fit() learns a discretisation model using the UMODL approach
+        
         Parameters
         ----------
         Data_features : pd.Dataframe
@@ -79,7 +86,8 @@ class UnivariateEncoding:
                 self.var_vs_disc[col] = self.var_vs_disc[col][:-1]
 
     def transform(self, Data_features):
-        """Description?
+        """
+        transform() applies the discretisation model learned by the fit() method
 
         Parameters
         ----------
