@@ -10,7 +10,6 @@
 import os
 import sys
 import pandas as pd
-from sklearn.model_selection import train_test_split
 
 my_path = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, my_path + "/../")

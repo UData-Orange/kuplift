@@ -4,5 +4,5 @@ setup(
     name="kuplift",
     version="0.0.1",
     packages=["Kuplift"],
-    install_requires=["numpy", "pandas", "sortedcontainers"],
+    install_requires=["numpy", "pandas", "sortedcontainers","sklearn"],
 )
