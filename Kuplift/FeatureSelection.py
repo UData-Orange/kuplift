@@ -25,8 +25,7 @@ class FeatureSelection:
     """
 
     def __get_the_best_var(self, data, treatment_col, y_col):
-        """Description?
-
+        """
         Parameters
         ----------
         data : pd.Dataframe
