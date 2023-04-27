@@ -17,10 +17,7 @@ sys.path.insert(0, my_path + "/../")
 
 from Kuplift.UnivariateEncoding import UnivariateEncoding
 
-# sys.path.insert(0, my_path + "../")
-
-df = pd.read_csv("../data/zenodo_sample.csv")
-sys.path.insert(0, my_path + "/../")
+df = pd.read_csv("data/zenodo_sample.csv")
 
 def test_fit_transform():
     ue = UnivariateEncoding()
