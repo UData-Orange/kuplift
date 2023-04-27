@@ -25,13 +25,13 @@ class UnivariateEncoding:
         self.treatment_col = ""
         self.y_col = ""
 
-    def fit_transform(self, Data_features, treatment_col, y_col):
+    def fit_transform(self, data, treatment_col, y_col):
         """
         fit_transform() learns a discretisation model using UMODL and transforms the data.
 
         Parameters
         ----------
-        Data_features : pd.Dataframe
+        data : pd.Dataframe
             Dataframe containing feature variables.
         treatment_col : pd.Series
             Treatment column.
@@ -41,19 +41,19 @@ class UnivariateEncoding:
         Returns
         -------
         pd.Dataframe
-            Pandas Dataframe that contains encoded Data_features.
+            Pandas Dataframe that contains encoded data.
         """
-        self.fit(Data_features, treatment_col, y_col)
-        Data_features = self.transform(Data_features)
-        return Data_features
+        self.fit(data, treatment_col, y_col)
+        data = self.transform(data)
+        return data
 
-    def fit(self, Data_features, treatment_col, y_col):
+    def fit(self, data, treatment_col, y_col):
         """
          fit() learns a discretisation model using the UMODL approach
 
         Parameters
         ----------
-        Data_features : pd.Dataframe
+        data : pd.Dataframe
             Dataframe containing feature variables.
         treatment_col : pd.Series
             Treatment column.
@@ -63,12 +63,12 @@ class UnivariateEncoding:
         self.treatment_col = treatment_col
         self.y_col = y_col
 
-        cols = list(Data_features.columns)
+        cols = list(data.columns)
         cols.remove(treatment_col)
         cols.remove(y_col)
 
-        Data_features = Data_features[cols + [treatment_col, y_col]]
-        Data_features = preprocess_data(Data_features, treatment_col, y_col)
+        data = data[cols + [treatment_col, y_col]]
+        data = preprocess_data(data, treatment_col, y_col)
 
         var_vs_importance = {}
         self.var_vs_disc = {}
@@ -78,40 +78,40 @@ class UnivariateEncoding:
                 var_vs_importance[col],
                 self.var_vs_disc[col],
             ) = execute_greedy_search_and_post_opt(
-                Data_features[[col, treatment_col, y_col]]
+                data[[col, treatment_col, y_col]]
             )
             if len(self.var_vs_disc[col]) == 1:
                 self.var_vs_disc[col] = None
             else:
                 self.var_vs_disc[col] = self.var_vs_disc[col][:-1]
 
-    def transform(self, Data_features):
+    def transform(self, data):
         """
         transform() applies the discretisation model learned by the fit() method
 
         Parameters
         ----------
-        Data_features : pd.Dataframe
+        data : pd.Dataframe
             Dataframe containing feature variables.
 
         Returns
         -------
         pd.Dataframe
-            Pandas Dataframe that contains encoded Data_features.
+            Pandas Dataframe that contains encoded data.
         """
-        cols = list(Data_features.columns)
+        cols = list(data.columns)
         cols.remove(self.treatment_col)
         cols.remove(self.y_col)
         for col in cols:
             if self.var_vs_disc[col] is None:
-                Data_features.drop(col, inplace=True, axis=1)
+                data.drop(col, inplace=True, axis=1)
             else:
-                Data_features[col] = pd.cut(
-                    Data_features[col],
-                    bins=[Data_features[col].min() - 0.001]
+                data[col] = pd.cut(
+                    data[col],
+                    bins=[data[col].min() - 0.001]
                     + self.var_vs_disc[col]
-                    + [Data_features[col].max() + 0.001],
+                    + [data[col].max() + 0.001],
                 )
-                Data_features[col] = Data_features[col].astype("category")
-                Data_features[col] = Data_features[col].cat.codes
-        return Data_features
+                data[col] = data[col].astype("category")
+                data[col] = data[col].cat.codes
+        return data

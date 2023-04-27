@@ -138,9 +138,13 @@ def preprocess_data(Data_features, treatment_col="segment", y_col="visit"):
     """
     cols = Data_features.columns
     num_cols = list(Data_features._get_numeric_data().columns)
-
-    num_cols.remove(treatment_col)
-    num_cols.remove(y_col)
+    
+    
+    if treatment_col in num_cols:
+        num_cols.remove(treatment_col)
+    if y_col in num_cols:
+        num_cols.remove(y_col)
+    
     for num_col in num_cols:
         if len(Data_features[num_col].value_counts()) < (Data_features.shape[0] / 100):
             num_cols.remove(num_col)

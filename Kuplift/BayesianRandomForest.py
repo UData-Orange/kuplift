@@ -22,7 +22,7 @@ class _UpliftTreeClassifier(_Tree):
 
     Parameters
     ----------
-    Data_features : pd.Dataframe
+    data : pd.Dataframe
         Dataframe containing feature variables.
     treatment_col : pd.Series
         Treatment column.
@@ -30,8 +30,8 @@ class _UpliftTreeClassifier(_Tree):
         Outcome column.
     """
 
-    def __init__(self, Data_features, treatment_col, y_col):
-        super().__init__(Data_features, treatment_col, y_col)
+    def __init__(self, data, treatment_col, y_col):
+        super().__init__(data, treatment_col, y_col)
 
     def grow_tree(self):
         # In case if we have a new attribute for splitting
