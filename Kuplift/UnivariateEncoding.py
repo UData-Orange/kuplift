@@ -28,7 +28,7 @@ class UnivariateEncoding:
     def fit_transform(self, Data_features, treatment_col, y_col):
         """
         fit_transform() learns a discretisation model using UMODL and transforms the data.
-        
+
         Parameters
         ----------
         Data_features : pd.Dataframe
@@ -50,7 +50,7 @@ class UnivariateEncoding:
     def fit(self, Data_features, treatment_col, y_col):
         """
          fit() learns a discretisation model using the UMODL approach
-        
+
         Parameters
         ----------
         Data_features : pd.Dataframe

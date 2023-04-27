@@ -16,10 +16,9 @@ sys.path.insert(0, my_path + "/../")
 
 from Kuplift.BayesianDecisionTree import BayesianDecisionTree
 
-df = pd.read_csv("data/zenodo_sample.csv")
-
 
 def test_predict():
+    df = pd.read_csv("data/zenodo_sample.csv")
     features = list(df.columns[:-2])
     tree = BayesianDecisionTree(df, "segment", "visit")
     tree.fit()

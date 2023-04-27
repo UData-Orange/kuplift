@@ -16,10 +16,9 @@ sys.path.insert(0, my_path + "/../")
 
 from Kuplift.FeatureSelection import FeatureSelection
 
-df = pd.read_csv("data/zenodo_sample.csv")
-
 
 def test_filter():
+    df = pd.read_csv("data/zenodo_sample.csv")
     fs = FeatureSelection()
     important_vars = fs.filter(df, "segment", "visit")
     assert important_vars == {

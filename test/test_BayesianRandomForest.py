@@ -16,10 +16,9 @@ sys.path.insert(0, my_path + "/../")
 
 from Kuplift.BayesianRandomForest import BayesianRandomForest
 
-df = pd.read_csv("data/zenodo_sample.csv")
-
 
 def test_predict():
+    df = pd.read_csv("data/zenodo_sample.csv")
     features = list(df.columns[:-2])
     forest = BayesianRandomForest(df, "segment", "visit", 4)
     forest.fit()
