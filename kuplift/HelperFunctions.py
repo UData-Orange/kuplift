@@ -119,12 +119,12 @@ def universal_code_natural_numbers(k):
         return d_cost
 
 
-def preprocess_data(Data_features, treatment_col="segment", y_col="visit"):
+def preprocess_data(data, treatment_col="segment", y_col="visit"):
     """Description?
 
     Parameters
     ----------
-    Data_features : pd.Dataframe
+    data : pd.Dataframe
         Dataframe containing feature variables.
     treatment_col : pd.Series, optional
         Treatment column.
@@ -134,19 +134,23 @@ def preprocess_data(Data_features, treatment_col="segment", y_col="visit"):
     Returns
     -------
     pd.Dataframe
-        Pandas Dataframe that contains encoded Data_features.
+        Pandas Dataframe that contains encoded data.
     """
-    cols = Data_features.columns
-    num_cols = list(Data_features._get_numeric_data().columns)
-
-    num_cols.remove(treatment_col)
-    num_cols.remove(y_col)
+    cols = data.columns
+    num_cols = list(data._get_numeric_data().columns)
+    
+    
+    if treatment_col in num_cols:
+        num_cols.remove(treatment_col)
+    if y_col in num_cols:
+        num_cols.remove(y_col)
+    
     for num_col in num_cols:
-        if len(Data_features[num_col].value_counts()) < (Data_features.shape[0] / 100):
+        if len(data[num_col].value_counts()) < (data.shape[0] / 100):
             num_cols.remove(num_col)
         else:
-            Data_features[num_col] = Data_features[num_col].fillna(
-                Data_features[num_col].mean()
+            data[num_col] = data[num_col].fillna(
+                data[num_col].mean()
             )
 
     categorical_cols = list(set(cols) - set(num_cols))
@@ -155,12 +159,12 @@ def preprocess_data(Data_features, treatment_col="segment", y_col="visit"):
     if y_col in categorical_cols:
         categorical_cols.remove(y_col)
     for cat_col in categorical_cols:
-        Data_features[cat_col] = Data_features[cat_col].fillna(
-            Data_features[cat_col].mode()[0]
+        data[cat_col] = data[cat_col].fillna(
+            data[cat_col].mode()[0]
         )
         dict_val_vs_uplift = {}
-        for val in Data_features[cat_col].value_counts().index:
-            dataset_slice = Data_features[Data_features[cat_col] == val]
+        for val in data[cat_col].value_counts().index:
+            dataset_slice = data[data[cat_col] == val]
             t0j0 = dataset_slice[
                 (dataset_slice[treatment_col] == 0) & (dataset_slice[y_col] == 0)
             ].shape[0]
@@ -187,7 +191,7 @@ def preprocess_data(Data_features, treatment_col="segment", y_col="visit"):
         }
         encoded_i = 0
         for k, v in ordered_dict.items():
-            Data_features[cat_col] = Data_features[cat_col].replace([k], encoded_i)
+            data[cat_col] = data[cat_col].replace([k], encoded_i)
             encoded_i += 1
-    Data_features[treatment_col] = Data_features[treatment_col].astype(str)
-    return Data_features
+    data[treatment_col] = data[treatment_col].astype(str)
+    return data

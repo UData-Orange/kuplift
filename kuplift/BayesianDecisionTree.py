@@ -23,7 +23,7 @@ class BayesianDecisionTree(_Tree):
 
     Parameters
     ----------
-    Data_features : pd.Dataframe
+    data : pd.Dataframe
         Dataframe containing feature variables.
     treatment_col : pd.Series
         Treatment column.
@@ -31,8 +31,8 @@ class BayesianDecisionTree(_Tree):
         Outcome column.
     """
 
-    def __init__(self, Data_features, treatment_col, y_col):
-        super().__init__(Data_features, treatment_col, y_col)
+    def __init__(self, data, treatment_col, y_col):
+        super().__init__(data, treatment_col, y_col)
 
     def fit(self):
         """Fit an uplift decision tree model using UB-DT
