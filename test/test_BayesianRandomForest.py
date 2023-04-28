@@ -7,22 +7,14 @@
 # * Unauthorized copying of this file, via any medium is strictly prohibited.        #
 # * See the "LICENSE.md" file for more details.                                      #
 ######################################################################################
-import os
-import sys
-import pandas as pd
-
-my_path = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, my_path + "/../")
-
-from Kuplift.BayesianRandomForest import BayesianRandomForest
+from kuplift.BayesianRandomForest import BayesianRandomForest
 
 
-def test_predict():
-    df = pd.read_csv("data/zenodo_sample.csv")
-    features = list(df.columns[:-2])
-    forest = BayesianRandomForest(df, "segment", "visit", 4)
+def test_predict(test_dataframe):
+    features = list(test_dataframe.columns[:-2])
+    forest = BayesianRandomForest(test_dataframe, "segment", "visit", 4)
     forest.fit()
-    preds = forest.predict(df[features])
+    preds = forest.predict(test_dataframe[features])
     list_preds = list(preds)
     assert list_preds == [
         -0.013219746751645639,

@@ -7,20 +7,12 @@
 # * Unauthorized copying of this file, via any medium is strictly prohibited.        #
 # * See the "LICENSE.md" file for more details.                                      #
 ######################################################################################
-import os
-import sys
-import pandas as pd
-
-my_path = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, my_path + "/../")
-
-from Kuplift.FeatureSelection import FeatureSelection
+from kuplift.FeatureSelection import FeatureSelection
 
 
-def test_filter():
-    df = pd.read_csv("data/zenodo_sample.csv")
+def test_filter(test_dataframe):
     fs = FeatureSelection()
-    important_vars = fs.filter(df, "segment", "visit")
+    important_vars = fs.filter(test_dataframe, "segment", "visit")
     assert important_vars == {
         "x2_informative": 0,
         "x4_informative": 0,

@@ -7,22 +7,14 @@
 # * Unauthorized copying of this file, via any medium is strictly prohibited.        #
 # * See the "LICENSE.md" file for more details.                                      #
 ######################################################################################
-import os
-import sys
-import pandas as pd
-
-my_path = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, my_path + "/../")
-
-from Kuplift.BayesianDecisionTree import BayesianDecisionTree
+from kuplift.BayesianDecisionTree import BayesianDecisionTree
 
 
-def test_predict():
-    df = pd.read_csv("data/zenodo_sample.csv")
-    features = list(df.columns[:-2])
-    tree = BayesianDecisionTree(df, "segment", "visit")
+def test_predict(test_dataframe):
+    features = list(test_dataframe.columns[:-2])
+    tree = BayesianDecisionTree(test_dataframe, "segment", "visit")
     tree.fit()
-    preds = tree.predict(df[features])
+    preds = tree.predict(test_dataframe[features])
     list_preds = list(preds)
     assert list_preds == [
         0.019023338659001743,

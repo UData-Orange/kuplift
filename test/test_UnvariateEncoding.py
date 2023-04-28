@@ -7,22 +7,14 @@
 # * Unauthorized copying of this file, via any medium is strictly prohibited.        #
 # * See the "LICENSE.md" file for more details.                                      #
 ######################################################################################
-import os
-import sys
 import pandas as pd
-import pytest
 from sklearn.model_selection import train_test_split
-
-my_path = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, my_path + "/../")
-
-from Kuplift.UnivariateEncoding import UnivariateEncoding
+from kuplift.UnivariateEncoding import UnivariateEncoding
 
 
-def test_fit_transform_a():
-    df = pd.read_csv("data/zenodo_sample.csv")
+def test_fit_transform_a(test_dataframe):
     ue = UnivariateEncoding()
-    encoded_data = ue.fit_transform(df, "segment", "visit")
+    encoded_data = ue.fit_transform(test_dataframe, "segment", "visit")
     list_encoded_data = encoded_data.values.tolist()
     assert list_encoded_data == [
         [0, 1, 3, 1, 2, 0, 1, 0, 0, 0, 1, 0, 0],
@@ -5028,9 +5020,8 @@ def test_fit_transform_a():
     ]
 
 
-def test_fit_transform_b():
-    df = pd.read_csv("data/zenodo_sample.csv")
-    df_train, df_test = train_test_split(df, test_size=0.33, random_state=42)
+def test_fit_transform_b(test_dataframe):
+    df_train, df_test = train_test_split(test_dataframe, test_size=0.33, random_state=42)
 
     ue = UnivariateEncoding()
     ue.fit(df_train, "segment", "visit")
