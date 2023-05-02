@@ -71,16 +71,6 @@ class _Tree:
         self.__calc_leaf_prior()
         self.__calc_tree_likelihood()
         
-        self.tree_criterion = (
-            self.prob_kt
-            + self.encoding_of_being_an_internal_node
-            + self.prob_attribute_selection
-            + self.prior_of_internal_nodes
-            + self.encoding_of_being_a_leaf_node_and_containing_te
-            + self.leaf_prior
-            + self.tree_likelihood
-        )
-
     def __calc_prob_kt(self):
         self.prob_kt = (
             universal_code_natural_numbers(self.k_t)
