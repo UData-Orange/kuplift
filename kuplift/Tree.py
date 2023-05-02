@@ -8,6 +8,7 @@
 # * See the "LICENSE.md" file for more details.                                      #
 ######################################################################################
 import numpy as np
+import pandas as pd
 from math import log
 from .HelperFunctions import (
     log_fact,
