@@ -61,6 +61,7 @@ class _Tree:
             + self.leaf_prior
             + self.tree_likelihood
         )
+        self.summary_df=None
 
     def calc_criterion(self):
         self.__calc_prob_kt()
@@ -132,13 +133,35 @@ class _Tree:
         ]
         return np.array(predictions)
     
+    def getSummary(self):
+        summary_df=pd.DataFrame(columns=['NodeId','isLeaf','T0Y0','T0Y1','T1Y0','T1Y1','Uplift','SplittedAttribute','SplitThreshold'])#SplitThreshold
+        for internalNode in self.internalNodes:
+            summary_df.loc[len(summary_df.index)] = [internalNode.id,
+                                                   internalNode.isLeaf,
+                                                   internalNode.Ntj[0],internalNode.Ntj[1],internalNode.Ntj[2],internalNode.Ntj[3],
+                                                   internalNode.averageUplift,
+                                                   internalNode.Attribute,
+                                                   internalNode.SplitThreshold]
+        for terminalNode in self.terminalNodes:
+            summary_df.loc[len(summary_df.index)] = [terminalNode.id,
+                                                   terminalNode.isLeaf,
+                                                   terminalNode.Ntj[0],terminalNode.Ntj[1],terminalNode.Ntj[2],terminalNode.Ntj[3],
+                                                   terminalNode.averageUplift,
+                                                   terminalNode.Attribute,
+                                                   terminalNode.SplitThreshold]
+        self.summary_df=summary_df
+        return self.summary_df
     
     def export_tree(self,IdValue=1, numTabs=0,text_desc=''):
         def createTabs(txt, numTabs):
             for numTab in range(numTabs):
                 txt+="\t"
             return txt
-        row=summary_df[summary_df['NodeId']==IdValue].iloc[:1].reset_index(drop=True).squeeze()
+        #fill the summary dataframe of the tree
+        if IdValue==1:
+            self.getSummary()
+            
+        row=self.summary_df[self.summary_df['NodeId']==IdValue].iloc[:1].reset_index(drop=True).squeeze()
     #     print("row is ",type(row))
     #     print("row is ",row)
         if row['isLeaf']==False:
@@ -146,11 +169,11 @@ class _Tree:
             text_desc=createTabs(text_desc, numTabs)
             text_desc=text_desc+"|--- "+" "+str(row['SplittedAttribute'])+" <= "+str(row['SplitThreshold'])+"\n"
     #         print(text_desc)
-            text_desc=traverseForDesc(IdValue*2,numTabs+1,text_desc)
+            text_desc=export_tree(IdValue*2,numTabs+1,text_desc)
 
             text_desc=createTabs(text_desc, numTabs)
             text_desc=text_desc+"|--- "+" "+str(row['SplittedAttribute'])+" >= "+str(row['SplitThreshold'])+"\n"
-            text_desc=traverseForDesc(IdValue*2+1,numTabs+1,text_desc)
+            text_desc=export_tree(IdValue*2+1,numTabs+1,text_desc)
         else:
     #         print(" id ",str(IdValue),"is leaf")
             text_desc=createTabs(text_desc, numTabs)
