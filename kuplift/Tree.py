@@ -112,7 +112,7 @@ class _Tree:
         if x[node.attribute] <= node.split_threshold:
             return self.__traverse_tree(x, node.left_node)
         return self.__traverse_tree(x, node.right_node)
-
+    
     def predict(self, X_test):
         """Predict the uplift value for each example in X_test
 
@@ -131,3 +131,34 @@ class _Tree:
             for x in range(len(X_test))
         ]
         return np.array(predictions)
+    
+    
+    def export_tree(self,IdValue=1, numTabs=0,text_desc=''):
+        def createTabs(txt, numTabs):
+            for numTab in range(numTabs):
+                txt+="\t"
+            return txt
+        row=summary_df[summary_df['NodeId']==IdValue].iloc[:1].reset_index(drop=True).squeeze()
+    #     print("row is ",type(row))
+    #     print("row is ",row)
+        if row['isLeaf']==False:
+    #         print(" id ",str(IdValue)," not leaf")
+            text_desc=createTabs(text_desc, numTabs)
+            text_desc=text_desc+"|--- "+" "+str(row['SplittedAttribute'])+" <= "+str(row['SplitThreshold'])+"\n"
+    #         print(text_desc)
+            text_desc=traverseForDesc(IdValue*2,numTabs+1,text_desc)
+
+            text_desc=createTabs(text_desc, numTabs)
+            text_desc=text_desc+"|--- "+" "+str(row['SplittedAttribute'])+" >= "+str(row['SplitThreshold'])+"\n"
+            text_desc=traverseForDesc(IdValue*2+1,numTabs+1,text_desc)
+        else:
+    #         print(" id ",str(IdValue),"is leaf")
+            text_desc=createTabs(text_desc, numTabs)
+            text_desc+="|--- Leaf \n"
+            text_desc=createTabs(text_desc, numTabs+1)
+            text_desc=text_desc+"|--- "+" Outcome Distribution in Treatment "+ str(row['T1Y1']/(row['T1Y1']+row['T1Y0']))+"\n"
+
+            text_desc=createTabs(text_desc, numTabs+1)
+            text_desc=text_desc+"|--- "+" Outcome Distribution in Control "+ str(row['T0Y1']/(row['T0Y1']+row['T0Y0']))+"\n"
+
+        return text_desc
