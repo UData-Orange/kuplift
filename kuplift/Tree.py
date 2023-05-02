@@ -70,6 +70,16 @@ class _Tree:
         self.__calc_encoding()
         self.__calc_leaf_prior()
         self.__calc_tree_likelihood()
+        
+        self.tree_criterion = (
+            self.prob_kt
+            + self.encoding_of_being_an_internal_node
+            + self.prob_attribute_selection
+            + self.prior_of_internal_nodes
+            + self.encoding_of_being_a_leaf_node_and_containing_te
+            + self.leaf_prior
+            + self.tree_likelihood
+        )
 
     def __calc_prob_kt(self):
         self.prob_kt = (
@@ -180,9 +190,15 @@ class _Tree:
             text_desc=createTabs(text_desc, numTabs)
             text_desc+="|--- Leaf \n"
             text_desc=createTabs(text_desc, numTabs+1)
-            text_desc=text_desc+"|--- "+" Outcome Distribution in Treatment "+ str(row['T1Y1']/(row['T1Y1']+row['T1Y0']))+"\n"
+            try:
+                text_desc=text_desc+"|--- "+" Outcome Distribution in Treatment "+ str(row['T1Y1']/(row['T1Y1']+row['T1Y0']))+"\n"
+            except:
+                text_desc=text_desc+"|--- "+" Outcome Distribution in Treatment "+ str(row['T1Y1']/0.0001)+"(No treatment)\n"
 
             text_desc=createTabs(text_desc, numTabs+1)
-            text_desc=text_desc+"|--- "+" Outcome Distribution in Control "+ str(row['T0Y1']/(row['T0Y1']+row['T0Y0']))+"\n"
-
+            try:
+                text_desc=text_desc+"|--- "+" Outcome Distribution in Control "+ str(row['T0Y1']/(row['T0Y1']+row['T0Y0']))+"\n"
+            except:
+                text_desc=text_desc+"|--- "+" Outcome Distribution in Control "+ str(row['T0Y1']/0.001)+" (No control)\n"
+            
         return text_desc
