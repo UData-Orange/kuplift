@@ -151,6 +151,17 @@ class _UpliftTreeClassifier(_Tree):
             else:
                 print("WILL NEVER ENTER HERE")
                 break
+        
+        self.tree_criterion = (
+            self.prob_kt
+            + self.encoding_of_being_an_internal_node
+            + self.prob_attribute_selection
+            + self.prior_of_internal_nodes
+            + self.encoding_of_being_a_leaf_node_and_containing_te
+            + self.leaf_prior
+            + self.tree_likelihood
+        )
+
 
 
 class BayesianRandomForest:
