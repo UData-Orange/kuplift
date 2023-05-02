@@ -170,11 +170,11 @@ class _Tree:
             text_desc=createTabs(text_desc, numTabs)
             text_desc=text_desc+"|--- "+" "+str(row['SplittedAttribute'])+" <= "+str(row['SplitThreshold'])+"\n"
     #         print(text_desc)
-            text_desc=export_tree(IdValue*2,numTabs+1,text_desc)
+            text_desc=self.export_tree(IdValue*2,numTabs+1,text_desc)
 
             text_desc=createTabs(text_desc, numTabs)
             text_desc=text_desc+"|--- "+" "+str(row['SplittedAttribute'])+" >= "+str(row['SplitThreshold'])+"\n"
-            text_desc=export_tree(IdValue*2+1,numTabs+1,text_desc)
+            text_desc=self.export_tree(IdValue*2+1,numTabs+1,text_desc)
         else:
     #         print(" id ",str(IdValue),"is leaf")
             text_desc=createTabs(text_desc, numTabs)
