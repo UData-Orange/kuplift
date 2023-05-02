@@ -183,11 +183,12 @@ class BayesianRandomForest:
     """
 
     def __init__(
-        self, data, treatment_col, y_col, n_trees, not_all_vars=False, random_state=10
+        self, data, treatment_col, y_col, n_trees, not_all_vars=False, weighted_average=False, random_state=10
     ):
         self.list_of_trees = []
         self.data = data
         random.seed(random_state)
+        self.weighted_average=weighted_average
         # Randomly select columns for the data
         if not_all_vars:
             cols = list(self.data.columns)
@@ -222,8 +223,27 @@ class BayesianRandomForest:
         y_pred_list(ndarray, shape=(num_samples, 1))
             An array containing the predicted uplift for each sample.
         """
-        list_of_preds = []
+        if self.weighted_average==False:
+            list_of_preds = []
 
-        for tree in self.list_of_trees:
-            list_of_preds.append(np.array(tree.predict(X_test)))
-        return np.mean(list_of_preds, axis=0)
+            for tree in self.list_of_trees:
+                list_of_preds.append(np.array(tree.predict(X_test)))
+            return np.mean(list_of_preds, axis=0)
+        else:
+            list_of_criterion=[]
+            list_of_preds = []
+            for tree in self.list_of_trees:
+                list_of_criterion.append(np.array(tree.tree_criterion))
+                list_of_preds.append(np.array(tree.predict(X_test)))
+            
+            sum_of_criterions=sum(list_of_criterion)
+            for i in range(len(list_of_criterion)):
+                list_of_criterion[i]=sum_of_criterions/list_of_criterion[i]
+            sum_of_weights=sum(list_of_criterion)
+            
+            list_of_weights=[]
+            for i in range(len(list_of_criterion)):
+                list_of_weights.append(list_of_criterion[i]/sum_of_weights)
+            print("list of weights is ",list_of_weights)
+            return np.average(list_of_preds, axis=0, weights=list_of_weights)
+        
