@@ -145,6 +145,7 @@ def preprocess_data(data, treatment_col="segment", y_col="visit"):
     if y_col in num_cols:
         num_cols.remove(y_col)
     
+    
     num_col_index=0
     while num_col_index < len(num_cols):
         num_col=num_cols[num_col_index]
@@ -152,10 +153,9 @@ def preprocess_data(data, treatment_col="segment", y_col="visit"):
             num_cols.remove(num_col)
         else:
             data[num_col] = data[num_col].fillna(
-                data[num_col].mean()
+                data[num_col].min()-1
             )
             num_col_index=num_col_index+1
-
 
     categorical_cols = list(set(cols) - set(num_cols))
     if treatment_col in categorical_cols:
@@ -164,10 +164,12 @@ def preprocess_data(data, treatment_col="segment", y_col="visit"):
         categorical_cols.remove(y_col)
     for cat_col in categorical_cols:
         data[cat_col] = data[cat_col].fillna(
-            data[cat_col].mode()[0]
+            "NAN_VAL"
         )
         dict_val_vs_uplift = {}
         for val in data[cat_col].value_counts().index:
+            if val=="NAN_VAL":
+                continue
             dataset_slice = data[data[cat_col] == val]
             t0j0 = dataset_slice[
                 (dataset_slice[treatment_col] == 0) & (dataset_slice[y_col] == 0)
@@ -193,6 +195,8 @@ def preprocess_data(data, treatment_col="segment", y_col="visit"):
             k: v
             for k, v in sorted(dict_val_vs_uplift.items(), key=lambda item: item[1])
         }
+        
+        data[cat_col].replace(['NAN_VAL'], -1)
         encoded_i = 0
         for k, v in ordered_dict.items():
             data[cat_col] = data[cat_col].replace([k], encoded_i)
