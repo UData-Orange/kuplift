@@ -145,13 +145,17 @@ def preprocess_data(data, treatment_col="segment", y_col="visit"):
     if y_col in num_cols:
         num_cols.remove(y_col)
     
-    for num_col in num_cols:
-        if len(data[num_col].value_counts()) < (data.shape[0] / 100):
+    num_col_index=0
+    while num_col_index < len(num_cols):
+        num_col=num_cols[num_col_index]
+        if len(data[num_col].value_counts()) < 1000:
             num_cols.remove(num_col)
         else:
             data[num_col] = data[num_col].fillna(
                 data[num_col].mean()
             )
+            num_col_index=num_col_index+1
+
 
     categorical_cols = list(set(cols) - set(num_cols))
     if treatment_col in categorical_cols:
