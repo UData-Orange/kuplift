@@ -196,7 +196,7 @@ def preprocess_data(data, treatment_col="segment", y_col="visit"):
             for k, v in sorted(dict_val_vs_uplift.items(), key=lambda item: item[1])
         }
         
-        data[cat_col].replace(['NAN_VAL'], -1)
+        data[cat_col] = data[cat_col].replace(['NAN_VAL'], -1)
         encoded_i = 0
         for k, v in ordered_dict.items():
             data[cat_col] = data[cat_col].replace([k], encoded_i)
