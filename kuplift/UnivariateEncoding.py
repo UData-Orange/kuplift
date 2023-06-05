@@ -77,9 +77,7 @@ class UnivariateEncoding:
             (
                 var_vs_importance[col],
                 self.var_vs_disc[col],
-            ) = execute_greedy_search_and_post_opt(
-                data[[col, treatment_col, y_col]]
-            )
+            ) = execute_greedy_search_and_post_opt(data[[col, treatment_col, y_col]])
             if len(self.var_vs_disc[col]) == 1:
                 self.var_vs_disc[col] = None
             else:

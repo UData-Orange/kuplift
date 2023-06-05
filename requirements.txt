@@ -3,3 +3,7 @@ numpy
 pandas
 sortedcontainers
 scikit-learn
+sphinx
+furo
+numpydoc
+sphinx-copybutton
