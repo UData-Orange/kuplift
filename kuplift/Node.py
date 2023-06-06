@@ -32,7 +32,6 @@ class _Node:
     def __init__(self, data, treatment_col, y_col, ID=None):
         # Initialize attributes
         self.id = ID
-        self.data = data.copy()
         self.treatment = treatment_col
         self.output = y_col
         self.n = data.shape[0]
