@@ -1,0 +1,14 @@
+name: Push and Pull Workflow
+on:
+    push:
+        branches: [ "main" ]
+    pull_request:
+        branches: [ "main" ]
+
+jobs:
+    tests-source:
+        uses: ./.github/workflows/package-source-test.yml
+    
+    build-sphinx:
+        needs: [tests-source]
+        uses: ./.github/workflows/sphinx-documentation.yml

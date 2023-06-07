@@ -1,0 +1,63 @@
+name: Release Workflow
+
+on:
+  release:
+    types: [published]
+
+jobs:
+    tests-source:
+      uses: ./.github/workflows/package-source-test.yml
+    
+    build-sphinx:
+      needs: [tests-source]
+      uses: ./.github/workflows/sphinx-documentation.yml
+    
+    tests-wheel:
+      needs: [build-sphinx]
+      uses: ./.github/workflows/package-compiled-test.yml
+    
+    upload-on-pypi:
+      name: Build and Upload Package on TestPypi
+      needs: [tests-wheel]
+      runs-on: ubuntu-latest
+      steps:
+        - uses: trstringer/manual-approval@v1
+          with:
+            secret: ${{ github.TOKEN }}
+            approvers: PaulineRollier
+          timeout-minutes: 60
+        - uses: actions/checkout@v3
+        - name: Set up Python
+          uses: actions/setup-python@v3
+          with:
+            python-version: '3.x'
+        - name: Install dependencies
+          run: |
+            python -m pip install --upgrade pip
+            pip install setuptools wheel twine
+        - name: Build and Publish package to TestPypi
+          run: |
+            python setup.py sdist bdist_wheel
+        #    twine upload --repository testpypi dist/*
+        #  env:
+        #    TWINE_USERNAME: __token__
+        #  TWINE_PASSWORD: ${{ secrets.TWINE_TEST_TOKEN }}
+
+    deploy-sphinx:
+      name: Deploy documentation on GitHub Pages
+      needs: [upload-on-pypi]
+      runs-on: ubuntu-latest
+      steps:
+        - uses: actions/checkout@v3
+        - name: Install dependencies
+          run: | 
+            python -m pip install --upgrade pip
+            pip install ghp-import
+            if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        - name: Build HTML
+          run: | 
+            cd docs/
+            make html
+        #- name: Run ghp-import
+        #  run: | 
+        #    ghp-import -n -p -f -o docs/build/html

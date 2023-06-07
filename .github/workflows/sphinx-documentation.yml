@@ -1,0 +1,18 @@
+name: Build sphinx documentation
+
+on: [workflow_call]
+
+jobs: 
+  build: 
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install dependencies
+        run: | 
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+      - name: Build HTML
+        run: | 
+          cd docs/
+          make html
+          
