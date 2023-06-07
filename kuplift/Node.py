@@ -207,4 +207,8 @@ class _Node:
             self.split_threshold = self.candidate_splits_vs_data_left_data_right[
                 attribute
             ][2]
+            del self.x
+            del self.t
+            del self.y
+
             return self.left_node, self.right_node
