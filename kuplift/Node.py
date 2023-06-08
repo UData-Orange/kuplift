@@ -210,5 +210,6 @@ class _Node:
             del self.x
             del self.t
             del self.y
+            del self.candidate_splits_vs_data_left_data_right
 
             return self.left_node, self.right_node
