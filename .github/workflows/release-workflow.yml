@@ -24,7 +24,8 @@ jobs:
         - uses: trstringer/manual-approval@v1
           with:
             secret: ${{ github.TOKEN }}
-            approvers: PaulineRollier
+            approvers: MinaWagdi,nicolas-vois
+            minimum-approvals: 1
           timeout-minutes: 60
         - uses: actions/checkout@v3
         - name: Set up Python
