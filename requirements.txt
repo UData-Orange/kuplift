@@ -1,9 +1,10 @@
-###### Requirements without Version Specifiers ######
-numpy
-pandas
-sortedcontainers
-scikit-learn
-sphinx
-furo
-numpydoc
-sphinx-copybutton
+#python>=3.7
+numpy>=1.18.5
+pandas>=0.24.1
+sortedcontainers>=2.4.0
+scikit-learn>=0.22.2, <=1.0.2
+
+sphinx>=6.1.0
+furo>=0.22.2
+numpydoc>=1.5.0
+sphinx-copybutton>=0.5.0
