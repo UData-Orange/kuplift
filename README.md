@@ -15,7 +15,7 @@ Kuplift is a _Python_ package that provides a series of uplift modeling methods 
 **How to install**:
 
 ```python
- DRAFT: pip install Kuplift
+pip install Kuplift
 ```
 
 **User Guide**:
