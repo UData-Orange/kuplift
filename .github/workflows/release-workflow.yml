@@ -24,7 +24,7 @@ jobs:
         - uses: trstringer/manual-approval@v1
           with:
             secret: ${{ github.TOKEN }}
-            approvers: MinaWagdi,nicolas-vois
+            approvers: MinaWagdi,n-voisine
             minimum-approvals: 1
           timeout-minutes: 60
         - uses: actions/checkout@v3
@@ -36,13 +36,13 @@ jobs:
           run: |
             python -m pip install --upgrade pip
             pip install setuptools wheel twine
-        - name: Build and Publish package to TestPypi
+        - name: Build and Publish package to Pypi
           run: |
             python setup.py sdist bdist_wheel
-        #    twine upload --repository testpypi dist/*
-        #  env:
-        #    TWINE_USERNAME: __token__
-        #  TWINE_PASSWORD: ${{ secrets.TWINE_TEST_TOKEN }}
+            twine upload dist/*
+          env:
+            TWINE_USERNAME: __token__
+            TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
 
     deploy-sphinx:
       name: Deploy documentation on GitHub Pages
@@ -59,6 +59,6 @@ jobs:
           run: | 
             cd docs/
             make html
-        #- name: Run ghp-import
-        #  run: | 
-        #    ghp-import -n -p -f -o docs/build/html
+        - name: Run ghp-import
+          run: | 
+            ghp-import -n -p -f -o docs/build/html
