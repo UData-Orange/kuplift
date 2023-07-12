@@ -17,7 +17,7 @@ jobs:
       uses: ./.github/workflows/package-compiled-test.yml
     
     upload-on-pypi:
-      name: Build and Upload Package on TestPypi
+      name: Build and Upload Package on Pypi
       needs: [tests-wheel]
       runs-on: ubuntu-latest
       steps:
