@@ -60,6 +60,10 @@ class UnivariateEncoding:
             Treatment column.
         y_col : pd.Series
             Outcome column.
+        parallelized : Boolean
+            Whether to run the code on several processes
+        num_processes : int
+            number of processes to use in parallel (default = 5)
         """
         self.treatment_col = treatment_col
         self.y_col = y_col
