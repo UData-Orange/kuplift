@@ -117,6 +117,10 @@ class FeatureSelection:
             Treatment column.
         y_col : pd.Series
             Outcome column.
+        parallelized : Boolean
+            Whether to run the code on several processes
+        num_processes : int
+            number of processes to use in parallel (default = 5)
 
         Returns
         -------
