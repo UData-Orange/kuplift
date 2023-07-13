@@ -3,7 +3,7 @@
 # * This software is the confidential and proprietary information of Orange.         #
 # * You shall not disclose such Restricted Information and shall use it only in      #
 #   accordance with the terms of the license agreement you entered into with Orange  #
-#   named the "Kuplift - Python Library Evaluation License".                          #
+#   named the "kuplift - Python Library Evaluation License".                          #
 # * Unauthorized copying of this file, via any medium is strictly prohibited.        #
 # * See the "LICENSE.md" file for more details.                                      #
 ######################################################################################
@@ -61,10 +61,13 @@ class FeatureSelection:
             )
         # sort the dictionary by values in ascending order
         var_vs_importance = {
-            k: v for k, v in sorted(var_vs_importance.items(), key=lambda item: item[1])
+            k: v
+            for k, v in sorted(
+                var_vs_importance.items(), key=lambda item: item[1]
+            )
         }
         return var_vs_importance
-    
+
     @staticmethod
     def get_the_best_var_parallel(args):
         """
@@ -87,13 +90,13 @@ class FeatureSelection:
         For example: return a dictionary
                     var_vs_importance={"age":2.2,"job":2.3}
         """
-        data, treatment_col, y_col=args[0],args[1],args[2]
-        
+        data, treatment_col, y_col = args[0], args[1], args[2]
+
         features = list(data.columns)
-        feature=features[0]
+        feature = features[0]
         features.remove(treatment_col)
         features.remove(y_col)
-        print("feature is ",feature)
+        print("feature is ", feature)
         var_vs_importance = {}
         var_vs_disc = {}
         (
@@ -102,9 +105,11 @@ class FeatureSelection:
         ) = execute_greedy_search_and_post_opt(
             data[[feature, treatment_col, y_col]]
         )
-        return (feature,var_vs_importance[feature])
+        return (feature, var_vs_importance[feature])
 
-    def filter(self, data, treatment_col, y_col,parallelized=False,num_processes=5):
+    def filter(
+        self, data, treatment_col, y_col, parallelized=False, num_processes=5
+    ):
         """
         This function runs the feature selection algorithm 'UMODL-FS',
         ranking variables based on their importance in the given data.
@@ -133,25 +138,37 @@ class FeatureSelection:
         cols.remove(y_col)
         data = data[cols + [treatment_col, y_col]]
         data = preprocess_data(data, treatment_col, y_col)
-        
-        if parallelized==True:
-            pool = mp.Pool(processes=num_processes)
-            
-            arguments_to_pass_in_parallel=[]
-            for col in cols:
-                arguments_to_pass_in_parallel.append([data[[col,treatment_col,y_col]],treatment_col,y_col])
-            list_of_tuples_feature_vs_importance = pool.map(FeatureSelection.get_the_best_var_parallel, arguments_to_pass_in_parallel)
-            pool.close()
-            
-            #transform tuple to dict
-            list_of_tuples_feature_vs_importance = dict(list_of_tuples_feature_vs_importance)
-            
-            list_of_vars_importance = {
-            k: v for k, v in sorted(list_of_tuples_feature_vs_importance.items(), key=lambda item: item[1])
-            }
-            
-        else:
-            list_of_vars_importance = self.__get_the_best_var(data, treatment_col, y_col)
 
+        if parallelized == True:
+            pool = mp.Pool(processes=num_processes)
+
+            arguments_to_pass_in_parallel = []
+            for col in cols:
+                arguments_to_pass_in_parallel.append(
+                    [data[[col, treatment_col, y_col]], treatment_col, y_col]
+                )
+            list_of_tuples_feature_vs_importance = pool.map(
+                FeatureSelection.get_the_best_var_parallel,
+                arguments_to_pass_in_parallel,
+            )
+            pool.close()
+
+            # transform tuple to dict
+            list_of_tuples_feature_vs_importance = dict(
+                list_of_tuples_feature_vs_importance
+            )
+
+            list_of_vars_importance = {
+                k: v
+                for k, v in sorted(
+                    list_of_tuples_feature_vs_importance.items(),
+                    key=lambda item: item[1],
+                )
+            }
+
+        else:
+            list_of_vars_importance = self.__get_the_best_var(
+                data, treatment_col, y_col
+            )
 
         return list_of_vars_importance

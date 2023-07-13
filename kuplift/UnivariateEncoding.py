@@ -3,7 +3,7 @@
 # * This software is the confidential and proprietary information of Orange.         #
 # * You shall not disclose such Restricted Information and shall use it only in      #
 #   accordance with the terms of the license agreement you entered into with Orange  #
-#   named the "Kuplift - Python Library Evaluation License".                          #
+#   named the "kuplift - Python Library Evaluation License".                          #
 # * Unauthorized copying of this file, via any medium is strictly prohibited.        #
 # * See the "LICENSE.md" file for more details.                                      #
 ######################################################################################
@@ -26,7 +26,9 @@ class UnivariateEncoding:
         self.treatment_col = ""
         self.y_col = ""
 
-    def fit_transform(self, data, treatment_col, y_col,parallelized=False,num_processes=5):
+    def fit_transform(
+        self, data, treatment_col, y_col, parallelized=False, num_processes=5
+    ):
         """
         fit_transform() learns a discretisation model using UMODL and transforms the data.
 
@@ -48,7 +50,9 @@ class UnivariateEncoding:
         data = self.transform(data)
         return data
 
-    def fit(self, data, treatment_col, y_col,parallelized=False,num_processes=5):
+    def fit(
+        self, data, treatment_col, y_col, parallelized=False, num_processes=5
+    ):
         """
          fit() learns a discretisation model using the UMODL approach
 
@@ -74,23 +78,27 @@ class UnivariateEncoding:
 
         data = data[cols + [treatment_col, y_col]]
         data = preprocess_data(data, treatment_col, y_col)
-        
+
         var_vs_importance = {}
         self.var_vs_disc = {}
-        
-        
-        if parallelized==True:
+
+        if parallelized == True:
             pool = mp.Pool(processes=num_processes)
-            
-            arguments_to_pass_in_parallel=[]
+
+            arguments_to_pass_in_parallel = []
             for col in cols:
-                arguments_to_pass_in_parallel.append([data[[col,treatment_col,y_col]]])
-            list_of_tuples_feature_vs_importance = pool.map(execute_greedy_search_and_post_opt, arguments_to_pass_in_parallel)
+                arguments_to_pass_in_parallel.append(
+                    [data[[col, treatment_col, y_col]]]
+                )
+            list_of_tuples_feature_vs_importance = pool.map(
+                execute_greedy_search_and_post_opt,
+                arguments_to_pass_in_parallel,
+            )
             pool.close()
-            
+
             for el in list_of_tuples_feature_vs_importance:
-                col=el[0]
-                if len(el[2])==1:
+                col = el[0]
+                if len(el[2]) == 1:
                     self.var_vs_disc[col] = None
                 else:
                     self.var_vs_disc[col] = el[2][:-1]
@@ -130,13 +138,15 @@ class UnivariateEncoding:
             if self.var_vs_disc[col] is None:
                 data.drop(col, inplace=True, axis=1)
             else:
-                minBoundary=min(data[col].min(),self.var_vs_disc[col][0]-0.001)
-                maxBoundary=max(data[col].max(),self.var_vs_disc[col][-1]+0.001)
+                minBoundary = min(
+                    data[col].min(), self.var_vs_disc[col][0] - 0.001
+                )
+                maxBoundary = max(
+                    data[col].max(), self.var_vs_disc[col][-1] + 0.001
+                )
                 data[col] = pd.cut(
                     data[col],
-                    bins=[minBoundary]
-                    + self.var_vs_disc[col]
-                    + [maxBoundary],
+                    bins=[minBoundary] + self.var_vs_disc[col] + [maxBoundary],
                 )
                 data[col] = data[col].astype("category")
                 data[col] = data[col].cat.codes

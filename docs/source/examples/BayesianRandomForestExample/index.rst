@@ -1,4 +1,0 @@
-kuplift.BayesianRandomForest example
-====================================
-
-examples

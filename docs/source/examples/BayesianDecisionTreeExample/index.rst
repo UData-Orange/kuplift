@@ -1,4 +1,0 @@
-kuplift.BayesianDecisionTree example
-====================================
-
-examples

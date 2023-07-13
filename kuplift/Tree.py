@@ -3,7 +3,7 @@
 # * This software is the confidential and proprietary information of Orange.         #
 # * You shall not disclose such Restricted Information and shall use it only in      #
 #   accordance with the terms of the license agreement you entered into with Orange  #
-#   named the "Kuplift - Python Library Evaluation License".                          #
+#   named the "kuplift - Python Library Evaluation License".                          #
 # * Unauthorized copying of this file, via any medium is strictly prohibited.        #
 # * See the "LICENSE.md" file for more details.                                      #
 ######################################################################################
@@ -32,7 +32,9 @@ class _Tree:
 
     def __init__(self, data, treatment_col, y_col):  # ordered data as argument
         self.nodes_ids = 0
-        self.root_node = _Node(data, treatment_col, y_col, ID=self.nodes_ids + 1)
+        self.root_node = _Node(
+            data, treatment_col, y_col, ID=self.nodes_ids + 1
+        )
         self.terminal_nodes = [self.root_node]
         self.internal_nodes = []
 
@@ -87,13 +89,17 @@ class _Tree:
             for internal_node in self.internal_nodes:
                 prior_of_internal_nodes += internal_node.prior_of_internal_node
             self.prior_of_internal_nodes = prior_of_internal_nodes
-            self.prob_attribute_selection = log(self.k_t) * len(self.internal_nodes)
+            self.prob_attribute_selection = log(self.k_t) * len(
+                self.internal_nodes
+            )
 
     def __calc_encoding(self):
         self.encoding_of_being_a_leaf_node_and_containing_te = (
             len(self.terminal_nodes) * log(2) * 2
         )
-        self.encoding_of_being_an_internal_node = len(self.internal_nodes) * log(2)
+        self.encoding_of_being_an_internal_node = len(
+            self.internal_nodes
+        ) * log(2)
 
     def __calc_leaf_prior(self):
         leaf_priors = 0
@@ -218,7 +224,9 @@ class _Tree:
                 + str(row["SplitThreshold"])
                 + "\n"
             )
-            text_desc = self.export_tree(IdValue * 2 + 1, numTabs + 1, text_desc)
+            text_desc = self.export_tree(
+                IdValue * 2 + 1, numTabs + 1, text_desc
+            )
         else:
             #         print(" id ",str(IdValue),"is leaf")
             text_desc = createTabs(text_desc, numTabs)

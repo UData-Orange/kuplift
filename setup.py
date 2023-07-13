@@ -4,5 +4,11 @@ setup(
     name="kuplift",
     version="0.0.2",
     packages=["kuplift"],
-    install_requires=["numpy", "pandas", "sortedcontainers", "scikit-learn", "pytest"],
+    description="A User Parameter-free Bayesian Framework for Uplift Modeling",
+    long_description="Refer to the documentation at https://udata-orange.github.io/kuplift/",
+    install_requires=[
+        "numpy",
+        "pandas",
+        "sortedcontainers",
+    ],
 )

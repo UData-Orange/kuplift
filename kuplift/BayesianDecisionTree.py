@@ -3,7 +3,7 @@
 # * This software is the confidential and proprietary information of Orange.         #
 # * You shall not disclose such Restricted Information and shall use it only in      #
 #   accordance with the terms of the license agreement you entered into with Orange  #
-#   named the "Kuplift - Python Library Evaluation License".                          #
+#   named the "kuplift - Python Library Evaluation License".                          #
 # * Unauthorized copying of this file, via any medium is strictly prohibited.        #
 # * See the "LICENSE.md" file for more details.                                      #
 ######################################################################################
@@ -86,7 +86,9 @@ class BayesianDecisionTree(_Tree):
                 if terminal_node.candidate_splits_vs_criterion is None:
                     node_vs_candidate_splits_costs[
                         terminal_node
-                    ] = terminal_node.discretize_vars_and_get_attributes_splits_costs()
+                    ] = (
+                        terminal_node.discretize_vars_and_get_attributes_splits_costs()
+                    )
                 else:
                     node_vs_candidate_splits_costs[
                         terminal_node
@@ -98,7 +100,9 @@ class BayesianDecisionTree(_Tree):
                 # Update Costs
                 for attribute in node_vs_candidate_splits_costs[terminal_node]:
                     if attribute in self.feature_subset:
-                        node_vs_candidate_splits_costs[terminal_node][attribute] += (
+                        node_vs_candidate_splits_costs[terminal_node][
+                            attribute
+                        ] += (
                             self.prob_kt
                             + self.prob_attribute_selection
                             + encoding_of_internal_and_leaves_and_w_with_extra_nodes
@@ -107,7 +111,9 @@ class BayesianDecisionTree(_Tree):
                             + self.prior_of_internal_nodes
                         )
                     else:
-                        node_vs_candidate_splits_costs[terminal_node][attribute] += (
+                        node_vs_candidate_splits_costs[terminal_node][
+                            attribute
+                        ] += (
                             prob_kt_plus_one
                             + encoding_of_internal_and_leaves_and_w_with_extra_nodes
                             + prob_of_attribute_selection_among_subset_attributes_plus_one
@@ -126,9 +132,11 @@ class BayesianDecisionTree(_Tree):
                 node_vs_best_attribute_corresponding_to_the_best_cost[
                     terminal_node
                 ] = key_of_the_minimal_val
-                node_vs_best_cost[terminal_node] = node_vs_candidate_splits_costs[
+                node_vs_best_cost[
                     terminal_node
-                ][key_of_the_minimal_val]
+                ] = node_vs_candidate_splits_costs[terminal_node][
+                    key_of_the_minimal_val
+                ]
 
             if len(list(node_vs_best_cost)) == 0:
                 break
@@ -138,9 +146,11 @@ class BayesianDecisionTree(_Tree):
             )
             optimal_val = node_vs_best_cost[optimal_node_attribute_to_split_up]
             optimal_node = optimal_node_attribute_to_split_up
-            optimal_attribute = node_vs_best_attribute_corresponding_to_the_best_cost[
-                optimal_node_attribute_to_split_up
-            ]
+            optimal_attribute = (
+                node_vs_best_attribute_corresponding_to_the_best_cost[
+                    optimal_node_attribute_to_split_up
+                ]
+            )
 
             if optimal_val < self.tree_criterion:
                 self.tree_criterion = optimal_val

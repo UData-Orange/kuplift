@@ -3,7 +3,7 @@
 # * This software is the confidential and proprietary information of Orange.         #
 # * You shall not disclose such Restricted Information and shall use it only in      #
 #   accordance with the terms of the license agreement you entered into with Orange  #
-#   named the "Kuplift - Python Library Evaluation License".                          #
+#   named the "kuplift - Python Library Evaluation License".                          #
 # * Unauthorized copying of this file, via any medium is strictly prohibited.        #
 # * See the "LICENSE.md" file for more details.                                      #
 ######################################################################################
@@ -60,7 +60,9 @@ def log_2_star(k):
     d_logI = log(1.0 * k) / d_log2
 
     if k < 1:
-        raise ValueError("Universal code is defined for natural numbers over 1")
+        raise ValueError(
+            "Universal code is defined for natural numbers over 1"
+        )
     else:
         while d_logI > 0:
             d_cost += d_logI
@@ -111,7 +113,9 @@ def universal_code_natural_numbers(k):
     d_log2 = log(2.0)
 
     if k < 1:
-        raise ValueError("Universal code is defined for natural numbers over 1")
+        raise ValueError(
+            "Universal code is defined for natural numbers over 1"
+        )
     else:
         d_cost = log(dC0) / d_log2  # Initialize code length cost to log_2(dC0)
         d_cost += log_2_star(k)  # Add log_2*(k)
@@ -166,16 +170,20 @@ def preprocess_data(data, treatment_col="segment", y_col="visit"):
                 continue
             dataset_slice = data[data[cat_col] == val]
             t0j0 = dataset_slice[
-                (dataset_slice[treatment_col] == 0) & (dataset_slice[y_col] == 0)
+                (dataset_slice[treatment_col] == 0)
+                & (dataset_slice[y_col] == 0)
             ].shape[0]
             t0j1 = dataset_slice[
-                (dataset_slice[treatment_col] == 0) & (dataset_slice[y_col] == 1)
+                (dataset_slice[treatment_col] == 0)
+                & (dataset_slice[y_col] == 1)
             ].shape[0]
             t1j0 = dataset_slice[
-                (dataset_slice[treatment_col] == 1) & (dataset_slice[y_col] == 0)
+                (dataset_slice[treatment_col] == 1)
+                & (dataset_slice[y_col] == 0)
             ].shape[0]
             t1j1 = dataset_slice[
-                (dataset_slice[treatment_col] == 1) & (dataset_slice[y_col] == 1)
+                (dataset_slice[treatment_col] == 1)
+                & (dataset_slice[y_col] == 1)
             ].shape[0]
 
             if (t1j1 + t1j0) == 0:
@@ -183,11 +191,15 @@ def preprocess_data(data, treatment_col="segment", y_col="visit"):
             elif (t0j1 + t0j1) == 0:
                 uplift_in_this_slice = 0
             else:
-                uplift_in_this_slice = (t1j1 / (t1j1 + t1j0)) - (t0j1 / (t0j1 + t0j1))
+                uplift_in_this_slice = (t1j1 / (t1j1 + t1j0)) - (
+                    t0j1 / (t0j1 + t0j1)
+                )
             dict_val_vs_uplift[val] = uplift_in_this_slice
         ordered_dict = {
             k: v
-            for k, v in sorted(dict_val_vs_uplift.items(), key=lambda item: item[1])
+            for k, v in sorted(
+                dict_val_vs_uplift.items(), key=lambda item: item[1]
+            )
         }
 
         data[cat_col] = data[cat_col].replace(["NAN_VAL"], -1)

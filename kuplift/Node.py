@@ -3,7 +3,7 @@
 # * This software is the confidential and proprietary information of Orange.         #
 # * You shall not disclose such Restricted Information and shall use it only in      #
 #   accordance with the terms of the license agreement you entered into with Orange  #
-#   named the "Kuplift - Python Library Evaluation License".                          #
+#   named the "kuplift - Python Library Evaluation License".                          #
 # * Unauthorized copying of this file, via any medium is strictly prohibited.        #
 # * See the "LICENSE.md" file for more details.                                      #
 ######################################################################################
@@ -37,10 +37,18 @@ class _Node:
         self.n = data.shape[0]
         self.nj = data[data[self.output] == 1].shape[0]
         self.ntj = [
-            data[(data[self.treatment] == 0) & (data[self.output] == 0)].shape[0],
-            data[(data[self.treatment] == 0) & (data[self.output] == 1)].shape[0],
-            data[(data[self.treatment] == 1) & (data[self.output] == 0)].shape[0],
-            data[(data[self.treatment] == 1) & (data[self.output] == 1)].shape[0],
+            data[(data[self.treatment] == 0) & (data[self.output] == 0)].shape[
+                0
+            ],
+            data[(data[self.treatment] == 0) & (data[self.output] == 1)].shape[
+                0
+            ],
+            data[(data[self.treatment] == 1) & (data[self.output] == 0)].shape[
+                0
+            ],
+            data[(data[self.treatment] == 1) & (data[self.output] == 1)].shape[
+                0
+            ],
         ]
         self.x = data.iloc[:, :-2].copy()
         self.t = data.iloc[:, -2].copy()
@@ -64,7 +72,9 @@ class _Node:
         except Exception:
             self.outcome_prob_in_ctrl = 0
 
-        self.average_uplift = self.outcome_prob_in_trt - self.outcome_prob_in_ctrl
+        self.average_uplift = (
+            self.outcome_prob_in_trt - self.outcome_prob_in_ctrl
+        )
         self.attribute = None
         self.split_threshold = None
         self.is_leaf = True
@@ -103,7 +113,9 @@ class _Node:
             - log_fact(self.ntj[2])
             - log_fact(self.ntj[3])
         ) + (
-            log_fact(number_of_control) - log_fact(self.ntj[0]) - log_fact(self.ntj[1])
+            log_fact(number_of_control)
+            - log_fact(self.ntj[0])
+            - log_fact(self.ntj[1])
         )
 
         if (leaf_prior_w_zero + tree_likelihood_w_zero) < (
@@ -140,10 +152,16 @@ class _Node:
                 or len(self.x[attribute].value_counts()) == 0
             ):
                 continue
-            disc_res = umodl_binary_discretization(self.x, self.t, self.y, attribute)
+            disc_res = umodl_binary_discretization(
+                self.x, self.t, self.y, attribute
+            )
             if disc_res == -1:
                 continue
-            data_left, data_right, threshold = disc_res[0], disc_res[1], disc_res[2]
+            data_left, data_right, threshold = (
+                disc_res[0],
+                disc_res[1],
+                disc_res[2],
+            )
             attribute_to_split_vs_left_and_right_data[attribute] = [
                 data_left,
                 data_right,
@@ -156,7 +174,9 @@ class _Node:
         candidate_splits_vs_criterion = self.__get_attributes_splits_costs(
             attribute_to_split_vs_left_and_right_data
         )
-        self.candidate_splits_vs_criterion = candidate_splits_vs_criterion.copy()
+        self.candidate_splits_vs_criterion = (
+            candidate_splits_vs_criterion.copy()
+        )
         return candidate_splits_vs_criterion.copy()
 
     def __get_attributes_splits_costs(self, dict_of_each_att_vs_effectifs):
@@ -204,9 +224,9 @@ class _Node:
                 ID=self.id * 2 + 1,
             )
             self.attribute = attribute
-            self.split_threshold = self.candidate_splits_vs_data_left_data_right[
-                attribute
-            ][2]
+            self.split_threshold = (
+                self.candidate_splits_vs_data_left_data_right[attribute][2]
+            )
             del self.x
             del self.t
             del self.y

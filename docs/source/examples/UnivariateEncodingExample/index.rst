@@ -1,4 +1,0 @@
-kuplift.UnivariateEncoding example
-==================================
-
-examples

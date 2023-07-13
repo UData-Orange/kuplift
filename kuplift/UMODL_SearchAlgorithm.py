@@ -3,7 +3,7 @@
 # * This software is the confidential and proprietary information of Orange.         #
 # * You shall not disclose such Restricted Information and shall use it only in      #
 #   accordance with the terms of the license agreement you entered into with Orange  #
-#   named the "Kuplift - Python Library Evaluation License".                          #
+#   named the "kuplift - Python Library Evaluation License".                          #
 # * Unauthorized copying of this file, via any medium is strictly prohibited.        #
 # * See the "LICENSE.md" file for more details.                                      #
 ######################################################################################
@@ -78,7 +78,9 @@ class _Interval:
         # Likelihood 1
         likelihood_denum = 0
         for j in range(2):
-            likelihood_denum += log_fact((nitj_interval[j] + nitj_interval[j + 2]))
+            likelihood_denum += log_fact(
+                (nitj_interval[j] + nitj_interval[j + 2])
+            )
         likelihood_one_tmp = log_fact(np.sum(nitj_interval)) - likelihood_denum
         # Likelihood 2
         res_t = 0
@@ -87,7 +89,9 @@ class _Interval:
             for j in range(2):
                 likelihood_denum += log_fact(nitj_interval[t + t * 1 + j])
             res_t += (
-                log_fact(nitj_interval[t + t * 1] + nitj_interval[t + t * 1 + 1])
+                log_fact(
+                    nitj_interval[t + t * 1] + nitj_interval[t + t * 1 + 1]
+                )
                 - likelihood_denum
             )
         likelihood_two_tmp = res_t
@@ -97,7 +101,8 @@ class _Interval:
         res_t = 0
         for t in range(2):
             res_t_temp = log_binomial_coefficient(
-                (nitj_interval[t + t * 1] + nitj_interval[t + t * 1 + 1]) + 1, 1
+                (nitj_interval[t + t * 1] + nitj_interval[t + t * 1 + 1]) + 1,
+                1,
             )
             res_t += res_t_temp
         prior_two_tmp = res_t
@@ -151,7 +156,9 @@ class _Interval:
                     sum_of_priors_and_likelihoods
                 )
             else:
-                self.sum_of_priors_and_likelihoods = sum_of_priors_and_likelihoods
+                self.sum_of_priors_and_likelihoods = (
+                    sum_of_priors_and_likelihoods
+                )
 
         elif mode == "init":
             sum_of_priors_and_likelihoods = (
@@ -197,14 +204,18 @@ class _DLL:
         W_value = interval.w
 
         if (index > self.count) | (index < 0):
-            raise ValueError(f"Index out of range: {index}, size: {self.count}")
+            raise ValueError(
+                f"Index out of range: {index}, size: {self.count}"
+            )
 
         if index == self.count:
             self.append([nitj, included_right_frontier, W_value])
             return
 
         if index == 0:
-            self.head.previous = _Interval([nitj, included_right_frontier, W_value])
+            self.head.previous = _Interval(
+                [nitj, included_right_frontier, W_value]
+            )
             self.head.previous.next = self.head
             self.head = self.head.previous
             self.count += 1
@@ -214,7 +225,9 @@ class _DLL:
         start = self.head
         for _ in range(index):
             start = start.next
-        start.previous.next = _Interval([nitj, included_right_frontier, W_value])
+        start.previous.next = _Interval(
+            [nitj, included_right_frontier, W_value]
+        )
         start.previous.next.previous = start.previous
         start.previous.next.next = start
         start.previous = start.previous.next
@@ -247,7 +260,9 @@ class _DLL:
 
     def remove(self, index):
         if (index >= self.count) | (index < 0):
-            raise ValueError(f"Index out of range: {index}, size: {self.count}")
+            raise ValueError(
+                f"Index out of range: {index}, size: {self.count}"
+            )
 
         if index == 0:
             self.head = self.head.next
@@ -363,13 +378,17 @@ def criterion_delta_for_one_adjacent_interval_merge(
         # it means the left interval node is the last node and cannot be merged
         left_interval_node.right_merge_delta = -1
         return
-    old_left_interval_node_criterion = left_interval_node.sum_of_priors_and_likelihoods
-
-    left_interval_node_criterion = left_interval_node.calculate_priors_and_likelihoods(
-        mode
+    old_left_interval_node_criterion = (
+        left_interval_node.sum_of_priors_and_likelihoods
     )
 
-    right_interval_node_criterion = right_interval_node.sum_of_priors_and_likelihoods
+    left_interval_node_criterion = (
+        left_interval_node.calculate_priors_and_likelihoods(mode)
+    )
+
+    right_interval_node_criterion = (
+        right_interval_node.sum_of_priors_and_likelihoods
+    )
 
     new_criterion_value = (
         dll.modl_value
@@ -426,10 +445,8 @@ def greedy_search(best_merges, intervals, N):
                 interval_right_of_the_merge.sum_of_priors_and_likelihoods
             )
 
-            left_interval_node_criterion = (
-                interval_to_be_merged.calculate_priors_and_likelihoods(
-                    mode="MergeAndUpdate"
-                )
+            left_interval_node_criterion = interval_to_be_merged.calculate_priors_and_likelihoods(
+                mode="MergeAndUpdate"
             )  # it will update w, Priors, lkelihoods and sum_of_priors_and_likelihoods
             intervals.modl_value = (
                 intervals.modl_value
@@ -465,7 +482,9 @@ def greedy_search(best_merges, intervals, N):
                     )
                 )
                 criterion_delta_for_one_adjacent_interval_merge(
-                    intervals, interval_left_to_new_interval, index_passed=False
+                    intervals,
+                    interval_left_to_new_interval,
+                    index_passed=False,
                 )
                 best_merges.add(
                     (
@@ -478,7 +497,10 @@ def greedy_search(best_merges, intervals, N):
                     intervals, interval_to_be_merged, index_passed=False
                 )
                 best_merges.add(
-                    (interval_to_be_merged.right_merge_delta, interval_to_be_merged)
+                    (
+                        interval_to_be_merged.right_merge_delta,
+                        interval_to_be_merged,
+                    )
                 )
             else:
                 best_merges.remove(
@@ -488,7 +510,9 @@ def greedy_search(best_merges, intervals, N):
                     )
                 )
                 criterion_delta_for_one_adjacent_interval_merge(
-                    intervals, interval_left_to_new_interval, index_passed=False
+                    intervals,
+                    interval_left_to_new_interval,
+                    index_passed=False,
                 )
                 best_merges.add(
                     (
@@ -500,7 +524,10 @@ def greedy_search(best_merges, intervals, N):
                     intervals, interval_to_be_merged, index_passed=False
                 )
                 best_merges.add(
-                    (interval_to_be_merged.right_merge_delta, interval_to_be_merged)
+                    (
+                        interval_to_be_merged.right_merge_delta,
+                        interval_to_be_merged,
+                    )
                 )
         else:
             break
@@ -522,7 +549,9 @@ def merge(interval, intervals, number_of_merges=1):
         ].sum_of_priors_and_likelihoods
 
     interval.nitj = merged_intervals
-    interval.included_right_frontier = neighbours_to_merge[-1].included_right_frontier
+    interval.included_right_frontier = neighbours_to_merge[
+        -1
+    ].included_right_frontier
     # NOW WE HAVE TO SEARCH for the old values of the sum of prior and likelihoods !!!!
     left_interval_node_criterion = interval.calculate_priors_and_likelihoods(
         mode="MergeAndUpdate"
@@ -530,7 +559,9 @@ def merge(interval, intervals, number_of_merges=1):
     intervals.modl_value = (
         intervals.modl_value
         - sum_of_old_priors_and_likelihoods
-        - log_binomial_coefficient(intervals.n + intervals.i - 1, intervals.i - 1)
+        - log_binomial_coefficient(
+            intervals.n + intervals.i - 1, intervals.i - 1
+        )
         - ((intervals.i) * log(2))
         + log_binomial_coefficient(
             intervals.n + intervals.i - number_of_merges - 1,
@@ -562,7 +593,9 @@ def split_interval(
     unique_values_in_both_intervals = list(
         map(itemgetter(0), unique_values_in_both_intervals)
     )
-    unique_values_in_both_intervals = list(set(unique_values_in_both_intervals))
+    unique_values_in_both_intervals = list(
+        set(unique_values_in_both_intervals)
+    )
     unique_values_in_both_intervals.sort()
     splits = {}
     left_and_right_interval_of_splits = {}
@@ -576,13 +609,19 @@ def split_interval(
             )
             left_interval = [0, 0, 0, 0]
             for interval_list in left_split:
-                left_interval[int((interval_list[1] * 2) + interval_list[2])] += 1
+                left_interval[
+                    int((interval_list[1] * 2) + interval_list[2])
+                ] += 1
         else:
             left_split = list(data.irange_key(prev_val, val, (False, True)))
             left_interval = [0, 0, 0, 0]
             for interval_list in left_split:
-                left_interval[int((interval_list[1] * 2) + interval_list[2])] += 1
-            left_interval = list(map(add, previous_left_interval, left_interval))
+                left_interval[
+                    int((interval_list[1] * 2) + interval_list[2])
+                ] += 1
+            left_interval = list(
+                map(add, previous_left_interval, left_interval)
+            )
 
         prev_val = val
         previous_left_interval = left_interval
@@ -604,7 +643,9 @@ def split_interval(
         split_criterion_val_left_and_right = (
             intervals.modl_value
             - interval.sum_of_priors_and_likelihoods
-            - log_binomial_coefficient(intervals.n + intervals.i - 1, intervals.i - 1)
+            - log_binomial_coefficient(
+                intervals.n + intervals.i - 1, intervals.i - 1
+            )
             - ((intervals.i) * log(2))
             + criterion_one
             + criterion_two
@@ -614,7 +655,10 @@ def split_interval(
 
         if split_criterion_val_left_and_right < intervals.modl_value:
             splits[val] = split_criterion_val_left_and_right
-            left_and_right_interval_of_splits[val] = [left_interval, right_interval]
+            left_and_right_interval_of_splits[val] = [
+                left_interval,
+                right_interval,
+            ]
     split_done = False
     best_split = None
     if splits:
@@ -625,7 +669,8 @@ def split_interval(
         Left_interval = interval
         right_bound_of_the_right_interval = interval.included_right_frontier
         intervals.insert(
-            _Interval([right_interval, right_bound_of_the_right_interval, 0]), i + 1
+            _Interval([right_interval, right_bound_of_the_right_interval, 0]),
+            i + 1,
         )
         Right_interval = intervals.get_nth(i + 1)
 
@@ -787,7 +832,9 @@ def calculate_feature_level(intervals, method="ED"):
         elif method == "Chi":
             if piYT0 < 0.1**6:
                 piYT0 = 0.1**6
-            absolute_sum += ((((piYT1) - (piYT0)) ** 2) / piYT0) * Ni / intervals.n
+            absolute_sum += (
+                ((((piYT1) - (piYT0)) ** 2) / piYT0) * Ni / intervals.n
+            )
         elif method == "KL":
             if piYT0 < 0.1**6:
                 piYT0 = 0.1**6
@@ -827,9 +874,12 @@ def execute_greedy_search_and_post_opt(df):
     greedy_search(best_merges, intervals, intervals.n)
 
     # Post Optimization steps
-    intervals_num, umodl_val, intervals, info = post_optimization_to_be_repeated(
-        intervals, df
-    )
+    (
+        intervals_num,
+        umodl_val,
+        intervals,
+        info,
+    ) = post_optimization_to_be_repeated(intervals, df)
 
     bounds = info[2]
     feature_level_ed = calculate_feature_level(intervals)

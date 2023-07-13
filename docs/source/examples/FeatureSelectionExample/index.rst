@@ -1,5 +1,0 @@
-kuplift.FeatureSelection example
-================================
-
-examples
-

@@ -3,7 +3,7 @@
 # * This software is the confidential and proprietary information of Orange.         #
 # * You shall not disclose such Restricted Information and shall use it only in      #
 #   accordance with the terms of the license agreement you entered into with Orange  #
-#   named the "Kuplift - Python Library Evaluation License".                          #
+#   named the "kuplift - Python Library Evaluation License".                          #
 # * Unauthorized copying of this file, via any medium is strictly prohibited.        #
 # * See the "LICENSE.md" file for more details.                                      #
 ######################################################################################
@@ -111,12 +111,16 @@ def calc_criterion(nitj_interval, null_model=False):
 
     right_merge_w = None
     if not null_model:
-        if (prior_one_tmp + likelihood_one_tmp) < (prior_two_tmp + likelihood_two_tmp):
+        if (prior_one_tmp + likelihood_one_tmp) < (
+            prior_two_tmp + likelihood_two_tmp
+        ):
             right_merge_w = 0
         else:
             right_merge_w = 1
     else:
-        if (prior_one_tmp + likelihood_one_tmp) > (prior_two_tmp + likelihood_two_tmp):
+        if (prior_one_tmp + likelihood_one_tmp) > (
+            prior_two_tmp + likelihood_two_tmp
+        ):
             right_merge_w = 0
         else:
             right_merge_w = 1
@@ -132,7 +136,12 @@ def calc_criterion(nitj_interval, null_model=False):
 
 
 def split_interval(
-    df, col_name, treatment_col_name, output_col_name, null_model_value, granularite=16
+    df,
+    col_name,
+    treatment_col_name,
+    output_col_name,
+    null_model_value,
+    granularite=16,
 ):  # i is interval index in IntervalsList
     data = df[[col_name, treatment_col_name, output_col_name]].values.tolist()
 
@@ -153,7 +162,9 @@ def split_interval(
     unique_values_in_both_intervals = list(
         map(itemgetter(0), unique_values_in_both_intervals)
     )
-    unique_values_in_both_intervals = list(set(unique_values_in_both_intervals))
+    unique_values_in_both_intervals = list(
+        set(unique_values_in_both_intervals)
+    )
     unique_values_in_both_intervals.sort()  # Sort the unique values
 
     splits = {}
@@ -174,18 +185,24 @@ def split_interval(
             )  # Get a list of all data between left_bound and current unique value
             left_interval = [0, 0, 0, 0]
             for interval_list in left_split:
-                left_interval[int((interval_list[1] * 2) + interval_list[2])] += 1
+                left_interval[
+                    int((interval_list[1] * 2) + interval_list[2])
+                ] += 1
         else:
             left_split = list(data.irange_key(prev_val, val, (False, True)))
             left_interval = [0, 0, 0, 0]
             for interval_list in left_split:
-                left_interval[int((interval_list[1] * 2) + interval_list[2])] += 1
+                left_interval[
+                    int((interval_list[1] * 2) + interval_list[2])
+                ] += 1
             """
             New Left Interval frequencies is the sum of the previous left
             interval (bounded between Smallest value and prev_val) and the
             new left interval (bounded between prev_val and val)
             """
-            left_interval = list(map(add, previous_left_interval, left_interval))
+            left_interval = list(
+                map(add, previous_left_interval, left_interval)
+            )
 
         # the nitj for the right split (Which we call the right_interval)
         # will be the difference between the old nitj and the left_interval
@@ -226,7 +243,9 @@ def split_interval(
     # If dictionary splits contain value, get the minimal one
     if splits:
         best_split = min(splits, key=splits.get)  # To be optimized maybe
-        left_split = list(data.irange_key(left_bound, best_split, (True, True)))
+        left_split = list(
+            data.irange_key(left_bound, best_split, (True, True))
+        )
         left_interval = [0, 0, 0, 0]
         for interval_list in left_split:
             left_interval[int((interval_list[1] * 2) + interval_list[2])] += 1
@@ -257,7 +276,11 @@ def exec(df, attributeToDiscretize, treatment_col_name, output_col_name):
         df, attributeToDiscretize, treatment_col_name, output_col_name
     )
     return split_interval(
-        df, attributeToDiscretize, treatment_col_name, output_col_name, null_model_value
+        df,
+        attributeToDiscretize,
+        treatment_col_name,
+        output_col_name,
+        null_model_value,
     )
 
 
