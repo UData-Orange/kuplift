@@ -1,5 +1,5 @@
 
-## Bibliothèque Kuplift
+## Kuplift package
 
 
 Kuplift is a _Python_ package that provides a series of uplift modeling methods based on recent research work. Kuplift allows users to easily use the following algorithms:
@@ -25,20 +25,20 @@ import pandas as pd
 
 df = pd.read_csv("dataname.csv")
 
-# Discrétisation univariée:
+# Univariate variable transformation:
 ue = UnivariateEncoding()
 encoded_data = ue.fit_transform(df, "treatment", "outcome")
 
-# Sélection de variables
+# Feature selection
 fs = FeatureSelection()
 important_vars = fs.filter(df, "treatment", "outcome")
 
-# Arbre de décisions
+# Uplift Bayesian Decision Tree
 tree = BayesianDecisionTree(df, "treatment", "outcome")
 tree.fit()
 preds = tree.predict(df[column_names])
 
-# Forêt d'arbres
+# Uplift Bayesian Random Forest
 forest = BayesianRandomForest(df, "treatment", "outcome", nb_trees)
 forest.fit()
 preds = forest.predict(df[features])
