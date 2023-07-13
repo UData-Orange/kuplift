@@ -6,10 +6,12 @@ Main Submodules
 This package contains the following main submodules.
 
 .. toctree::
-  :caption: Installation
+  :caption: Get started
   :hidden:
 
-  Tutorial <installation/index>
+  Installation <get_started/installation/index>
+  Quick start <get_started/quick_start/index>
+  Licence and credits <get_started/licence/index>
 
 .. toctree::
   :caption: Documentation
