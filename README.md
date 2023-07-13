@@ -1,6 +1,10 @@
 
 ## kuplift package
 
+<p float="left">
+  <img src="docs/source/logo.png" width="310" />
+</p>
+
 
 kuplift is a _Python_ package that provides a series of uplift modeling methods based on recent research work. kuplift allows users to easily use the following algorithms:
 
