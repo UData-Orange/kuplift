@@ -26,7 +26,7 @@ class UnivariateEncoding:
         self.treatment_col = ""
         self.y_col = ""
 
-    def fit_transform(self, data, treatment_col, y_col):
+    def fit_transform(self, data, treatment_col, y_col,parallelized=False,num_processes=5):
         """
         fit_transform() learns a discretisation model using UMODL and transforms the data.
 
@@ -44,7 +44,7 @@ class UnivariateEncoding:
         pd.Dataframe
             Pandas Dataframe that contains encoded data.
         """
-        self.fit(data, treatment_col, y_col)
+        self.fit(data, treatment_col, y_col, parallelized, num_processes)
         data = self.transform(data)
         return data
 
