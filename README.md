@@ -1,7 +1,7 @@
 
 ## kuplift package
 
-<p float="left">
+<p  align="center">
   <img src="docs/source/logo.png" width="310" />
 </p>
 
