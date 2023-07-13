@@ -61,7 +61,7 @@ class UnivariateEncoding:
         y_col : pd.Series
             Outcome column.
         parallelized : Boolean
-            Whether to run the code on several processes
+            Whether to run the code on several processes (default = 5)
         num_processes : int
             number of processes to use in parallel (default = 5)
         """
