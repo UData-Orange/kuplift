@@ -2,19 +2,19 @@
 ## kuplift package
 
 <p  align="center">
-  <img src="docs/source/logo.png" width="310" />
+  <img src="https://raw.githubusercontent.com/UData-Orange/kuplift/main/docs/source/logo.png" width="310" />
 </p>
 
 
 kuplift is a _Python_ package that provides a series of uplift modeling methods based on recent research work. kuplift allows users to easily use the following algorithms:
 
-1. Encoding data using a discretization method for treatment effect (uplift) modeling called _UMODL_[^fn1]
+1. Encoding data using a discretization method for treatment effect (uplift) modeling called _UMODL_.
     
-2.  Variable selection for uplift modeling with _UMODL-FS_.[^fn1]
+2.  Variable selection for uplift modeling with _UMODL-FS_.
     
-3. Learning a Bayesian decision tree model for uplift modeling with _UB-DT_.[^fn2]
+3. Learning a Bayesian decision tree model for uplift modeling with _UB-DT_.
     
-4.  Learning a random forest model for uplift modeling with _UB-RF_.[^fn2]
+4.  Learning a random forest model for uplift modeling with _UB-RF_.
 
 **How to install**:
 
@@ -49,7 +49,12 @@ forest.fit()
 preds = forest.predict(df[features])
 ```
 
+**Documentation**:
 
-[^fn1]: Rafla, M., Voisine, N., Crémilleux, B., & Boullé, M. (2023, March). A non-parametric bayesian approach for uplift discretization and feature selection. **_ECML PKDD 2022_**
+Refer to the documentation at https://udata-orange.github.io/kuplift/
 
-[^fn2]: Rafla, M., Voisine, N., & Crémilleux, B. (2023, May). Parameter-free Bayesian decision trees for uplift modeling. **_PAKDD 2023_**
+**References**:
+
+Rafla, M., Voisine, N., Crémilleux, B., & Boullé, M. (2023, March). A non-parametric bayesian approach for uplift discretization and feature selection. **_ECML PKDD 2022_**
+
+Rafla, M., Voisine, N., & Crémilleux, B. (2023, May). Parameter-free Bayesian decision trees for uplift modeling. **_PAKDD 2023_**
