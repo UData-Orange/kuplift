@@ -179,6 +179,8 @@ class BayesianRandomForest:
         Outcome column.
     n_trees : int
         Number of trees in a forest.
+    vars_subset : boolean
+        Use a random subset of the variables for each tree in the forest
     """
 
     def __init__(
@@ -187,16 +189,15 @@ class BayesianRandomForest:
         treatment_col,
         y_col,
         n_trees,
-        not_all_vars=False,
-        weighted_average=False,
+        vars_subset=False,
         random_state=10,
     ):
         self.list_of_trees = []
         self.data = data
         random.seed(random_state)
-        self.weighted_average = weighted_average
+        
         # Randomly select columns for the data
-        if not_all_vars:
+        if vars_subset:
             cols = list(self.data.columns)
             cols.remove(treatment_col)
             cols.remove(y_col)
@@ -215,7 +216,7 @@ class BayesianRandomForest:
         for tree in self.list_of_trees:
             tree.grow_tree()
 
-    def predict(self, X_test):
+    def predict(self, X_test, weighted_average=False):
         """
         Predict the uplift value for each example in X_test
 
@@ -223,13 +224,15 @@ class BayesianRandomForest:
         ----------
         X_test : pd.Dataframe
             Dataframe containing test data.
+        weighted_average : boolean
+            Give a weight for the predictions of each tree according to its cost (default = False)
 
         Returns
         -------
         y_pred_list(ndarray, shape=(num_samples, 1))
             An array containing the predicted uplift for each sample.
         """
-        if self.weighted_average == False:
+        if weighted_average == False:
             list_of_preds = []
 
             for tree in self.list_of_trees:
