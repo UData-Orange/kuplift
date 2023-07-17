@@ -7,3 +7,7 @@
 # * Unauthorized copying of this file, via any medium is strictly prohibited.        #
 # * See the "LICENSE.md" file for more details.                                      #
 ######################################################################################
+from kuplift.BayesianDecisionTree import BayesianDecisionTree
+from kuplift.BayesianRandomForest import BayesianRandomForest
+from kuplift.FeatureSelection import FeatureSelection
+from kuplift.UnivariateEncoding import UnivariateEncoding
