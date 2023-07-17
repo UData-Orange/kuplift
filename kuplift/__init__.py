@@ -11,3 +11,5 @@ from kuplift.BayesianDecisionTree import BayesianDecisionTree
 from kuplift.BayesianRandomForest import BayesianRandomForest
 from kuplift.FeatureSelection import FeatureSelection
 from kuplift.UnivariateEncoding import UnivariateEncoding
+
+__version__ = "0.0.2"

@@ -7,6 +7,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.abspath("../.."))
+from kuplift import __version__
 
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
@@ -14,7 +15,7 @@ sys.path.insert(0, os.path.abspath("../.."))
 project = "kuplift"
 copyright = "2023, Orange"
 author = "Orange"
-release = "0.0.2"
+release = __version__
 
 # Be strict about any broken references
 nitpicky = True

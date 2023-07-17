@@ -1,3 +1,4 @@
+from kuplift import __version__
 from setuptools import setup
 
 try:
@@ -9,11 +10,11 @@ except (IOError, ImportError):
 
 setup(
     name="kuplift",
-    version="0.0.2",
+    version=__version__,
     packages=["kuplift"],
     description="A User Parameter-free Bayesian Framework for Uplift Modeling",
     long_description=long_description,
-    long_description_content_type='text/markdown',
+    long_description_content_type="text/markdown",
     install_requires=[
         "numpy",
         "pandas",
