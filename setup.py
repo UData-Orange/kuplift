@@ -1,4 +1,3 @@
-from kuplift import __version__
 from setuptools import setup
 
 try:
@@ -10,7 +9,7 @@ except (IOError, ImportError):
 
 setup(
     name="kuplift",
-    version=__version__,
+    version="0.0.3",
     packages=["kuplift"],
     description="A User Parameter-free Bayesian Framework for Uplift Modeling",
     long_description=long_description,
