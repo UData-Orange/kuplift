@@ -849,8 +849,8 @@ def execute_greedy_search_and_post_opt(df):
     treatment_col_name = df.columns[1]
     y_name = df.columns[2]
 
-    df[treatment_col_name] = df[treatment_col_name].astype(int)
-    df[y_name] = df[y_name].astype(int)
+    df = df.astype({treatment_col_name:'int'})
+    df = df.astype({y_name:'int'})
 
     df = df.values.tolist()
     df = sorted(df, key=itemgetter(0))
