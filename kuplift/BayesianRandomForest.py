@@ -177,9 +177,9 @@ class BayesianRandomForest:
         Treatment column.
     outcome_col : pd.Series
         Outcome column.
-    n_trees : int
+    n_trees : int, default = 10
         Number of trees in a forest.
-    vars_subset : boolean
+    vars_subset : boolean, default = False
         Use a random subset of the variables for each tree in the forest
     """
 
@@ -188,7 +188,7 @@ class BayesianRandomForest:
         data,
         treatment_col,
         y_col,
-        n_trees,
+        n_trees=10,
         vars_subset=False,
         random_state=10,
     ):
@@ -224,8 +224,8 @@ class BayesianRandomForest:
         ----------
         X_test : pd.Dataframe
             Dataframe containing test data.
-        weighted_average : boolean
-            Give a weight for the predictions of each tree according to its cost (default = False)
+        weighted_average : boolean, default = False
+            Give a weight for the predictions of each tree according to its cost 
 
         Returns
         -------
