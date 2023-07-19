@@ -168,10 +168,3 @@ class BayesianDecisionTree(_Tree):
                 self.calc_criterion()
             else:
                 break
-        print("Learning Finished")
-        for node in self.terminal_nodes:
-            print("Node id ", node.id)
-            print("Node outcome_prob_in_trt ", node.outcome_prob_in_trt)
-            print("Node outcome_prob_in_ctrl ", node.outcome_prob_in_ctrl)
-            print("self ntj ", node.ntj)
-        print("===============")

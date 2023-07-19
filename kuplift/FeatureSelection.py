@@ -52,7 +52,6 @@ class FeatureSelection:
         var_vs_importance = {}
         var_vs_disc = {}
         for feature in features:
-            print("feature is ", feature)
             (
                 var_vs_importance[feature],
                 var_vs_disc[feature],
