@@ -109,7 +109,8 @@ def universal_code_natural_numbers(k):
     float
         Value of the result.
     """
-    dC0 = 2.86511  # First value computed following the given estimation formula, as e(3)=65536 + d_log2^5 / (1-d_log2)
+    dC0 = 2.86511  # First value computed following the given estimation
+    # formula, as e(3)=65536 + d_log2^5 / (1-d_log2)
     d_log2 = log(2.0)
 
     if k < 1:
@@ -124,15 +125,15 @@ def universal_code_natural_numbers(k):
 
 
 def preprocess_data(data, treatment_col="segment", y_col="visit"):
-    """Description?
+    """preprocess data
 
     Parameters
     ----------
     data : pd.Dataframe
         Dataframe containing feature variables.
-    treatment_col : pd.Series, optional
+    treatment_col : pd.Series, default "segment"
         Treatment column.
-    y_col : pd.Series, optional
+    y_col : pd.Series, default "visit"
         Outcome column.
 
     Returns

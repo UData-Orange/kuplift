@@ -35,17 +35,7 @@ class BayesianDecisionTree(_Tree):
         super().__init__(data, treatment_col, y_col)
 
     def fit(self):
-        """Fit an uplift decision tree model using UB-DT
-
-        Parameters
-        ----------
-        X_train : pd.Dataframe
-            Dataframe containing feature variables.
-        treatment_col : pd.Series
-            Treatment column.
-        y_col : pd.Series
-            Outcome column.
-        """
+        """Fit an uplift decision tree model using UB-DT."""
         # In case if we have a new attribute for splitting
         prob_kt_plus_one = (
             universal_code_natural_numbers(self.k_t + 1)
@@ -77,12 +67,13 @@ class BayesianDecisionTree(_Tree):
         while True:
             node_vs_best_attribute_corresponding_to_the_best_cost = {}
             node_vs_best_cost = {}
-            node_vs_candidate_splits_costs = (
-                {}
-            )  # Dictionary containing Nodes as key and their values are another dictionary each with attribute:CostSplit
+            # Dictionary containing Nodes as key and their values are another
+            # dictionary each with attribute:CostSplit
+            node_vs_candidate_splits_costs = {}
 
             for terminal_node in self.terminal_nodes:
-                # This if condition is here to not to repeat calculations of candidate splits
+                # This if condition is here to not to repeat calculations of
+                # candidate splits
                 if terminal_node.candidate_splits_vs_criterion is None:
                     node_vs_candidate_splits_costs[
                         terminal_node

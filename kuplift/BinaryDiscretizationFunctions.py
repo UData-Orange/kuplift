@@ -155,7 +155,8 @@ def split_interval(
     left_bound = data[0][0]  # The smallest value
     right_bound = data[-1][0]  # The biggest value
 
-    # Get all the unique values in the data i.e All unique values between left and right bounds
+    # Get all the unique values in the data i.e All unique values between left
+    # and right bounds
     unique_values_in_both_intervals = list(
         data.irange_key(left_bound, right_bound, (including_left_border, True))
     )
@@ -180,9 +181,8 @@ def split_interval(
             break
 
         if prev_val is None:  # Enters here only for the first unique value
-            left_split = list(
-                data.irange_key(left_bound, val, (True, True))
-            )  # Get a list of all data between left_bound and current unique value
+            # Get a list of data between left_bound and current unique value
+            left_split = list(data.irange_key(left_bound, val, (True, True)))
             left_interval = [0, 0, 0, 0]
             for interval_list in left_split:
                 left_interval[
@@ -230,13 +230,6 @@ def split_interval(
         # If the MODL value is smaller than the null model value add it
         # to the splits dictionary
         if split_criterion_val_left_and_right < null_model_value:
-            if sum(right_interval) == 0:
-                print("strange case")
-                print("null_model_value ", null_model_value)
-                print(
-                    "split_criterion_val_left_and_right ",
-                    split_criterion_val_left_and_right,
-                )
             splits[val] = split_criterion_val_left_and_right
     best_split = None
 

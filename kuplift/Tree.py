@@ -197,10 +197,7 @@ class _Tree:
             .reset_index(drop=True)
             .squeeze()
         )
-        #     print("row is ",type(row))
-        #     print("row is ",row)
-        if row["isLeaf"] == False:
-            #         print(" id ",str(IdValue)," not leaf")
+        if not row["isLeaf"]:
             text_desc = createTabs(text_desc, numTabs)
             text_desc = (
                 text_desc
@@ -211,9 +208,7 @@ class _Tree:
                 + str(row["SplitThreshold"])
                 + "\n"
             )
-            #         print(text_desc)
             text_desc = self.export_tree(IdValue * 2, numTabs + 1, text_desc)
-
             text_desc = createTabs(text_desc, numTabs)
             text_desc = (
                 text_desc
@@ -228,7 +223,6 @@ class _Tree:
                 IdValue * 2 + 1, numTabs + 1, text_desc
             )
         else:
-            #         print(" id ",str(IdValue),"is leaf")
             text_desc = createTabs(text_desc, numTabs)
             text_desc += "|--- Leaf \n"
             text_desc = createTabs(text_desc, numTabs + 1)
@@ -240,7 +234,7 @@ class _Tree:
                     + str(row["T1Y1"] / (row["T1Y1"] + row["T1Y0"]))
                     + "\n"
                 )
-            except:
+            except Exception:
                 text_desc = (
                     text_desc
                     + "|--- "
@@ -258,7 +252,7 @@ class _Tree:
                     + str(row["T0Y1"] / (row["T0Y1"] + row["T0Y0"]))
                     + "\n"
                 )
-            except:
+            except Exception:
                 text_desc = (
                     text_desc
                     + "|--- "

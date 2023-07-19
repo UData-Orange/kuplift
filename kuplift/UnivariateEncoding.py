@@ -15,10 +15,11 @@ from .UMODL_SearchAlgorithm import execute_greedy_search_and_post_opt
 
 class UnivariateEncoding:
     """
-    The UnivariateEncoding class implements the UMODL algorithm for uplift data encoding described in:
+    The UnivariateEncoding class implements the UMODL algorithm for uplift data
+    encoding described in:
     Rafla, M., Voisine, N., Crémilleux, B., & Boullé, M.
     (2023, March). A non-parametric bayesian approach for uplift
-    discretization and feature selection. ECML PKDD
+    discretization and feature selection. ECML PKDD.
     """
 
     def __init__(self):
@@ -30,7 +31,8 @@ class UnivariateEncoding:
         self, data, treatment_col, y_col, parallelized=False, num_processes=5
     ):
         """
-        fit_transform() learns a discretisation model using UMODL and transforms the data.
+        fit_transform() learns a discretisation model using UMODL and
+        transforms the data.
 
         Parameters
         ----------
@@ -40,6 +42,10 @@ class UnivariateEncoding:
             Treatment column.
         y_col : pd.Series
             Outcome column.
+        parallelized : bool, default False
+            Whether to run the code on several processes.
+        num_processes : int, default 5
+            Number of processes to use in parallel.
 
         Returns
         -------
@@ -54,7 +60,7 @@ class UnivariateEncoding:
         self, data, treatment_col, y_col, parallelized=False, num_processes=5
     ):
         """
-         fit() learns a discretisation model using the UMODL approach
+        fit() learns a discretisation model using the UMODL approach.
 
         Parameters
         ----------
@@ -64,10 +70,10 @@ class UnivariateEncoding:
             Treatment column.
         y_col : pd.Series
             Outcome column.
-        parallelized : Boolean
-            Whether to run the code on several processes (default = 5)
-        num_processes : int
-            number of processes to use in parallel (default = 5)
+        parallelized : bool, default False
+            Whether to run the code on several processes.
+        num_processes : int, default 5
+            Number of processes to use in parallel.
         """
         self.treatment_col = treatment_col
         self.y_col = y_col
@@ -82,7 +88,7 @@ class UnivariateEncoding:
         var_vs_importance = {}
         self.var_vs_disc = {}
 
-        if parallelized == True:
+        if parallelized:
             pool = mp.Pool(processes=num_processes)
 
             arguments_to_pass_in_parallel = []
@@ -119,7 +125,8 @@ class UnivariateEncoding:
 
     def transform(self, data):
         """
-        transform() applies the discretisation model learned by the fit() method
+        transform() applies the discretisation model learned by the
+        fit() method.
 
         Parameters
         ----------

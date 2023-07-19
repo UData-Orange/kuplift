@@ -25,8 +25,8 @@ class _Node:
         Treatment column.
     y_col : pd.Series
         Outcome column.
-    ID : ?, optional
-        ?
+    ID : int, default None
+        Tree node ID.
     """
 
     def __init__(self, data, treatment_col, y_col, ID=None):
@@ -181,9 +181,9 @@ class _Node:
 
     def __get_attributes_splits_costs(self, dict_of_each_att_vs_effectifs):
         # Prior of Internal node is only the combinatorial calculations
-        criterion_to_be_internal = (
-            self.__calc_prior_of_internal_node()
-        )  # In case we split this node, it will be no more a leaf but an internal node
+        # In case we split this node, it will be no more a leaf but an internal
+        # node
+        criterion_to_be_internal = self.__calc_prior_of_internal_node()
         new_prior_vals = (
             criterion_to_be_internal - self.prior_leaf - self.likelihood_leaf
         )

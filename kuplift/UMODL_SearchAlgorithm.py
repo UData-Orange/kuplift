@@ -340,15 +340,19 @@ class _DLL:
 def create_elementary_discretization(dll, data):
     """
     params
-    data : list of lists, each internal list contains [data value, treatment value, y value]
+    data : list of lists, each internal list contains
+    [data value, treatment value, y value]
 
     returns
-    1- a list of lists. Each internal list represents an interval and contains Effectifs of T0J0, T0J1, T1J0, T1J1 respectively.
+    1- a list of lists. Each internal list represents an interval and contains
+        Effectifs of T0J0, T0J1, T1J0, T1J1 respectively.
     2- frontier value per interval
-    3- w : list containing the Wi value for each interval, the initial discretization has Wi = 0 for all i
+    3- w : list containing the Wi value for each interval, the initial
+        discretization has Wi = 0 for all i
     """
     start_counter(0)
-    # This is a list of lists, each internal list represents an interval and contains Effectifs of T0J0, T0J1, T1J0, T1J1 respectively
+    # This is a list of lists, each internal list represents an interval and
+    # contains Effectifs of T0J0, T0J1, T1J0, T1J1 respectively
     prev = None
     i = -1
     for interval_list in data:
@@ -445,9 +449,13 @@ def greedy_search(best_merges, intervals, N):
                 interval_right_of_the_merge.sum_of_priors_and_likelihoods
             )
 
-            left_interval_node_criterion = interval_to_be_merged.calculate_priors_and_likelihoods(
-                mode="MergeAndUpdate"
-            )  # it will update w, Priors, lkelihoods and sum_of_priors_and_likelihoods
+            # it will update w, priors, likelihoods and
+            # sum_of_priors_and_likelihoods
+            left_interval_node_criterion = (
+                interval_to_be_merged.calculate_priors_and_likelihoods(
+                    mode="MergeAndUpdate"
+                )
+            )
             intervals.modl_value = (
                 intervals.modl_value
                 - old_right_interval_node_criterion
@@ -552,10 +560,11 @@ def merge(interval, intervals, number_of_merges=1):
     interval.included_right_frontier = neighbours_to_merge[
         -1
     ].included_right_frontier
-    # NOW WE HAVE TO SEARCH for the old values of the sum of prior and likelihoods !!!!
+    # for the old values of the sum of prior and likelihoods
+    # it will update w, priors, likelihoods and sum_of_priors_and_likelihoods
     left_interval_node_criterion = interval.calculate_priors_and_likelihoods(
         mode="MergeAndUpdate"
-    )  # it will update w, Priors, lkelihoods and sum_of_priors_and_likelihoods
+    )
     intervals.modl_value = (
         intervals.modl_value
         - sum_of_old_priors_and_likelihoods
@@ -571,9 +580,9 @@ def merge(interval, intervals, number_of_merges=1):
         + left_interval_node_criterion
     )
 
-    for i in range(
-        1, len(neighbours_to_merge)
-    ):  # Note the first element is the current interval that we are merging, no need to remove it!
+    # Note the first element is the current interval that we are merging,
+    # no need to remove it!
+    for i in range(1, len(neighbours_to_merge)):
         intervals.remove_interval(neighbours_to_merge[i])
 
 
@@ -677,12 +686,10 @@ def split_interval(
         Left_interval.nitj = left_interval
         Left_interval.included_right_frontier = best_split
 
-        Left_interval.calculate_priors_and_likelihoods(
-            mode="MergeAndUpdate"
-        )  # it will update w, Priors, lkelihoods and sum_of_priors_and_likelihoods
-        Right_interval.calculate_priors_and_likelihoods(
-            mode="MergeAndUpdate"
-        )  # it will update w, Priors, lkelihoods and sum_of_priors_and_likelihoods
+        # it will update w, priors, likelihoods and
+        # sum_of_priors_and_likelihoods
+        Left_interval.calculate_priors_and_likelihoods(mode="MergeAndUpdate")
+        Right_interval.calculate_priors_and_likelihoods(mode="MergeAndUpdate")
 
         intervals.modl_value = splits[best_split]
         split_done = True
@@ -849,8 +856,8 @@ def execute_greedy_search_and_post_opt(df):
     treatment_col_name = df.columns[1]
     y_name = df.columns[2]
 
-    df = df.astype({treatment_col_name:'int'})
-    df = df.astype({y_name:'int'})
+    df = df.astype({treatment_col_name: "int"})
+    df = df.astype({y_name: "int"})
 
     df = df.values.tolist()
     df = sorted(df, key=itemgetter(0))
@@ -865,9 +872,10 @@ def execute_greedy_search_and_post_opt(df):
         intervals
     )  # Compute the cost of all possible merges of two adjacent intervals
 
+    # All the costs of 'all possible merges of two adjacent intervals' sorted
     best_merges = intervals.get_sorted_list_of_address_and_right_merge_value(
         intervals.head
-    )  # Get all the costs of 'all possible merges of two adjacent intervals' sorted
+    )
     best_merges = SortedKeyList(best_merges, key=itemgetter(0))
 
     # Start greedy search

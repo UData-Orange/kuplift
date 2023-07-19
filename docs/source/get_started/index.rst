@@ -55,7 +55,7 @@ python package installation (you can find it with ``pip show -f kuplift``)
 
 Credits
 =======
-kuplift has been developed at Orange Labs.
+kuplift has been developed at `Orange Labs <https://hellofuture.orange.com/en/artificial-intelligence/>`_.
 
 **Current contributors:**
 

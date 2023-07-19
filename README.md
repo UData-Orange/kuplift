@@ -53,6 +53,15 @@ preds = forest.predict(df[features])
 
 Refer to the documentation at https://udata-orange.github.io/kuplift/
 
+**Credits**:
+kuplift has been developed at Orange Labs.
+
+Current contributors:
+
+Mina Rafla
+Nicolas Voisine
+
+
 **References**:
 
 Rafla, M., Voisine, N., Crémilleux, B., & Boullé, M. (2023, March). A non-parametric bayesian approach for uplift discretization and feature selection. **_ECML PKDD 2022_**

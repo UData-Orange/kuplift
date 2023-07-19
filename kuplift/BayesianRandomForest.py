@@ -65,16 +65,18 @@ class _UpliftTreeClassifier(_Tree):
         while True:
             node_vs_best_attribute_corresponding_to_the_best_cost = {}
             node_vs_best_cost = {}
-            node_vs_candidate_splits_costs = (
-                {}
-            )  # Dictionary containing Nodes as key and their values are another dictionary each with attribute:CostSplit
-
+            # Dictionary containing Nodes as key and their values are another
+            # dictionary each with attribute:CostSplit
+            node_vs_candidate_splits_costs = {}
             for terminal_node in self.terminal_nodes:
-                # This if condition is here to not to repeat calculations of candidate splits
+                # This if condition is here to not to repeat calculations of
+                # candidate splits
                 if terminal_node.candidate_splits_vs_criterion is None:
                     node_vs_candidate_splits_costs[
                         terminal_node
-                    ] = terminal_node.discretize_vars_and_get_attributes_splits_costs()
+                    ] = (
+                        terminal_node.discretize_vars_and_get_attributes_splits_costs()
+                    )
                 else:
                     node_vs_candidate_splits_costs[
                         terminal_node
@@ -87,7 +89,9 @@ class _UpliftTreeClassifier(_Tree):
                 list_of_attribute_splits_improving_tree_criterion = []
                 for attribute in node_vs_candidate_splits_costs[terminal_node]:
                     if attribute in self.feature_subset:
-                        node_vs_candidate_splits_costs[terminal_node][attribute] += (
+                        node_vs_candidate_splits_costs[terminal_node][
+                            attribute
+                        ] += (
                             self.prob_kt
                             + self.prob_attribute_selection
                             + encoding_of_internal_and_leaves_and_w_with_extra_nodes
@@ -96,7 +100,9 @@ class _UpliftTreeClassifier(_Tree):
                             + self.prior_of_internal_nodes
                         )
                     else:
-                        node_vs_candidate_splits_costs[terminal_node][attribute] += (
+                        node_vs_candidate_splits_costs[terminal_node][
+                            attribute
+                        ] += (
                             prob_kt_plus_one
                             + encoding_of_internal_and_leaves_and_w_with_extra_nodes
                             + prob_of_attribute_selection_among_subset_attributes_plus_one
@@ -106,7 +112,9 @@ class _UpliftTreeClassifier(_Tree):
                         )
 
                     if (
-                        node_vs_candidate_splits_costs[terminal_node][attribute]
+                        node_vs_candidate_splits_costs[terminal_node][
+                            attribute
+                        ]
                         < self.tree_criterion
                     ):
                         list_of_attribute_splits_improving_tree_criterion.append(
@@ -121,18 +129,24 @@ class _UpliftTreeClassifier(_Tree):
                 node_vs_best_attribute_corresponding_to_the_best_cost[
                     terminal_node
                 ] = key_of_the_minimal_val
-                node_vs_best_cost[terminal_node] = node_vs_candidate_splits_costs[
+                node_vs_best_cost[
                     terminal_node
-                ][key_of_the_minimal_val]
+                ] = node_vs_candidate_splits_costs[terminal_node][
+                    key_of_the_minimal_val
+                ]
 
             if len(list(node_vs_best_cost)) == 0:
                 break
-            optimal_node_attribute_to_split_up = random.choice(list(node_vs_best_cost))
+            optimal_node_attribute_to_split_up = random.choice(
+                list(node_vs_best_cost)
+            )
             optimal_val = node_vs_best_cost[optimal_node_attribute_to_split_up]
             optimal_node = optimal_node_attribute_to_split_up
-            optimal_attribute = node_vs_best_attribute_corresponding_to_the_best_cost[
-                optimal_node_attribute_to_split_up
-            ]
+            optimal_attribute = (
+                node_vs_best_attribute_corresponding_to_the_best_cost[
+                    optimal_node_attribute_to_split_up
+                ]
+            )
 
             if optimal_val < self.tree_criterion:
                 self.tree_criterion = optimal_val
@@ -149,7 +163,6 @@ class _UpliftTreeClassifier(_Tree):
 
                 self.calc_criterion()
             else:
-                print("WILL NEVER ENTER HERE")
                 break
 
         self.tree_criterion = (
@@ -177,10 +190,12 @@ class BayesianRandomForest:
         Treatment column.
     outcome_col : pd.Series
         Outcome column.
-    n_trees : int, default = 10
+    n_trees : int, default 10
         Number of trees in a forest.
-    vars_subset : boolean, default = False
-        Use a random subset of the variables for each tree in the forest
+    vars_subset : bool, default False
+        Use a random subset of the variables for each tree in the forest.
+    random_state : int, default 10
+        Seed used by the random number generator.
     """
 
     def __init__(
@@ -195,44 +210,42 @@ class BayesianRandomForest:
         self.list_of_trees = []
         self.data = data
         random.seed(random_state)
-        
+
         # Randomly select columns for the data
         if vars_subset:
             cols = list(self.data.columns)
             cols.remove(treatment_col)
             cols.remove(y_col)
-            print("cols before are ", cols)
             cols = random.sample(cols, int(np.sqrt(len(cols))))
-            print("cols after are ", cols)
             self.data = self.data[cols + [treatment_col, y_col]]
         for i in range(n_trees):
-            Tree = _UpliftTreeClassifier(self.data.copy(), treatment_col, y_col)
+            Tree = _UpliftTreeClassifier(
+                self.data.copy(), treatment_col, y_col
+            )
             self.list_of_trees.append(Tree)
 
     def fit(self):
-        """
-        Fit a decision tree algorithm
-        """
+        """Fit a decision tree algorithm."""
         for tree in self.list_of_trees:
             tree.grow_tree()
 
     def predict(self, X_test, weighted_average=False):
         """
-        Predict the uplift value for each example in X_test
+        Predict the uplift value for each example in X_test.
 
         Parameters
         ----------
         X_test : pd.Dataframe
             Dataframe containing test data.
-        weighted_average : boolean, default = False
-            Give a weight for the predictions of each tree according to its cost 
+        weighted_average : bool, default False
+            Give a weight for the predictions of each tree according to its cost.
 
         Returns
         -------
-        y_pred_list(ndarray, shape=(num_samples, 1))
+        y_pred_list : (ndarray, shape=(num_samples, 1))
             An array containing the predicted uplift for each sample.
         """
-        if weighted_average == False:
+        if not weighted_average:
             list_of_preds = []
 
             for tree in self.list_of_trees:
@@ -253,5 +266,4 @@ class BayesianRandomForest:
             list_of_weights = []
             for i in range(len(list_of_criterion)):
                 list_of_weights.append(list_of_criterion[i] / sum_of_weights)
-            print("list of weights is ", list_of_weights)
             return np.average(list_of_preds, axis=0, weights=list_of_weights)

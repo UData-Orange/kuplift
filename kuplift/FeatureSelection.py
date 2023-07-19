@@ -68,7 +68,7 @@ class FeatureSelection:
         return var_vs_importance
 
     @staticmethod
-    def get_the_best_var_parallel(args):
+    def __get_the_best_var_parallel(args):
         """
         Parameters
         ----------
@@ -95,7 +95,6 @@ class FeatureSelection:
         feature = features[0]
         features.remove(treatment_col)
         features.remove(y_col)
-        print("feature is ", feature)
         var_vs_importance = {}
         var_vs_disc = {}
         (
@@ -121,10 +120,10 @@ class FeatureSelection:
             Treatment column.
         y_col : pd.Series
             Outcome column.
-        parallelized : Boolean
-            Whether to run the code on several processes (default = 5)
-        num_processes : int
-            number of processes to use in parallel (default = 5)
+        parallelized : bool, default False
+            Whether to run the code on several processes.
+        num_processes : int, default 5
+            Number of processes to use in parallel.
 
         Returns
         -------
@@ -138,7 +137,7 @@ class FeatureSelection:
         data = data[cols + [treatment_col, y_col]]
         data = preprocess_data(data, treatment_col, y_col)
 
-        if parallelized == True:
+        if parallelized:
             pool = mp.Pool(processes=num_processes)
 
             arguments_to_pass_in_parallel = []
@@ -147,7 +146,7 @@ class FeatureSelection:
                     [data[[col, treatment_col, y_col]], treatment_col, y_col]
                 )
             list_of_tuples_feature_vs_importance = pool.map(
-                FeatureSelection.get_the_best_var_parallel,
+                FeatureSelection.__get_the_best_var_parallel,
                 arguments_to_pass_in_parallel,
             )
             pool.close()
