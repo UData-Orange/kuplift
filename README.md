@@ -44,7 +44,7 @@ tree.fit()
 preds = tree.predict(df[column_names])
 
 # Uplift Bayesian Random Forest
-forest = kp.BayesianRandomForest(df, "treatment", "outcome", nb_trees)
+forest = kp.BayesianRandomForest(df, "treatment", "outcome")
 forest.fit()
 preds = forest.predict(df[features])
 ```
@@ -59,6 +59,7 @@ kuplift has been developed at Orange Labs.
 Current contributors:
 
 Mina Rafla
+
 Nicolas Voisine
 
 

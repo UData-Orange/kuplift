@@ -9,7 +9,7 @@ except (IOError, ImportError):
 
 setup(
     name="kuplift",
-    version="0.0.3",
+    version="0.0.4",
     packages=["kuplift"],
     description="A User Parameter-free Bayesian Framework for Uplift Modeling",
     long_description=long_description,
