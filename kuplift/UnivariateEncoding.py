@@ -23,8 +23,8 @@ class UnivariateEncoding:
 
     def __init__(self):
         self.var_vs_disc = {}
-        self.treatment_col = ""
-        self.y_col = ""
+        self.treatment_name = "treatment"
+        self.outcome_name = "outcome"
 
     def fit_transform(
         self, data, treatment_col, y_col, parallelized=False, num_processes=5
@@ -75,15 +75,17 @@ class UnivariateEncoding:
             Number of processes to use in parallel.
         """
         
-        self.treatment_col = treatment_col
-        self.y_col = y_col
-
+        data[self.treatment_name]=treatment_col
+        data[self.outcome_name]=y_col
+        
         cols = list(data.columns)
-        cols.remove(treatment_col)
-        cols.remove(y_col)
+        if self.treatment_name in cols:
+            cols.remove(self.treatment_name)
+        if self.outcome_name in cols:    
+            cols.remove(self.outcome_name)
 
-        data = data[cols + [treatment_col, y_col]]
-        data = preprocess_data(data, treatment_col, y_col)
+        data = data[cols + [self.treatment_name, self.outcome_name]]
+        data = preprocess_data(data, self.treatment_name, self.outcome_name)
 
         var_vs_importance = {}
         self.var_vs_disc = {}
@@ -94,7 +96,7 @@ class UnivariateEncoding:
             arguments_to_pass_in_parallel = []
             for col in cols:
                 arguments_to_pass_in_parallel.append(
-                    data[[col, treatment_col, y_col]]
+                    data[[col, self.treatment_name, self.outcome_name]]
                 )
             list_of_tuples_feature_vs_importance = pool.map(
                 execute_greedy_search_and_post_opt,
@@ -116,7 +118,7 @@ class UnivariateEncoding:
                     self.var_vs_disc[col],
                     col_name
                 ) = execute_greedy_search_and_post_opt(
-                    data[[col, treatment_col, y_col]]
+                    data[[col, self.treatment_name, self.outcome_name]]
                 )
                 if len(self.var_vs_disc[col]) == 1:
                     self.var_vs_disc[col] = None
@@ -141,8 +143,8 @@ class UnivariateEncoding:
         """
         
         cols = list(data.columns)
-        cols.remove(self.treatment_col)
-        cols.remove(self.y_col)
+        cols.remove(self.treatment_name)
+        cols.remove(self.outcome_name)
         for col in cols:
             if self.var_vs_disc[col] is None:
                 data.drop(col, inplace=True, axis=1)
