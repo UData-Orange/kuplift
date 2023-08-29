@@ -55,6 +55,7 @@ class FeatureSelection:
             (
                 var_vs_importance[feature],
                 var_vs_disc[feature],
+                col_name
             ) = execute_greedy_search_and_post_opt(
                 data[[feature, treatment_col, y_col]]
             )
@@ -100,6 +101,7 @@ class FeatureSelection:
         (
             var_vs_importance[feature],
             var_vs_disc[feature],
+            col_name
         ) = execute_greedy_search_and_post_opt(
             data[[feature, treatment_col, y_col]]
         )
