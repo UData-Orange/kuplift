@@ -30,10 +30,11 @@ class _UpliftTreeClassifier(_Tree):
         Outcome column.
     """
 
-    def __init__(self, data, treatment_col, y_col):
-        super().__init__(data, treatment_col, y_col)
+    def __init__(self):
+        super().__init__()
 
-    def grow_tree(self):
+    def grow_tree(self,data, treatment_col, y_col):
+        super().__initializeVars__(data, treatment_col, y_col)
         # In case if we have a new attribute for splitting
         prob_kt_plus_one = (
             universal_code_natural_numbers(self.k_t + 1)
@@ -200,34 +201,39 @@ class BayesianRandomForest:
 
     def __init__(
         self,
-        data,
-        treatment_col,
-        y_col,
         n_trees=10,
         vars_subset=False,
         random_state=10,
     ):
         self.list_of_trees = []
-        self.data = data
+        
         random.seed(random_state)
+        self.n_trees=n_trees
+        self.vars_subset=vars_subset
+        
+        self.treatment_name='treatment'
+        self.outcome_name='outcome'
 
-        # Randomly select columns for the data
-        if vars_subset:
+    def fit(self,data,treatment_col,y_col):
+        """Fit a decision tree algorithm."""
+        # data.loc[:,self.treatment_name]=treatment_col
+        # data.loc[:,self.outcome_name]=y_col
+        # self.data = data
+        
+        if self.vars_subset: # Randomly select columns for the data
             cols = list(self.data.columns)
-            cols.remove(treatment_col)
-            cols.remove(y_col)
+            # cols.remove(self.treatment_name)
+            # cols.remove(self.outcome_name)
             cols = random.sample(cols, int(np.sqrt(len(cols))))
-            self.data = self.data[cols + [treatment_col, y_col]]
-        for i in range(n_trees):
-            Tree = _UpliftTreeClassifier(
-                self.data.copy(), treatment_col, y_col
-            )
+            # data = data[cols + [self.treatment_name, self.outcome_name]]
+            data = data[cols]
+
+        for i in range(self.n_trees):
+            Tree = _UpliftTreeClassifier()
             self.list_of_trees.append(Tree)
 
-    def fit(self):
-        """Fit a decision tree algorithm."""
         for tree in self.list_of_trees:
-            tree.grow_tree()
+            tree.grow_tree(data,treatment_col, y_col)
 
     def predict(self, X_test, weighted_average=False):
         """

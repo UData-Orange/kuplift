@@ -12,8 +12,8 @@ from kuplift.BayesianDecisionTree import BayesianDecisionTree
 
 def test_predict(test_dataframe):
     features = list(test_dataframe.columns[:-2])
-    tree = BayesianDecisionTree(test_dataframe, "segment", "visit")
-    tree.fit()
+    tree = BayesianDecisionTree()
+    tree.fit(test_dataframe[features], test_dataframe["segment"], test_dataframe["visit"])
     preds = tree.predict(test_dataframe[features])
     list_preds = list(preds)
     assert list_preds == [

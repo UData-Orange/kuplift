@@ -30,42 +30,30 @@ class _Tree:
         Outcome column.
     """
 
-    def __init__(self, data, treatment_col, y_col):  # ordered data as argument
-        self.nodes_ids = 0
-        self.root_node = _Node(
-            data, treatment_col, y_col, ID=self.nodes_ids + 1
-        )
-        self.terminal_nodes = [self.root_node]
+    def __init__(self):  # ordered data as argument
+        self.nodes_ids = None
+        self.root_node = None
+        self.terminal_nodes = []
         self.internal_nodes = []
 
-        self.k = len(list(data.columns))
-        self.k_t = 1
-        self.features = list(data.columns)
-        self.feature_subset = []
+        self.k = None
+        self.k_t = None
+        self.features = None
+        self.feature_subset = None
 
         self.prob_kt = None
         self.encoding_of_being_an_internal_node = None
         self.prob_attribute_selection = None
         self.prior_of_internal_nodes = None
-        self.encoding_of_being_a_leaf_node_and_containing_te = (
-            len(self.terminal_nodes) * log(2) * 2
-        )  # TE=TreatmentEffect
+        self.encoding_of_being_a_leaf_node_and_containing_te = None
         self.leaf_prior = None
         self.tree_likelihood = None
-
-        self.calc_criterion()
-
-        self.tree_criterion = (
-            self.prob_kt
-            + self.encoding_of_being_an_internal_node
-            + self.prob_attribute_selection
-            + self.prior_of_internal_nodes
-            + self.encoding_of_being_a_leaf_node_and_containing_te
-            + self.leaf_prior
-            + self.tree_likelihood
-        )
+        
         self.summary_df = None
-
+        
+        self.treatment_name='treatment'
+        self.outcome_name='outcome'
+        
     def calc_criterion(self):
         self.__calc_prob_kt()
         self.__calc_prior_of_internal_node()
@@ -120,6 +108,38 @@ class _Tree:
         if x[node.attribute] <= node.split_threshold:
             return self.__traverse_tree(x, node.left_node)
         return self.__traverse_tree(x, node.right_node)
+    
+    def __initializeVars__(self, data, treatment_col, y_col):
+        data.loc[:,self.treatment_name]=treatment_col
+        data.loc[:,self.outcome_name]=y_col
+        
+        self.nodes_ids = 0
+        self.root_node = _Node(
+            data, self.treatment_name, self.outcome_name, ID=self.nodes_ids + 1
+        )
+        self.terminal_nodes = [self.root_node]
+        self.internal_nodes = []
+
+        self.k = len(list(data.columns))
+        self.k_t = 1
+        self.features = list(data.columns)
+        self.feature_subset = []
+
+        self.encoding_of_being_a_leaf_node_and_containing_te = (
+            len(self.terminal_nodes) * log(2) * 2
+        )  # TE=TreatmentEffect
+        
+        self.calc_criterion()
+
+        self.tree_criterion = (
+            self.prob_kt
+            + self.encoding_of_being_an_internal_node
+            + self.prob_attribute_selection
+            + self.prior_of_internal_nodes
+            + self.encoding_of_being_a_leaf_node_and_containing_te
+            + self.leaf_prior
+            + self.tree_likelihood
+        )        
 
     def predict(self, X_test):
         """Predict the uplift value for each example in X_test
@@ -197,7 +217,10 @@ class _Tree:
             .reset_index(drop=True)
             .squeeze()
         )
-        if not row["isLeaf"]:
+        #     print("row is ",type(row))
+        #     print("row is ",row)
+        if row["isLeaf"] == False:
+            #         print(" id ",str(IdValue)," not leaf")
             text_desc = createTabs(text_desc, numTabs)
             text_desc = (
                 text_desc
@@ -208,7 +231,9 @@ class _Tree:
                 + str(row["SplitThreshold"])
                 + "\n"
             )
+            #         print(text_desc)
             text_desc = self.export_tree(IdValue * 2, numTabs + 1, text_desc)
+
             text_desc = createTabs(text_desc, numTabs)
             text_desc = (
                 text_desc
@@ -223,6 +248,7 @@ class _Tree:
                 IdValue * 2 + 1, numTabs + 1, text_desc
             )
         else:
+            #         print(" id ",str(IdValue),"is leaf")
             text_desc = createTabs(text_desc, numTabs)
             text_desc += "|--- Leaf \n"
             text_desc = createTabs(text_desc, numTabs + 1)
@@ -234,7 +260,7 @@ class _Tree:
                     + str(row["T1Y1"] / (row["T1Y1"] + row["T1Y0"]))
                     + "\n"
                 )
-            except Exception:
+            except:
                 text_desc = (
                     text_desc
                     + "|--- "
@@ -252,7 +278,7 @@ class _Tree:
                     + str(row["T0Y1"] / (row["T0Y1"] + row["T0Y0"]))
                     + "\n"
                 )
-            except Exception:
+            except:
                 text_desc = (
                     text_desc
                     + "|--- "
