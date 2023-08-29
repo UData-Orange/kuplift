@@ -14,7 +14,7 @@ from kuplift.UnivariateEncoding import UnivariateEncoding
 
 def test_fit_transform_a(test_dataframe):
     ue = UnivariateEncoding()
-    encoded_data = ue.fit_transform(test_dataframe, "segment", "visit")
+    encoded_data = ue.fit_transform(test_dataframe, test_dataframe["segment"], test_dataframe["visit"])
     list_encoded_data = encoded_data.values.tolist()
     assert list_encoded_data == [
         [0, 1, 3, 1, 2, 0, 1, 0, 0, 0, 1, 0, 0],
