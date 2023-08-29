@@ -15,11 +15,10 @@ from .UMODL_SearchAlgorithm import execute_greedy_search_and_post_opt
 
 class UnivariateEncoding:
     """
-    The UnivariateEncoding class implements the UMODL algorithm for uplift data
-    encoding described in:
+    The UnivariateEncoding class implements the UMODL algorithm for uplift data encoding described in:
     Rafla, M., Voisine, N., Crémilleux, B., & Boullé, M.
     (2023, March). A non-parametric bayesian approach for uplift
-    discretization and feature selection. ECML PKDD.
+    discretization and feature selection. ECML PKDD
     """
 
     def __init__(self):
@@ -55,7 +54,7 @@ class UnivariateEncoding:
         self.fit(data, treatment_col, y_col, parallelized, num_processes)
         data = self.transform(data)
         return data
-
+    
     def fit(
         self, data, treatment_col, y_col, parallelized=False, num_processes=5
     ):
@@ -75,6 +74,7 @@ class UnivariateEncoding:
         num_processes : int, default 5
             Number of processes to use in parallel.
         """
+        
         self.treatment_col = treatment_col
         self.y_col = y_col
 
@@ -88,13 +88,13 @@ class UnivariateEncoding:
         var_vs_importance = {}
         self.var_vs_disc = {}
 
-        if parallelized:
+        if parallelized == True:
             pool = mp.Pool(processes=num_processes)
 
             arguments_to_pass_in_parallel = []
             for col in cols:
                 arguments_to_pass_in_parallel.append(
-                    [data[[col, treatment_col, y_col]]]
+                    data[[col, treatment_col, y_col]]
                 )
             list_of_tuples_feature_vs_importance = pool.map(
                 execute_greedy_search_and_post_opt,
@@ -103,17 +103,18 @@ class UnivariateEncoding:
             pool.close()
 
             for el in list_of_tuples_feature_vs_importance:
-                col = el[0]
-                if len(el[2]) == 1:
+                col = el[2]
+                if len(el[1]) == 1:
                     self.var_vs_disc[col] = None
                 else:
-                    self.var_vs_disc[col] = el[2][:-1]
+                    self.var_vs_disc[col] = el[1][:-1]
 
         else:
             for col in cols:
                 (
                     var_vs_importance[col],
                     self.var_vs_disc[col],
+                    col_name
                 ) = execute_greedy_search_and_post_opt(
                     data[[col, treatment_col, y_col]]
                 )
@@ -138,6 +139,7 @@ class UnivariateEncoding:
         pd.Dataframe
             Pandas Dataframe that contains encoded data.
         """
+        
         cols = list(data.columns)
         cols.remove(self.treatment_col)
         cols.remove(self.y_col)
