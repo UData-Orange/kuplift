@@ -12,8 +12,8 @@ from kuplift.BayesianRandomForest import BayesianRandomForest
 
 def test_predict(test_dataframe):
     features = list(test_dataframe.columns[:-2])
-    forest = BayesianRandomForest()
-    forest.fit(test_dataframe[features], test_dataframe["segment"], test_dataframe["visit"],n_trees=4)
+    forest = BayesianRandomForest(n_trees=4)
+    forest.fit(test_dataframe[features], test_dataframe["segment"], test_dataframe["visit"])
     preds = forest.predict(test_dataframe[features])
     list_preds = list(preds)
     assert list_preds == [
