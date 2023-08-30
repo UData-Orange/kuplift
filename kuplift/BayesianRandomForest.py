@@ -34,7 +34,7 @@ class _UpliftTreeClassifier(_Tree):
         super().__init__()
 
     def grow_tree(self,data, treatment_col, y_col):
-        super().__initializeVars__(data, treatment_col, y_col)
+        super().__initializeVars__(data.copy(), treatment_col.copy(), y_col.copy())
         # In case if we have a new attribute for splitting
         prob_kt_plus_one = (
             universal_code_natural_numbers(self.k_t + 1)
@@ -207,11 +207,15 @@ class BayesianRandomForest:
     ):
         self.list_of_trees = []
         
-        random.seed(random_state)
         self.n_trees=n_trees
+
         self.vars_subset=vars_subset
-        
+
+        self.random_state=random_state
+        random.seed(self.random_state)
+
         self.treatment_name='treatment'
+
         self.outcome_name='outcome'
 
     def fit(self,data,treatment_col,y_col):
@@ -233,7 +237,7 @@ class BayesianRandomForest:
             self.list_of_trees.append(Tree)
 
         for tree in self.list_of_trees:
-            tree.grow_tree(data,treatment_col, y_col)
+            tree.grow_tree(data.copy(),treatment_col.copy(), y_col.copy())
 
     def predict(self, X_test, weighted_average=False):
         """

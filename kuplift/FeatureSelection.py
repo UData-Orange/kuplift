@@ -46,8 +46,8 @@ class FeatureSelection:
                     var_vs_importance={"age":2.2,"job":2.3}
         """
         features = list(data.columns)
-        features.remove(treatment_col)
-        features.remove(y_col)
+        features.remove("treatment")
+        features.remove("outcome")
 
         var_vs_importance = {}
         var_vs_disc = {}
@@ -57,7 +57,7 @@ class FeatureSelection:
                 var_vs_disc[feature],
                 col_name
             ) = execute_greedy_search_and_post_opt(
-                data[[feature, treatment_col, y_col]]
+                data[[feature, "treatment", "outcome"]]
             )
         # sort the dictionary by values in ascending order
         var_vs_importance = {
@@ -90,12 +90,12 @@ class FeatureSelection:
         For example: return a dictionary
                     var_vs_importance={"age":2.2,"job":2.3}
         """
-        data, treatment_col, y_col = args[0], args[1], args[2]
+        data = args[0]
 
         features = list(data.columns)
         feature = features[0]
-        features.remove(treatment_col)
-        features.remove(y_col)
+        features.remove("treatment")
+        features.remove("outcome")
         var_vs_importance = {}
         var_vs_disc = {}
         (
@@ -103,7 +103,7 @@ class FeatureSelection:
             var_vs_disc[feature],
             col_name
         ) = execute_greedy_search_and_post_opt(
-            data[[feature, treatment_col, y_col]]
+            data[[feature, "treatment", "outcome"]]
         )
         return (feature, var_vs_importance[feature])
 
@@ -132,12 +132,15 @@ class FeatureSelection:
         Python Dictionary
             Variables names and their corresponding importance value (Sorted).
         """
+        data["treatment"]=treatment_col
+        data["outcome"]=y_col
+        
         cols = list(data.columns)
+        cols.remove("treatment")
+        cols.remove("outcome")
 
-        cols.remove(treatment_col)
-        cols.remove(y_col)
-        data = data[cols + [treatment_col, y_col]]
-        data = preprocess_data(data, treatment_col, y_col)
+        data = data[cols + ["treatment", "outcome"]]
+        data = preprocess_data(data, "treatment", "outcome")
 
         if parallelized:
             pool = mp.Pool(processes=num_processes)
@@ -145,7 +148,7 @@ class FeatureSelection:
             arguments_to_pass_in_parallel = []
             for col in cols:
                 arguments_to_pass_in_parallel.append(
-                    [data[[col, treatment_col, y_col]], treatment_col, y_col]
+                    [data[[col, "treatment", "outcome"]]]
                 )
             list_of_tuples_feature_vs_importance = pool.map(
                 FeatureSelection.__get_the_best_var_parallel,
@@ -168,7 +171,7 @@ class FeatureSelection:
 
         else:
             list_of_vars_importance = self.__get_the_best_var(
-                data, treatment_col, y_col
+                data, "treatment", "outcome"
             )
 
         return list_of_vars_importance

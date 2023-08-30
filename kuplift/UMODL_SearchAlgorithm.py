@@ -846,9 +846,9 @@ def calculate_feature_level(intervals, method="ED"):
 
 
 def execute_greedy_search_and_post_opt(df):
+    col_name=df.columns[0]
     treatment_col_name = df.columns[1]
     y_name = df.columns[2]
-    col_name=df.columns[0]
 
     df = df.astype({treatment_col_name:'int'})
     df = df.astype({y_name:'int'})
