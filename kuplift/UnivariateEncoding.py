@@ -148,7 +148,7 @@ class UnivariateEncoding:
         cols = list(data.columns)
         
         not_in_self_column_names = any(x not in self.column_names for x in cols)
-        if len(not_in_self_column_names)>0:
+        if not_in_self_column_names==True:
             raise Exception("The data to be transformed contains unknown columns")
 
         if self.treatment_name in cols:
