@@ -25,6 +25,7 @@ class UnivariateEncoding:
         self.var_vs_disc = {}
         self.treatment_name = "treatment"
         self.outcome_name = "outcome"
+        self.column_names=[]
 
     def fit_transform(
         self, data, treatment_col, y_col, parallelized=False, num_processes=5
@@ -51,6 +52,12 @@ class UnivariateEncoding:
         pd.Dataframe
             Pandas Dataframe that contains encoded data.
         """
+        self.column_names=data.columns
+        if treatment_col.name in self.column_names:
+            raise Exception("The treatment column is in the data, it should be passed in 'treatment_col' argument")
+        if y_col.name in self.column_names:
+            raise Exception("The outcome column is in the data, it should be passed in 'y_col' argument")
+        
         self.fit(data, treatment_col, y_col, parallelized, num_processes)
         data = self.transform(data)
         return data
@@ -139,6 +146,11 @@ class UnivariateEncoding:
         """
         
         cols = list(data.columns)
+        
+        not_in_self_column_names = any(x not in self.column_names for x in cols)
+        if len(not_in_self_column_names)>0:
+            raise Exception("The data to be transformed contains unknown columns")
+
         if self.treatment_name in cols:
             cols.remove(self.treatment_name)
         if self.outcome_name in cols:
@@ -155,12 +167,16 @@ class UnivariateEncoding:
                 )
 #                 Creating a copy from the dataframe is to avoid warning when modifying a slice of a DataFrame,
 #                 and pandas is not sure if data[col] is a view or a copy of the data DataFrame.
-                data_copy = data.copy()
-                data_copy[col] = pd.cut(
-                    data_copy[col],
+                # data_copy = data.copy()
+                # data_copy[col] = pd.cut(
+                #     data_copy[col],
+                #     bins=[minBoundary] + self.var_vs_disc[col] + [maxBoundary],
+                # )
+                # data = data_copy
+                data[col] = pd.cut(
+                    data[col],
                     bins=[minBoundary] + self.var_vs_disc[col] + [maxBoundary],
                 )
-                data = data_copy
                 
                 data[col] = data[col].astype("category")
                 data[col] = data[col].cat.codes
