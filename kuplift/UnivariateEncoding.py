@@ -143,8 +143,10 @@ class UnivariateEncoding:
         """
         
         cols = list(data.columns)
-        cols.remove(self.treatment_name)
-        cols.remove(self.outcome_name)
+        if self.treatment_name in cols:
+            cols.remove(self.treatment_name)
+        if self.outcome_name in cols:
+            cols.remove(self.outcome_name)
         for col in cols:
             if self.var_vs_disc[col] is None:
                 data.drop(col, inplace=True, axis=1)
