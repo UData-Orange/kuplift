@@ -13,7 +13,7 @@ from kuplift.FeatureSelection import FeatureSelection
 def test_filter(test_dataframe):
     fs = FeatureSelection()
 
-    features = list(df.columns[:-2])
+    features = list(test_dataframe.columns[:-2])
     important_vars = fs.filter(test_dataframe[features], test_dataframe["segment"], test_dataframe["visit"])
     assert important_vars == {
         "x2_informative": 0,
