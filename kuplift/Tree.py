@@ -110,8 +110,8 @@ class _Tree:
         return self.__traverse_tree(x, node.right_node)
     
     def __initializeVars__(self, data, treatment_col, y_col):
-        data.loc[:,self.treatment_name]=treatment_col
-        data.loc[:,self.outcome_name]=y_col
+        data = data.assign(**{self.treatment_name: treatment_col.copy()})
+        data = data.assign(**{self.outcome_name: y_col.copy()})
         
         self.nodes_ids = 0
         self.root_node = _Node(

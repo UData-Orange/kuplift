@@ -74,9 +74,8 @@ class UnivariateEncoding:
         num_processes : int, default 5
             Number of processes to use in parallel.
         """
-        
-        data[self.treatment_name]=treatment_col
-        data[self.outcome_name]=y_col
+        data = data.assign(**{self.treatment_name: treatment_col.copy()})
+        data = data.assign(**{self.outcome_name: y_col.copy()})
         
         cols = list(data.columns)
         if self.treatment_name in cols:
@@ -86,7 +85,6 @@ class UnivariateEncoding:
 
         data = data[cols + [self.treatment_name, self.outcome_name]]
         data = preprocess_data(data, self.treatment_name, self.outcome_name)
-
         var_vs_importance = {}
         self.var_vs_disc = {}
 
@@ -124,8 +122,6 @@ class UnivariateEncoding:
                     self.var_vs_disc[col] = None
                 else:
                     self.var_vs_disc[col] = self.var_vs_disc[col][:-1]
-        return self.var_vs_disc
-
     def transform(self, data):
         """
         transform() applies the discretisation model learned by the
@@ -146,7 +142,7 @@ class UnivariateEncoding:
         if self.treatment_name in cols:
             cols.remove(self.treatment_name)
         if self.outcome_name in cols:
-            cols.remove(self.outcome_name)
+            cols.remove(self.outcome_name)        
         for col in cols:
             if self.var_vs_disc[col] is None:
                 data.drop(col, inplace=True, axis=1)
@@ -157,10 +153,15 @@ class UnivariateEncoding:
                 maxBoundary = max(
                     data[col].max(), self.var_vs_disc[col][-1] + 0.001
                 )
-                data[col] = pd.cut(
-                    data[col],
+#                 Creating a copy from the dataframe is to avoid warning when modifying a slice of a DataFrame,
+#                 and pandas is not sure if data[col] is a view or a copy of the data DataFrame.
+                data_copy = data.copy()
+                data_copy[col] = pd.cut(
+                    data_copy[col],
                     bins=[minBoundary] + self.var_vs_disc[col] + [maxBoundary],
                 )
+                data = data_copy
+                
                 data[col] = data[col].astype("category")
                 data[col] = data[col].cat.codes
         return data

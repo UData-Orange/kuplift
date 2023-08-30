@@ -132,8 +132,8 @@ class FeatureSelection:
         Python Dictionary
             Variables names and their corresponding importance value (Sorted).
         """
-        data["treatment"]=treatment_col
-        data["outcome"]=y_col
+        data = data.assign(**{"treatment": treatment_col.copy()})
+        data = data.assign(**{"outcome": y_col.copy()})
         
         cols = list(data.columns)
         cols.remove("treatment")
