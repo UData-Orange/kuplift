@@ -65,6 +65,6 @@ Nicolas Voisine
 
 **References**:
 
-Rafla, M., Voisine, N., Crémilleux, B., & Boullé, M. (2023, March). A non-parametric bayesian approach for uplift discretization and feature selection. **_ECML PKDD 2022_**
+Rafla, M., Voisine, N., Crémilleux, B., & Boullé, M. (2022, September). A non-parametric bayesian approach for uplift discretization and feature selection. **_ECML PKDD 2022_**
 
 Rafla, M., Voisine, N., & Crémilleux, B. (2023, May). Parameter-free Bayesian decision trees for uplift modeling. **_PAKDD 2023_**
