@@ -164,45 +164,45 @@ class _Tree:
         summary_df = pd.DataFrame(
             columns=[
                 "NodeId",
-                "isLeaf",
+                "is_leaf",
                 "T0Y0",
                 "T0Y1",
                 "T1Y0",
                 "T1Y1",
                 "Uplift",
                 "SplittedAttribute",
-                "SplitThreshold",
+                "split_threshold",
             ]
-        )  # SplitThreshold
-        for internalNode in self.internalNodes:
+        )  # split_threshold
+        for internalNode in self.internal_nodes:
             summary_df.loc[len(summary_df.index)] = [
                 internalNode.id,
-                internalNode.isLeaf,
-                internalNode.Ntj[0],
-                internalNode.Ntj[1],
-                internalNode.Ntj[2],
-                internalNode.Ntj[3],
-                internalNode.averageUplift,
-                internalNode.Attribute,
-                internalNode.SplitThreshold,
+                internalNode.is_leaf,
+                internalNode.ntj[0],
+                internalNode.ntj[1],
+                internalNode.ntj[2],
+                internalNode.ntj[3],
+                internalNode.average_uplift,
+                internalNode.attribute,
+                internalNode.split_threshold,
             ]
-        for terminalNode in self.terminalNodes:
+        for terminalNode in self.terminal_nodes:
             summary_df.loc[len(summary_df.index)] = [
                 terminalNode.id,
-                terminalNode.isLeaf,
-                terminalNode.Ntj[0],
-                terminalNode.Ntj[1],
-                terminalNode.Ntj[2],
-                terminalNode.Ntj[3],
-                terminalNode.averageUplift,
-                terminalNode.Attribute,
-                terminalNode.SplitThreshold,
+                terminalNode.is_leaf,
+                terminalNode.ntj[0],
+                terminalNode.ntj[1],
+                terminalNode.ntj[2],
+                terminalNode.ntj[3],
+                terminalNode.average_uplift,
+                terminalNode.attribute,
+                terminalNode.split_threshold,
             ]
         self.summary_df = summary_df
         return self.summary_df
 
     def export_tree(self, IdValue=1, numTabs=0, text_desc=""):
-        def createTabs(txt, numTabs):
+        def create_tabs(txt, numTabs):
             for numTab in range(numTabs):
                 txt += "\t"
             return txt
@@ -219,39 +219,38 @@ class _Tree:
         )
         #     print("row is ",type(row))
         #     print("row is ",row)
-        if row["isLeaf"] == False:
+        if row["is_leaf"] == False:
             #         print(" id ",str(IdValue)," not leaf")
-            text_desc = createTabs(text_desc, numTabs)
+            text_desc = create_tabs(text_desc, numTabs)
             text_desc = (
                 text_desc
                 + "|--- "
                 + " "
                 + str(row["SplittedAttribute"])
                 + " <= "
-                + str(row["SplitThreshold"])
+                + str(row["split_threshold"])
                 + "\n"
             )
             #         print(text_desc)
             text_desc = self.export_tree(IdValue * 2, numTabs + 1, text_desc)
 
-            text_desc = createTabs(text_desc, numTabs)
+            text_desc = create_tabs(text_desc, numTabs)
             text_desc = (
                 text_desc
                 + "|--- "
                 + " "
                 + str(row["SplittedAttribute"])
-                + " >= "
-                + str(row["SplitThreshold"])
+                + " > "
+                + str(row["split_threshold"])
                 + "\n"
             )
             text_desc = self.export_tree(
                 IdValue * 2 + 1, numTabs + 1, text_desc
             )
         else:
-            #         print(" id ",str(IdValue),"is leaf")
-            text_desc = createTabs(text_desc, numTabs)
+            text_desc = create_tabs(text_desc, numTabs)
             text_desc += "|--- Leaf \n"
-            text_desc = createTabs(text_desc, numTabs + 1)
+            text_desc = create_tabs(text_desc, numTabs + 1)
             try:
                 text_desc = (
                     text_desc
@@ -269,7 +268,7 @@ class _Tree:
                     + "(No treatment)\n"
                 )
 
-            text_desc = createTabs(text_desc, numTabs + 1)
+            text_desc = create_tabs(text_desc, numTabs + 1)
             try:
                 text_desc = (
                     text_desc
