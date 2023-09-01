@@ -76,11 +76,16 @@ class UnivariateEncoding:
             Number of processes to use in parallel.
         """
         self.column_names=data.columns
-        if treatment_col.name in self.column_names:
-            raise Exception("The treatment column is in the data, it should be passed in 'treatment_col' argument")
-        if y_col.name in self.column_names:
-            raise Exception("The outcome column is in the data, it should be passed in 'y_col' argument")
         
+        #Verifications checks
+        if treatment_col.name in self.column_names:
+            raise Exception("The treatment column is in the data, it should be separately passed in 'treatment_col' argument")
+        if y_col.name in self.column_names:
+            raise Exception("The outcome column is in the data, it should be separately passed in 'y_col' argument")
+        if !(set(treatment_col) == {0, 1}):
+            raise Exception("The treatment column is not binary")
+        if !(set(y_col) == {0, 1}):
+            raise Exception("The outcome column is not binary")
         
         data = data.assign(**{self.treatment_name: treatment_col.copy()})
         data = data.assign(**{self.outcome_name: y_col.copy()})

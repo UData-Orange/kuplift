@@ -224,6 +224,11 @@ class BayesianRandomForest:
         # data.loc[:,self.outcome_name]=y_col
         # self.data = data
         
+        if !(set(treatment_col) == {0, 1}):
+            raise Exception("The treatment column is not binary")
+        if !(set(y_col) == {0, 1}):
+            raise Exception("The outcome column is not binary")
+
         if self.vars_subset: # Randomly select columns for the data
             cols = list(self.data.columns)
             # cols.remove(self.treatment_name)

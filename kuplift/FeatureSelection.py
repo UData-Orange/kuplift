@@ -132,6 +132,11 @@ class FeatureSelection:
         Python Dictionary
             Variables names and their corresponding importance value (Sorted).
         """
+        if !(set(treatment_col) == {0, 1}):
+            raise Exception("The treatment column is not binary")
+        if !(set(y_col) == {0, 1}):
+            raise Exception("The outcome column is not binary")
+
         data = data.assign(**{"treatment": treatment_col.copy()})
         data = data.assign(**{"outcome": y_col.copy()})
         
