@@ -82,9 +82,9 @@ class UnivariateEncoding:
             raise Exception("The treatment column is in the data, it should be separately passed in 'treatment_col' argument")
         if y_col.name in self.column_names:
             raise Exception("The outcome column is in the data, it should be separately passed in 'y_col' argument")
-        if !(set(treatment_col) == {0, 1}):
+        if (set(treatment_col) == {0, 1}) == False:
             raise Exception("The treatment column is not binary")
-        if !(set(y_col) == {0, 1}):
+        if (set(y_col) == {0, 1}) == False:
             raise Exception("The outcome column is not binary")
         
         data = data.assign(**{self.treatment_name: treatment_col.copy()})

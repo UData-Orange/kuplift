@@ -51,8 +51,8 @@ class _Tree:
         
         self.summary_df = None
         
-        self.treatment_name='treatment'
-        self.outcome_name='outcome'
+        self.treatment_col_name='treatment'
+        self.outcome_col_name='outcome'
         
     def calc_criterion(self):
         self.__calc_prob_kt()
@@ -110,17 +110,17 @@ class _Tree:
         return self.__traverse_tree(x, node.right_node)
     
     def __initializeVars__(self, data, treatment_col, y_col):
-        if !(set(treatment_col) == {0, 1}):
+        if (set(treatment_col) == {0, 1}) == False:
             raise Exception("The treatment column is not binary")
-        if !(set(y_col) == {0, 1}):
+        if (set(y_col) == {0, 1}) == False:
             raise Exception("The outcome column is not binary")
 
-        data = data.assign(**{self.treatment_name: treatment_col.copy()})
-        data = data.assign(**{self.outcome_name: y_col.copy()})
+        data = data.assign(**{self.treatment_col_name: treatment_col.copy()})
+        data = data.assign(**{self.outcome_col_name: y_col.copy()})
         
         self.nodes_ids = 0
         self.root_node = _Node(
-            data, self.treatment_name, self.outcome_name, ID=self.nodes_ids + 1
+            data, self.treatment_col_name, self.outcome_col_name, ID=self.nodes_ids + 1
         )
         self.terminal_nodes = [self.root_node]
         self.internal_nodes = []
