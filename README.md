@@ -32,21 +32,21 @@ df = pd.read_csv("dataname.csv")
 
 # Univariate variable transformation:
 ue = kp.UnivariateEncoding()
-encoded_data = ue.fit_transform(df, "treatment", "outcome")
+encoded_data = ue.fit_transform(df[column_names], df["treatment"], df["outcome"])
 
 # Feature selection
 fs = kp.FeatureSelection()
-important_vars = fs.filter(df, "treatment", "outcome")
+important_vars = fs.filter(df[column_names], df["treatment"], df["outcome"])
 
 # Uplift Bayesian Decision Tree
-tree = kp.BayesianDecisionTree(df, "treatment", "outcome")
+tree = kp.BayesianDecisionTree(df[column_names], df["treatment"], df["outcome"])
 tree.fit()
 preds = tree.predict(df[column_names])
 
 # Uplift Bayesian Random Forest
-forest = kp.BayesianRandomForest(df, "treatment", "outcome")
+forest = kp.BayesianRandomForest(df[column_names], df["treatment"], df["outcome"])
 forest.fit()
-preds = forest.predict(df[features])
+preds = forest.predict(df[column_names])
 ```
 
 **Documentation**:
