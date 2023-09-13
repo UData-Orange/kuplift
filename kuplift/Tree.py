@@ -30,7 +30,7 @@ class _Tree:
         Outcome column.
     """
 
-    def __init__(self):  # ordered data as argument
+    def __init__(self,control_name=None):  # ordered data as argument
         self.nodes_ids = None
         self.root_node = None
         self.terminal_nodes = []
@@ -51,8 +51,9 @@ class _Tree:
         
         self.summary_df = None
         
-        self.treatment_col_name='treatment'
-        self.outcome_col_name='outcome'
+        self.treatment_name='treatment'
+        self.outcome_name='outcome'
+        self.control_name=control_name
         
     def calc_criterion(self):
         self.__calc_prob_kt()
@@ -110,17 +111,25 @@ class _Tree:
         return self.__traverse_tree(x, node.right_node)
     
     def __initializeVars__(self, data, treatment_col, y_col):
-        if (set(treatment_col) == {0, 1}) == False:
-            raise Exception("The treatment column is not binary")
-        if (set(y_col) == {0, 1}) == False:
-            raise Exception("The outcome column is not binary")
+        data = data.assign(**{self.treatment_name: treatment_col.copy()})
+        data = data.assign(**{self.outcome_name: y_col.copy()})
+        
+        #dealing with control name
+        if self.control_name != None:
+            trt_vals=list(data[self.treatment_name].unique())
+            
+            #Verify that control name is in the treatment column, else raise an exception
+            if self.control_name not in trt_vals:
+                raise Exception("the control name is not in the treatment column")
+            data[self.treatment_name] = data[self.treatment_name].replace(self.control_name,0)
 
-        data = data.assign(**{self.treatment_col_name: treatment_col.copy()})
-        data = data.assign(**{self.outcome_col_name: y_col.copy()})
+            trt_vals.remove(self.control_name)
+            #the other value will be considered as the treatment
+            data[self.treatment_name] = data[self.treatment_name].replace(trt_vals[0],1)
         
         self.nodes_ids = 0
         self.root_node = _Node(
-            data, self.treatment_col_name, self.outcome_col_name, ID=self.nodes_ids + 1
+            data, self.treatment_name, self.outcome_name, ID=self.nodes_ids + 1
         )
         self.terminal_nodes = [self.root_node]
         self.internal_nodes = []
@@ -144,7 +153,7 @@ class _Tree:
             + self.encoding_of_being_a_leaf_node_and_containing_te
             + self.leaf_prior
             + self.tree_likelihood
-        )   
+        )        
 
     def predict(self, X_test):
         """Predict the uplift value for each example in X_test
@@ -169,45 +178,45 @@ class _Tree:
         summary_df = pd.DataFrame(
             columns=[
                 "NodeId",
-                "isLeaf",
+                "is_leaf",
                 "T0Y0",
                 "T0Y1",
                 "T1Y0",
                 "T1Y1",
                 "Uplift",
                 "SplittedAttribute",
-                "SplitThreshold",
+                "split_threshold",
             ]
-        )  # SplitThreshold
-        for internalNode in self.internalNodes:
+        )  # split_threshold
+        for internalNode in self.internal_nodes:
             summary_df.loc[len(summary_df.index)] = [
                 internalNode.id,
-                internalNode.isLeaf,
-                internalNode.Ntj[0],
-                internalNode.Ntj[1],
-                internalNode.Ntj[2],
-                internalNode.Ntj[3],
-                internalNode.averageUplift,
-                internalNode.Attribute,
-                internalNode.SplitThreshold,
+                internalNode.is_leaf,
+                internalNode.ntj[0],
+                internalNode.ntj[1],
+                internalNode.ntj[2],
+                internalNode.ntj[3],
+                internalNode.average_uplift,
+                internalNode.attribute,
+                internalNode.split_threshold,
             ]
-        for terminalNode in self.terminalNodes:
+        for terminalNode in self.terminal_nodes:
             summary_df.loc[len(summary_df.index)] = [
                 terminalNode.id,
-                terminalNode.isLeaf,
-                terminalNode.Ntj[0],
-                terminalNode.Ntj[1],
-                terminalNode.Ntj[2],
-                terminalNode.Ntj[3],
-                terminalNode.averageUplift,
-                terminalNode.Attribute,
-                terminalNode.SplitThreshold,
+                terminalNode.is_leaf,
+                terminalNode.ntj[0],
+                terminalNode.ntj[1],
+                terminalNode.ntj[2],
+                terminalNode.ntj[3],
+                terminalNode.average_uplift,
+                terminalNode.attribute,
+                terminalNode.split_threshold,
             ]
         self.summary_df = summary_df
         return self.summary_df
 
     def export_tree(self, IdValue=1, numTabs=0, text_desc=""):
-        def createTabs(txt, numTabs):
+        def create_tabs(txt, numTabs):
             for numTab in range(numTabs):
                 txt += "\t"
             return txt
@@ -224,39 +233,38 @@ class _Tree:
         )
         #     print("row is ",type(row))
         #     print("row is ",row)
-        if row["isLeaf"] == False:
+        if row["is_leaf"] == False:
             #         print(" id ",str(IdValue)," not leaf")
-            text_desc = createTabs(text_desc, numTabs)
+            text_desc = create_tabs(text_desc, numTabs)
             text_desc = (
                 text_desc
                 + "|--- "
                 + " "
                 + str(row["SplittedAttribute"])
                 + " <= "
-                + str(row["SplitThreshold"])
+                + str(row["split_threshold"])
                 + "\n"
             )
             #         print(text_desc)
             text_desc = self.export_tree(IdValue * 2, numTabs + 1, text_desc)
 
-            text_desc = createTabs(text_desc, numTabs)
+            text_desc = create_tabs(text_desc, numTabs)
             text_desc = (
                 text_desc
                 + "|--- "
                 + " "
                 + str(row["SplittedAttribute"])
-                + " >= "
-                + str(row["SplitThreshold"])
+                + " > "
+                + str(row["split_threshold"])
                 + "\n"
             )
             text_desc = self.export_tree(
                 IdValue * 2 + 1, numTabs + 1, text_desc
             )
         else:
-            #         print(" id ",str(IdValue),"is leaf")
-            text_desc = createTabs(text_desc, numTabs)
+            text_desc = create_tabs(text_desc, numTabs)
             text_desc += "|--- Leaf \n"
-            text_desc = createTabs(text_desc, numTabs + 1)
+            text_desc = create_tabs(text_desc, numTabs + 1)
             try:
                 text_desc = (
                     text_desc
@@ -274,7 +282,7 @@ class _Tree:
                     + "(No treatment)\n"
                 )
 
-            text_desc = createTabs(text_desc, numTabs + 1)
+            text_desc = create_tabs(text_desc, numTabs + 1)
             try:
                 text_desc = (
                     text_desc

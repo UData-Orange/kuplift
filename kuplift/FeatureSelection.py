@@ -23,6 +23,10 @@ class FeatureSelection:
     September 19–23, 2022, Proceedings, Part V (pp. 239-254).
     Cham: Springer Nature Switzerland.
     """
+    def __init__(self,control_name=None):
+        self.treatment_name = "treatment"
+        self.outcome_name = "outcome"
+        self.control_name=control_name
 
     def __get_the_best_var(self, data, treatment_col, y_col):
         """
@@ -46,8 +50,8 @@ class FeatureSelection:
                     var_vs_importance={"age":2.2,"job":2.3}
         """
         features = list(data.columns)
-        features.remove("treatment")
-        features.remove("outcome")
+        features.remove(self.treatment_name)
+        features.remove(self.control_name)
 
         var_vs_importance = {}
         var_vs_disc = {}
@@ -57,7 +61,7 @@ class FeatureSelection:
                 var_vs_disc[feature],
                 col_name
             ) = execute_greedy_search_and_post_opt(
-                data[[feature, "treatment", "outcome"]]
+                data[[feature, self.treatment_name, self.control_name]]
             )
         # sort the dictionary by values in ascending order
         var_vs_importance = {
@@ -94,8 +98,8 @@ class FeatureSelection:
 
         features = list(data.columns)
         feature = features[0]
-        features.remove("treatment")
-        features.remove("outcome")
+        features.remove(self.treatment_name)
+        features.remove(self.control_name)
         var_vs_importance = {}
         var_vs_disc = {}
         (
@@ -103,7 +107,7 @@ class FeatureSelection:
             var_vs_disc[feature],
             col_name
         ) = execute_greedy_search_and_post_opt(
-            data[[feature, "treatment", "outcome"]]
+            data[[feature, self.treatment_name, self.control_name]]
         )
         return (feature, var_vs_importance[feature])
 
@@ -132,20 +136,15 @@ class FeatureSelection:
         Python Dictionary
             Variables names and their corresponding importance value (Sorted).
         """
-        if (set(treatment_col) == {0, 1}) == False:
-            raise Exception("The treatment column is not binary")
-        if (set(y_col) == {0, 1}) == False:
-            raise Exception("The outcome column is not binary")
-
-        data = data.assign(**{"treatment": treatment_col.copy()})
-        data = data.assign(**{"outcome": y_col.copy()})
+        data = data.assign(**{self.treatment_name: treatment_col.copy()})
+        data = data.assign(**{self.control_name: y_col.copy()})
         
         cols = list(data.columns)
-        cols.remove("treatment")
-        cols.remove("outcome")
+        cols.remove(self.treatment_name)
+        cols.remove(self.control_name)
 
-        data = data[cols + ["treatment", "outcome"]]
-        data = preprocess_data(data, "treatment", "outcome")
+        data = data[cols + [self.treatment_name, self.control_name]]
+        data = preprocess_data(data, self.treatment_name, self.control_name)
 
         if parallelized:
             pool = mp.Pool(processes=num_processes)
@@ -153,7 +152,7 @@ class FeatureSelection:
             arguments_to_pass_in_parallel = []
             for col in cols:
                 arguments_to_pass_in_parallel.append(
-                    [data[[col, "treatment", "outcome"]]]
+                    [data[[col, self.treatment_name, self.control_name]]]
                 )
             list_of_tuples_feature_vs_importance = pool.map(
                 FeatureSelection.__get_the_best_var_parallel,
@@ -176,7 +175,7 @@ class FeatureSelection:
 
         else:
             list_of_vars_importance = self.__get_the_best_var(
-                data, "treatment", "outcome"
+                data, self.treatment_name, self.control_name
             )
 
         return list_of_vars_importance

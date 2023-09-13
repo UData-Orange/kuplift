@@ -30,7 +30,7 @@ class _UpliftTreeClassifier(_Tree):
         Outcome column.
     """
 
-    def __init__(self):
+    def __init__(self,control_name=None):
         super().__init__()
 
     def grow_tree(self,data, treatment_col, y_col):
@@ -214,23 +214,22 @@ class BayesianRandomForest:
         self.random_state=random_state
         random.seed(self.random_state)
 
-        self.treatment_col_name='treatment'
+        self.treatment_name='treatment'
 
-        self.outcome_col_name='outcome'
+        self.outcome_name='outcome'
 
     def fit(self,data,treatment_col,y_col):
-        """Fit a decision tree algorithm."""        
-        if (set(treatment_col) == {0, 1}) == False:
-            raise Exception("The treatment column is not binary")
-        if (set(y_col) == {0, 1}) == False:
-            raise Exception("The outcome column is not binary")
-
+        """Fit a decision tree algorithm."""
+        # data.loc[:,self.treatment_name]=treatment_col
+        # data.loc[:,self.outcome_name]=y_col
+        # self.data = data
+        
         if self.vars_subset: # Randomly select columns for the data
             cols = list(self.data.columns)
-            # cols.remove(self.treatment_col_name)
-            # cols.remove(self.outcome_col_name)
+            # cols.remove(self.treatment_name)
+            # cols.remove(self.outcome_name)
             cols = random.sample(cols, int(np.sqrt(len(cols))))
-            # data = data[cols + [self.treatment_col_name, self.outcome_col_name]]
+            # data = data[cols + [self.treatment_name, self.outcome_name]]
             data = data[cols]
 
         for i in range(self.n_trees):

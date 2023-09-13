@@ -31,8 +31,8 @@ class BayesianDecisionTree(_Tree):
         Outcome column.
     """
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, control_name=None):
+        super().__init__(control_name)
 
     def fit(self,data, treatment_col, y_col):
         """Fit an uplift decision tree model using UB-DT
@@ -47,7 +47,6 @@ class BayesianDecisionTree(_Tree):
             Outcome column.
         """
         super().__initializeVars__(data, treatment_col, y_col)
-        
         # In case if we have a new attribute for splitting
         prob_kt_plus_one = (
             universal_code_natural_numbers(self.k_t + 1)

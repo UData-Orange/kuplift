@@ -21,11 +21,12 @@ class UnivariateEncoding:
     discretization and feature selection. ECML PKDD
     """
 
-    def __init__(self):
+    def __init__(self,control_name=None):
         self.var_vs_disc = {}
         self.treatment_name = "treatment"
         self.outcome_name = "outcome"
         self.column_names=[]
+        self.control_name=control_name
 
     def fit_transform(
         self, data, treatment_col, y_col, parallelized=False, num_processes=5
@@ -76,19 +77,29 @@ class UnivariateEncoding:
             Number of processes to use in parallel.
         """
         self.column_names=data.columns
-        
-        #Verifications checks
         if treatment_col.name in self.column_names:
-            raise Exception("The treatment column is in the data, it should be separately passed in 'treatment_col' argument")
+            raise Exception("The treatment column is in the data, it should be passed in 'treatment_col' argument")
         if y_col.name in self.column_names:
-            raise Exception("The outcome column is in the data, it should be separately passed in 'y_col' argument")
-        if (set(treatment_col) == {0, 1}) == False:
-            raise Exception("The treatment column is not binary")
-        if (set(y_col) == {0, 1}) == False:
-            raise Exception("The outcome column is not binary")
+            raise Exception("The outcome column is in the data, it should be passed in 'y_col' argument")
+        
         
         data = data.assign(**{self.treatment_name: treatment_col.copy()})
         data = data.assign(**{self.outcome_name: y_col.copy()})
+        
+                #dealing with control name
+        if self.control_name != None:
+            trt_vals=list(data[self.treatment_name].unique())
+            
+            #Verify that control name is in the treatment column, else raise an exception
+            if self.control_name not in trt_vals:
+                raise Exception("the control name is not in the treatment column")
+            data[self.treatment_name] = data[self.treatment_name].replace(self.control_name,0)
+
+            trt_vals.remove(self.control_name)
+            #the other value will be considered as the treatment
+            data[self.treatment_name] = data[self.treatment_name].replace(trt_vals[0],1)
+        
+
         
         cols = list(data.columns)
         if self.treatment_name in cols:
