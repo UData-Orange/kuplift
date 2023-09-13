@@ -56,7 +56,7 @@ Refer to the documentation at https://udata-orange.github.io/kuplift/
 **Credits**:
 kuplift has been developed at Orange Labs.
 
-Current contributors:
+**Current contributors**:
 
 Mina Rafla
 
