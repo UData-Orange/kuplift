@@ -51,7 +51,7 @@ class FeatureSelection:
         """
         features = list(data.columns)
         features.remove(self.treatment_name)
-        features.remove(self.control_name)
+        features.remove(self.outcome_name)
 
         var_vs_importance = {}
         var_vs_disc = {}
@@ -61,7 +61,7 @@ class FeatureSelection:
                 var_vs_disc[feature],
                 col_name
             ) = execute_greedy_search_and_post_opt(
-                data[[feature, self.treatment_name, self.control_name]]
+                data[[feature, self.treatment_name, self.outcome_name]]
             )
         # sort the dictionary by values in ascending order
         var_vs_importance = {
@@ -99,7 +99,7 @@ class FeatureSelection:
         features = list(data.columns)
         feature = features[0]
         features.remove(self.treatment_name)
-        features.remove(self.control_name)
+        features.remove(self.outcome_name)
         var_vs_importance = {}
         var_vs_disc = {}
         (
@@ -107,7 +107,7 @@ class FeatureSelection:
             var_vs_disc[feature],
             col_name
         ) = execute_greedy_search_and_post_opt(
-            data[[feature, self.treatment_name, self.control_name]]
+            data[[feature, self.treatment_name, self.outcome_name]]
         )
         return (feature, var_vs_importance[feature])
 
@@ -137,14 +137,14 @@ class FeatureSelection:
             Variables names and their corresponding importance value (Sorted).
         """
         data = data.assign(**{self.treatment_name: treatment_col.copy()})
-        data = data.assign(**{self.control_name: y_col.copy()})
+        data = data.assign(**{self.outcome_name: y_col.copy()})
         
         cols = list(data.columns)
         cols.remove(self.treatment_name)
-        cols.remove(self.control_name)
+        cols.remove(self.outcome_name)
 
-        data = data[cols + [self.treatment_name, self.control_name]]
-        data = preprocess_data(data, self.treatment_name, self.control_name)
+        data = data[cols + [self.treatment_name, self.outcome_name]]
+        data = preprocess_data(data, self.treatment_name, self.outcome_name)
 
         if parallelized:
             pool = mp.Pool(processes=num_processes)
@@ -152,7 +152,7 @@ class FeatureSelection:
             arguments_to_pass_in_parallel = []
             for col in cols:
                 arguments_to_pass_in_parallel.append(
-                    [data[[col, self.treatment_name, self.control_name]]]
+                    [data[[col, self.treatment_name, self.outcome_name]]]
                 )
             list_of_tuples_feature_vs_importance = pool.map(
                 FeatureSelection.__get_the_best_var_parallel,
@@ -175,7 +175,7 @@ class FeatureSelection:
 
         else:
             list_of_vars_importance = self.__get_the_best_var(
-                data, self.treatment_name, self.control_name
+                data, self.treatment_name, self.outcome_name
             )
 
         return list_of_vars_importance
