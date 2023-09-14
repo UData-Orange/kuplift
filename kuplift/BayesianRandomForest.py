@@ -28,6 +28,8 @@ class _UpliftTreeClassifier(_Tree):
         Treatment column.
     y_col : pd.Series
         Outcome column.
+    control_name: int or str
+        The name of the control value in the treatment column
     """
 
     def __init__(self,control_name=None):
