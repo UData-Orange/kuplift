@@ -86,7 +86,7 @@ class UnivariateEncoding:
         data = data.assign(**{self.treatment_name: treatment_col.copy()})
         data = data.assign(**{self.outcome_name: y_col.copy()})
         
-                #dealing with control name
+        #dealing with control name
         if self.control_name != None:
             trt_vals=list(data[self.treatment_name].unique())
             
@@ -125,7 +125,7 @@ class UnivariateEncoding:
                 arguments_to_pass_in_parallel,
             )
             pool.close()
-
+            print(list_of_tuples_feature_vs_importance)
             for el in list_of_tuples_feature_vs_importance:
                 col = el[2]
                 if len(el[1]) == 1:
@@ -190,11 +190,6 @@ class UnivariateEncoding:
                 )
                 data = data_copy.copy()
 
-#                 data[col] = pd.cut(
-#                     data[col],
-#                     bins=[minBoundary] + self.var_vs_disc[col] + [maxBoundary],
-#                 )
-                
                 data[col] = data[col].astype("category")
                 data[col] = data[col].cat.codes
         return data
