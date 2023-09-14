@@ -22,12 +22,6 @@ class FeatureSelection:
     European Conference, ECML PKDD 2022, Grenoble, France,
     September 19–23, 2022, Proceedings, Part V (pp. 239-254).
     Cham: Springer Nature Switzerland.
-
-    Parameters
-    ----------
-    control_name: int or str
-        The name of the control value in the treatment column
-
     """
     def __init__(self,control_name=None):
         self.treatment_name = "treatment"
@@ -78,7 +72,7 @@ class FeatureSelection:
         }
         return var_vs_importance
 
-    @staticmethod
+#     @staticmethod
     def __get_the_best_var_parallel(args):
         """
         Parameters
@@ -135,7 +129,7 @@ class FeatureSelection:
         parallelized : bool, default False
             Whether to run the code on several processes.
         num_processes : int, default 5
-            Number of processes to use in parallel.
+            Number of processes to use in parallel, 'parallelized' argument should be True.
 
         Returns
         -------
@@ -165,33 +159,31 @@ class FeatureSelection:
 
         data = data[cols + [self.treatment_name, self.outcome_name]]
         data = preprocess_data(data, self.treatment_name, self.outcome_name)
-
+        
+        self.var_vs_disc = {}
+        
         if parallelized:
             pool = mp.Pool(processes=num_processes)
 
             arguments_to_pass_in_parallel = []
             for col in cols:
                 arguments_to_pass_in_parallel.append(
-                    [data[[col, self.treatment_name, self.outcome_name]]]
+                    data[[col, self.treatment_name, self.outcome_name]]
                 )
             list_of_tuples_feature_vs_importance = pool.map(
-                FeatureSelection.__get_the_best_var_parallel,
+                execute_greedy_search_and_post_opt,
                 arguments_to_pass_in_parallel,
             )
             pool.close()
 
-            # transform tuple to dict
-            list_of_tuples_feature_vs_importance = dict(
-                list_of_tuples_feature_vs_importance
-            )
+            for el in list_of_tuples_feature_vs_importance:
+                col = el[2]
+                if len(el[1]) == 1:
+                    self.var_vs_disc[col] = 0
+                else:
+                    self.var_vs_disc[col] = el[0]
 
-            list_of_vars_importance = {
-                k: v
-                for k, v in sorted(
-                    list_of_tuples_feature_vs_importance.items(),
-                    key=lambda item: item[1],
-                )
-            }
+            return self.var_vs_disc
 
         else:
             list_of_vars_importance = self.__get_the_best_var(
