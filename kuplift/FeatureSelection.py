@@ -139,6 +139,20 @@ class FeatureSelection:
         data = data.assign(**{self.treatment_name: treatment_col.copy()})
         data = data.assign(**{self.outcome_name: y_col.copy()})
         
+        #dealing with control name
+        if self.control_name != None:
+            trt_vals=list(data[self.treatment_name].unique())
+            
+            #Verify that control name is in the treatment column, else raise an exception
+            if self.control_name not in trt_vals:
+                raise Exception("the control name is not in the treatment column")
+            data[self.treatment_name] = data[self.treatment_name].replace(self.control_name,0)
+
+            trt_vals.remove(self.control_name)
+            #the other value will be considered as the treatment
+            data[self.treatment_name] = data[self.treatment_name].replace(trt_vals[0],1)
+
+        
         cols = list(data.columns)
         cols.remove(self.treatment_name)
         cols.remove(self.outcome_name)
