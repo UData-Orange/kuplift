@@ -22,6 +22,12 @@ class FeatureSelection:
     European Conference, ECML PKDD 2022, Grenoble, France,
     September 19–23, 2022, Proceedings, Part V (pp. 239-254).
     Cham: Springer Nature Switzerland.
+
+    Parameters
+    ----------
+    control_name: int or str
+        The name of the control value in the treatment column
+
     """
     def __init__(self,control_name=None):
         self.treatment_name = "treatment"
