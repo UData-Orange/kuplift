@@ -44,7 +44,7 @@ tree.fit(df[column_names], df["treatment"], df["outcome"])
 preds = tree.predict(df[column_names])
 
 # Uplift Bayesian Random Forest
-forest = kp.BayesianRandomForest()
+forest = kp.BayesianRandomForest(n_trees=4)
 forest.fit(df[column_names], df["treatment"], df["outcome"])
 preds = forest.predict(df[column_names])
 ```
