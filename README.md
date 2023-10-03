@@ -39,13 +39,13 @@ fs = kp.FeatureSelection()
 important_vars = fs.filter(df[column_names], df["treatment"], df["outcome"])
 
 # Uplift Bayesian Decision Tree
-tree = kp.BayesianDecisionTree(df[column_names], df["treatment"], df["outcome"])
-tree.fit()
+tree = kp.BayesianDecisionTree()
+tree.fit(df[column_names], df["treatment"], df["outcome"])
 preds = tree.predict(df[column_names])
 
 # Uplift Bayesian Random Forest
-forest = kp.BayesianRandomForest(df[column_names], df["treatment"], df["outcome"])
-forest.fit()
+forest = kp.BayesianRandomForest()
+forest.fit(df[column_names], df["treatment"], df["outcome"])
 preds = forest.predict(df[column_names])
 ```
 
