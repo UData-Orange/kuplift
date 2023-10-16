@@ -27,7 +27,28 @@ class UnivariateEncoding:
         self.outcome_name = "outcome"
         self.column_names=[]
         self.control_name=control_name
+        self.disc_details={}
+    
+    def get_features_importance_details(self):
+        # Prepare lists to capture multi-index levels
+        outer_keys = []
+        inner_keys = []
+        values = []
 
+        # Loop through the dictionary to populate the lists
+        for key, sublist in self.disc_details.items():
+            for idx, val in enumerate(sublist):
+                outer_keys.append(key)
+                inner_keys.append(idx)
+                values.append(val)
+
+        # Create the multi-index
+        multi_index = pd.MultiIndex.from_tuples(list(zip(outer_keys, inner_keys)), names=["key", ""])
+
+        # Convert the lists to DataFrame
+        df = pd.DataFrame(values, columns=["interval", "P(Y|T=1)", "P(Y|T=0)", "uplift"], index=multi_index)
+        return df
+    
     def fit_transform(
         self, data, treatment_col, y_col, parallelized=False, num_processes=5
     ):
@@ -118,9 +139,9 @@ class UnivariateEncoding:
             arguments_to_pass_in_parallel = []
             for col in cols:
                 arguments_to_pass_in_parallel.append(
-                    data[[col, self.treatment_name, self.outcome_name]]
+                    [data[[col, self.treatment_name, self.outcome_name]],True]
                 )
-            list_of_tuples_feature_vs_importance = pool.map(
+            list_of_tuples_feature_vs_importance = pool.starmap(
                 execute_greedy_search_and_post_opt,
                 arguments_to_pass_in_parallel,
             )
@@ -138,7 +159,8 @@ class UnivariateEncoding:
                 (
                     var_vs_importance[col],
                     self.var_vs_disc[col],
-                    col_name
+                    col_name,
+                    self.disc_details
                 ) = execute_greedy_search_and_post_opt(
                     data[[col, self.treatment_name, self.outcome_name]]
                 )

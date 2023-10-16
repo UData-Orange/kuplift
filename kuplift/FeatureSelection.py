@@ -10,6 +10,7 @@
 import multiprocessing as mp
 from .HelperFunctions import preprocess_data
 from .UMODL_SearchAlgorithm import execute_greedy_search_and_post_opt
+import pandas as pd
 
 
 class FeatureSelection:
@@ -27,7 +28,44 @@ class FeatureSelection:
         self.treatment_name = "treatment"
         self.outcome_name = "outcome"
         self.control_name=control_name
+        self.features_importance_details={}
+        self.dict_vars_vs_importance={}
+    
+    def get_features_importance_details(self):
+        '''
+        After launch the feature selection approach, this function helps getting the details of a each feature. 
+        How it was discretized, the intervals, the outcome denisities in each interval.
+        '''
+        
+        # Prepare lists to capture multi-index levels
+        outer_keys = []
+        inner_keys = []
+        values = []
+        
+        dictionary_of_dataframes={}
+        # Loop through the dictionary to populate the lists
+        for key, sublist in self.features_importance_details.items():
+            for idx, val in enumerate(sublist):
+                outer_keys.append(key)
+                inner_keys.append(idx)
+                values.append(val)
+        
+        # Create the multi-index
+        multi_index = pd.MultiIndex.from_tuples(list(zip(outer_keys, inner_keys)), names=["Variable", "Interval"])
+        
+        # Convert the lists to DataFrame
+        df = pd.DataFrame(values, columns=["interval", "P(Y|T=1)", "P(Y|T=0)", "uplift"], index=multi_index)
+        
+        df["Imp. Score"] = df.index.get_level_values(0).map(self.dict_vars_vs_importance)
+        
+        # Get sorted unique outer indices based on Imp. Score
+        unique_outer_indices = df.groupby(level=0)['Imp. Score'].first().sort_values(ascending=False).index
 
+        # Reindex the dataframe to rearrange based on the sorted outer indices
+        df_sorted = df.reindex(unique_outer_indices, level=0)
+        
+        return df_sorted
+    
     def __get_the_best_var(self, data, treatment_col, y_col):
         """
         Parameters
@@ -59,9 +97,10 @@ class FeatureSelection:
             (
                 var_vs_importance[feature],
                 var_vs_disc[feature],
-                col_name
+                col_name,
+                self.features_importance_details[feature]
             ) = execute_greedy_search_and_post_opt(
-                data[[feature, self.treatment_name, self.outcome_name]]
+                data[[feature, self.treatment_name, self.outcome_name]],get_intervals_uplift=True
             )
         # sort the dictionary by values in ascending order
         var_vs_importance = {
@@ -71,45 +110,6 @@ class FeatureSelection:
             )
         }
         return var_vs_importance
-
-#     @staticmethod
-    def __get_the_best_var_parallel(args):
-        """
-        Parameters
-        ----------
-        data : pd.Dataframe
-            Dataframe containing data.
-        treatment_col : pd.Series
-            Treatment column.
-        y_col : pd.Series
-            Outcome column.
-
-        Returns
-        -------
-        dict
-            A Python dictionary containing the sorted variable importance,
-            where the keys represent the variable names and the values denote
-            their respective importance.
-
-        For example: return a dictionary
-                    var_vs_importance={"age":2.2,"job":2.3}
-        """
-        data = args[0]
-
-        features = list(data.columns)
-        feature = features[0]
-        features.remove(self.treatment_name)
-        features.remove(self.outcome_name)
-        var_vs_importance = {}
-        var_vs_disc = {}
-        (
-            var_vs_importance[feature],
-            var_vs_disc[feature],
-            col_name
-        ) = execute_greedy_search_and_post_opt(
-            data[[feature, self.treatment_name, self.outcome_name]]
-        )
-        return (feature, var_vs_importance[feature])
 
     def filter(
         self, data, treatment_col, y_col, parallelized=False, num_processes=5
@@ -168,26 +168,35 @@ class FeatureSelection:
             arguments_to_pass_in_parallel = []
             for col in cols:
                 arguments_to_pass_in_parallel.append(
-                    data[[col, self.treatment_name, self.outcome_name]]
+                    [data[[col, self.treatment_name, self.outcome_name]],True]
                 )
-            list_of_tuples_feature_vs_importance = pool.map(
+            list_of_tuples_feature_vs_importance = pool.starmap(
                 execute_greedy_search_and_post_opt,
-                arguments_to_pass_in_parallel,
+                arguments_to_pass_in_parallel
             )
             pool.close()
 
             for el in list_of_tuples_feature_vs_importance:
                 col = el[2]
+                self.features_importance_details[col]=el[3]
                 if len(el[1]) == 1:
                     self.var_vs_disc[col] = 0
                 else:
                     self.var_vs_disc[col] = el[0]
-
+            self.var_vs_disc = {
+                k: v
+                for k, v in sorted(
+                    self.var_vs_disc.items(), key=lambda item: item[1]
+                )
+            }
+            self.dict_vars_vs_importance=self.var_vs_disc.copy()
             return self.var_vs_disc
+            
 
         else:
             list_of_vars_importance = self.__get_the_best_var(
                 data, self.treatment_name, self.outcome_name
             )
-
+            self.dict_vars_vs_importance=list_of_vars_importance.copy()
+        
         return list_of_vars_importance

@@ -804,13 +804,19 @@ def copy_list(dll_to_be_copied):
     return new_list
 
 
-def calculate_feature_level(intervals, method="ED"):
+def calculate_feature_level(intervals, method="ED",get_intervals_uplift=True, min_val_in_var='-inf',max_val_in_var='+inf'):
     interval = intervals.head
     absolute_sum = 0
-
+    
+    intervals_vs_uplift=[] #a list of lists, each internal list contains the right boundary and the uplift
+    
     if intervals.i == 1:
+        if get_intervals_uplift:
+            intervals_vs_uplift.append(["] "+str(min_val_in_var)+", " +str(max_val_in_var)+" ]",0,0,0])
+            return 0,intervals_vs_uplift
         return 0
-
+    
+    previous_frontier=str(round(min_val_in_var,4))
     while interval:
         nitj = interval.nitj
         nit0j0 = nitj[0]
@@ -827,6 +833,12 @@ def calculate_feature_level(intervals, method="ED"):
             piYT0 = nit0j1 / (nit0j1 + nit0j0)
         except Exception:
             piYT0 = 0
+        
+        if get_intervals_uplift:
+            interval_boundaries = "] "+previous_frontier+" , "+str(round(interval.included_right_frontier,4))+" ]"
+            intervals_vs_uplift.append([interval_boundaries,round(piYT1,4),round(piYT0,4),round(round(piYT1,4)-round(piYT0,4),4)])
+            previous_frontier=str(round(interval.included_right_frontier,4))
+            
         if method == "ED":
             absolute_sum += (((piYT1) - (piYT0)) ** 2) * Ni / intervals.n  # ED
         elif method == "Chi":
@@ -842,11 +854,17 @@ def calculate_feature_level(intervals, method="ED"):
                 piYT0 = 1 - 0.1**6
             absolute_sum += ((piYT1) * log(piYT1 / piYT0)) * Ni / intervals.n
         interval = interval.next
-    return absolute_sum
+    
+    if get_intervals_uplift:
+        return absolute_sum,intervals_vs_uplift
+    else:
+        return absolute_sum
 
 
-def execute_greedy_search_and_post_opt(df):
+def execute_greedy_search_and_post_opt(df,get_intervals_uplift=True):
     col_name=df.columns[0]
+    min_val_in_col=df[col_name].min() # A not very clean approach to add the boundaries in the final details dataframe using the calculate_feature_level()
+    max_val_in_var=df[col_name].max()
     treatment_col_name = df.columns[1]
     y_name = df.columns[2]
 
@@ -883,6 +901,12 @@ def execute_greedy_search_and_post_opt(df):
     ) = post_optimization_to_be_repeated(intervals, df)
 
     bounds = info[2]
-    feature_level_ed = calculate_feature_level(intervals)
+    
+    if get_intervals_uplift:
+        feature_level_ed, intervals_vs_uplift = calculate_feature_level(intervals,get_intervals_uplift=get_intervals_uplift, min_val_in_var=round(min_val_in_col,4),max_val_in_var=round(max_val_in_var,4))
+        return [feature_level_ed, bounds,col_name, intervals_vs_uplift]
+    else:
+        feature_level_ed = calculate_feature_level(intervals,get_intervals_uplift=False)
+        return [feature_level_ed, bounds,col_name]
 
-    return [feature_level_ed, bounds,col_name]
+    
