@@ -19,6 +19,7 @@ setup(
         "pandas",
         "sortedcontainers",
         "scikit-learn",
+        "khiops",
         "pytest",
     ],
 )
