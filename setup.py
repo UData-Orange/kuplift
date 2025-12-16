@@ -20,6 +20,7 @@ setup(
         "sortedcontainers",
         "scikit-learn",
         "khiops",
+        "umodl-wrapper",
         "pytest",
     ],
 )
