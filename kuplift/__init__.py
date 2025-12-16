@@ -11,3 +11,12 @@ from kuplift.BayesianDecisionTree import BayesianDecisionTree
 from kuplift.BayesianRandomForest import BayesianRandomForest
 from kuplift.FeatureSelection import FeatureSelection
 from kuplift.UnivariateEncoding import UnivariateEncoding
+from kuplift.OptimizedUnivariateEncoding import OptimizedUnivariateEncoding
+
+__all__ = [
+    "BayesianDecisionTree",
+    "BayesianRandomForest",
+    "FeatureSelection",
+    "UnivariateEncoding",
+    "OptimizedUnivariateEncoding"
+]
