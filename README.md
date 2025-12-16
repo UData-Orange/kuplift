@@ -1,4 +1,3 @@
-
 ## kuplift package
 
 <p  align="center">
@@ -9,22 +8,32 @@
 kuplift is a _Python_ package that provides a series of uplift modeling methods based on recent research work. kuplift allows users to easily use the following algorithms:
 
 1. Encoding data using a discretization method for treatment effect (uplift) modeling called _UMODL_.
+
+2. Same as above but optimized through the use of a modified version of Khiops, written in C++.
     
-2.  Variable selection for uplift modeling with _UMODL-FS_.
+3. Variable selection for uplift modeling with _UMODL-FS_.
     
-3. Learning a Bayesian decision tree model for uplift modeling with _UB-DT_.
+4. Learning a Bayesian decision tree model for uplift modeling with _UB-DT_.
     
-4.  Learning a random forest model for uplift modeling with _UB-RF_.
+5. Learning a random forest model for uplift modeling with _UB-RF_.
+
 
 **How to install**:
 
-```python
-pip install kuplift
+``` console
+$ pip install kuplift
 ```
+
+*or, if the `umodl-wrapper` dependency is still only available on test.pypi.org:*
+
+``` console
+$ pip install --extra-index-url=https://test.pypi.org/simple/ kuplift
+```
+
 
 **User Guide**:
 
-```python
+``` python
 import kuplift as kp
 import pandas as pd
 
@@ -32,6 +41,10 @@ df = pd.read_csv("dataname.csv")
 
 # Univariate variable transformation:
 ue = kp.UnivariateEncoding()
+encoded_data = ue.fit_transform(df[column_names], df["treatment"], df["outcome"])
+
+# Univariate variable transformation optimized through the use of umodl
+ue = kp.OptimizedUnivariateEncoding()
 encoded_data = ue.fit_transform(df[column_names], df["treatment"], df["outcome"])
 
 # Feature selection
@@ -49,12 +62,15 @@ forest.fit(df[column_names], df["treatment"], df["outcome"])
 preds = forest.predict(df[column_names])
 ```
 
+
 **Documentation**:
 
 Refer to the documentation at https://udata-orange.github.io/kuplift/
 
+
 **Credits**:
 kuplift has been developed at Orange Labs.
+
 
 **Current contributors**:
 
