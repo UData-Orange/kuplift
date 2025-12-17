@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kuplift"
-version = "0.0.5"
+version = "0.0.6"
 description = "A User Parameter-free Bayesian Framework for Uplift Modeling"
 readme = "README.md"
 requires-python = ">=3.10"
