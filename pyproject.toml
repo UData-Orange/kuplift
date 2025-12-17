@@ -7,11 +7,11 @@ name = "kuplift"
 version = "0.0.5"
 description = "A User Parameter-free Bayesian Framework for Uplift Modeling"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 license-files = ["LICENSE"]
 maintainers = [{name="The Khiops Team", email="khiops.team@orange.com"}]
 dependencies = [
-    "numpy>=2.3.5",
+    "numpy>=2.1.0",
     "pandas>=2.3.3",
     "sortedcontainers>=2.4.0",
     "scikit-learn>=0.22.2,<=1.0.2",
