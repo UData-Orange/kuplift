@@ -11,10 +11,10 @@ requires-python = ">=3.10"
 license-files = ["LICENSE"]
 maintainers = [{name="The Khiops Team", email="khiops.team@orange.com"}]
 dependencies = [
-    "numpy>=2.1.0",
-    "pandas>=2.3.3",
-    "sortedcontainers>=2.4.0",
-    "scikit-learn>=0.22.2,<=1.0.2",
+    "numpy",
+    "pandas",
+    "sortedcontainers",
+    "scikit-learn",
     "khiops>=10.3.2.1",
     "umodl-wrapper>=0.0.11"
 ]
