@@ -16,7 +16,7 @@ dependencies = [
     "sortedcontainers>=2.4.0",
     "scikit-learn>=1.7.2",
     "khiops>=10.3.2.1",
-    "umodl>=0.0.20"
+    "umodl>=0.0.21"
 ]
 
 [project.optional-dependencies]
