@@ -57,7 +57,7 @@ class OptimizedUnivariateEncoding:
     def __init__(self):
         self._model = None
 
-    def fit_transform(self, data, treatment_col, y_col):
+    def fit_transform(self, data, treatment_col, y_col, maxpartnumber = None):
         """
         fit_transform() learns a discretisation model using UMODL and
         transforms the data.
@@ -72,16 +72,18 @@ class OptimizedUnivariateEncoding:
             Treatment column.
         y_col : pd.Series
             Outcome column.
+        maxpartnumber : int, default=None
+            The maximum number of intervals or groups. None means default to the 'umodl' program default.
 
         Returns
         -------
         pd.Dataframe
             Pandas Dataframe that contains encoded data.
         """
-        self.fit(data, treatment_col, y_col)
+        self.fit(data, treatment_col, y_col, maxpartnumber)
         return self.transform(data)
     
-    def fit(self, data, treatment_col, y_col):
+    def fit(self, data, treatment_col, y_col, maxpartnumber = None):
         """
         fit() learns a discretisation model using UMODL.
 
@@ -95,6 +97,8 @@ class OptimizedUnivariateEncoding:
             Treatment column.
         y_col : pd.Series
             Outcome column.
+        maxpartnumber : int, default=None
+            The maximum number of intervals or groups. None means default to the 'umodl' program default.
         """
         # Force the types of the treatment and target columns so that khiops lib understands they are categorical
         if treatment_col.dtype != object:
@@ -112,7 +116,7 @@ class OptimizedUnivariateEncoding:
 
             txtfilename, _ = dataset.create_table_files_for_khiops(dirname)  # Create .txt file
             dataset.create_khiops_dictionary_domain().export_khiops_dictionary_file(kdicfilename)  # Create .kdic file
-            run_umodl(txtfilename, kdicfilename, "main_table", treatment_col.name, y_col.name)
+            run_umodl(txtfilename, kdicfilename, "main_table", treatment_col.name, y_col.name, maxpartnumber)
 
             txtfilepath = pathlib.Path(txtfilename)
             with open(txtfilepath.with_name(f"UP_{txtfilepath.stem}.json")) as jsonfile:
