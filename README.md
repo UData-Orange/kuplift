@@ -36,7 +36,7 @@ df = pd.read_csv("data.csv")
 # Make sure the dtype of all categorical variables is object
 df = df.astype({"some_categorical_variable": object})
 
-variables = df[:-2]  # Last two columns are treatment and target columns
+variables = list(df.columns[:-2])  # Last two columns are treatment and target columns
 
 # Univariate variable transformation
 ue = kp.UnivariateEncoding()

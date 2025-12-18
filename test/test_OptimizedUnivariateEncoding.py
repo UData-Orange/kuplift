@@ -16,9 +16,9 @@ def test_fit_transform_a(test_dataframe_with_categorical_variable):
     test_dataframe = test_dataframe_with_categorical_variable
     test_dataframe = test_dataframe.astype({"VAR2": object})
     features = list(test_dataframe.columns[:-2])
-    ue = OptimizedUnivariateEncoding()
+    oue = OptimizedUnivariateEncoding()
     with pytest.warns(UserWarning, match=f"""^{re.escape("Target column's dtype is not object; fixing...")}$"""):
-        encoded_data = ue.fit_transform(test_dataframe[features], test_dataframe["TRAITEMENT"], test_dataframe["CIBLE"], 10)
+        encoded_data = oue.fit_transform(test_dataframe[features], test_dataframe["TRAITEMENT"], test_dataframe["CIBLE"], 10)
     assert encoded_data[(f for f in features if f in encoded_data)].equals(pd.DataFrame(columns=["VAR1", "VAR2", "VAR3"], data=[
         [0, 0, 0],
         [0, 0, 0],
