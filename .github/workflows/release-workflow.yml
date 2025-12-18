@@ -26,12 +26,16 @@ jobs:
           approvers: MinaWagdi,n-voisine,tristandeb1
           minimum-approvals: 1
         timeout-minutes: 60
+
       - uses: actions/checkout@v6
+
       - uses: actions/setup-python@v6
         with:
           python-version: '3.10'
+
       - name: Build
         run: pipx run build
+
       - uses: actions/upload-artifact@v6
         with:
           name: packagefiles
@@ -61,11 +65,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+
       - name: Install dependencies
         run: python -m pip install .[docs] ghp-import
+
       - name: Build HTML
         run: | 
           cd docs/
           make html
+          
       - name: Run ghp-import
         run: python -m ghp-import -n -p -f -o docs/build/html
