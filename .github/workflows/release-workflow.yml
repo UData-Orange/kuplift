@@ -23,7 +23,7 @@ jobs:
       - uses: trstringer/manual-approval@v1
         with:
           secret: ${{ github.TOKEN }}
-          approvers: MinaWagdi,n-voisine
+          approvers: MinaWagdi,n-voisine,tristandeb1
           minimum-approvals: 1
         timeout-minutes: 60
       - uses: actions/checkout@v6
