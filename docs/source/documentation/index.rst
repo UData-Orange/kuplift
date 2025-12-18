@@ -32,3 +32,11 @@ kuplift.UnivariateEncoding module
    :members:
    :undoc-members:
    :show-inheritance:
+
+kuplift.OptimizedUnivariateEncoding module
+=================================
+
+.. automodule:: kuplift.OptimizedUnivariateEncoding
+   :members:
+   :undoc-members:
+   :show-inheritance:
