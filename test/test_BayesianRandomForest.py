@@ -7,7 +7,7 @@
 # * Unauthorized copying of this file, via any medium is strictly prohibited.        #
 # * See the "LICENSE.md" file for more details.                                      #
 ######################################################################################
-from kuplift.BayesianRandomForest import BayesianRandomForest
+from kuplift import BayesianRandomForest
 
 
 def test_predict(test_dataframe):

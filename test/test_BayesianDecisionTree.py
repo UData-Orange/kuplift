@@ -7,7 +7,7 @@
 # * Unauthorized copying of this file, via any medium is strictly prohibited.        #
 # * See the "LICENSE.md" file for more details.                                      #
 ######################################################################################
-from kuplift.BayesianDecisionTree import BayesianDecisionTree
+from kuplift import BayesianDecisionTree
 
 
 def test_predict(test_dataframe):

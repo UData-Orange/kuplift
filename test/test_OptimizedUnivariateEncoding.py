@@ -10,7 +10,7 @@
 import pytest
 import re
 import pandas as pd
-from kuplift.OptimizedUnivariateEncoding import OptimizedUnivariateEncoding
+from kuplift import OptimizedUnivariateEncoding
 
 def test_fit_transform_a(test_dataframe_with_categorical_variable):
     test_dataframe = test_dataframe_with_categorical_variable

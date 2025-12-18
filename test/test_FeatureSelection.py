@@ -7,7 +7,7 @@
 # * Unauthorized copying of this file, via any medium is strictly prohibited.        #
 # * See the "LICENSE.md" file for more details.                                      #
 ######################################################################################
-from kuplift.FeatureSelection import FeatureSelection
+from kuplift import FeatureSelection
 
 
 def test_filter(test_dataframe):

@@ -9,7 +9,7 @@
 ######################################################################################
 import pandas as pd
 from sklearn.model_selection import train_test_split
-from kuplift.UnivariateEncoding import UnivariateEncoding
+from kuplift import UnivariateEncoding
 
 
 def test_fit_transform_a(test_dataframe):
