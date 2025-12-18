@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.abspath("../.."))
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 project = "kuplift"
-copyright = "2023, Orange"
+copyright = "2025, Orange"
 author = "Orange"
 release = "0.0.6"
 
