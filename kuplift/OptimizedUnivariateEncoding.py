@@ -12,7 +12,7 @@ import tempfile
 from warnings import warn
 import json
 import khiops.sklearn.dataset
-from umodlwrapper import run_umodl
+from umodl import run_umodl
 
 
 class ValGrpPartition:
