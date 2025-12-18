@@ -73,7 +73,7 @@ class OptimizedUnivariateEncoding:
         y_col : pd.Series
             Outcome column.
         maxpartnumber : int, default=None
-            The maximum number of intervals or groups. None means default to the 'umodl' program default.
+            The maximal number of intervals or groups. None means default to the 'umodl' program default.
 
         Returns
         -------
@@ -98,7 +98,7 @@ class OptimizedUnivariateEncoding:
         y_col : pd.Series
             Outcome column.
         maxpartnumber : int, default=None
-            The maximum number of intervals or groups. None means default to the 'umodl' program default.
+            The maximal number of intervals or groups. None means default to the 'umodl' program default.
         """
         # Force the types of the treatment and target columns so that khiops lib understands they are categorical
         if treatment_col.dtype != object:
