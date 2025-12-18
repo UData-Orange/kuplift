@@ -56,7 +56,7 @@ jobs:
       - uses: pypa/gh-action-pypi-publish@release/v1
 
   deploy-sphinx:
-    name: Deploy documentation on GitHub Pages
+    name: Deploy documentation
     needs: [pypi-publish]
     runs-on: ubuntu-latest
     steps:
