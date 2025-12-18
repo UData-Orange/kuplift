@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kuplift"
-version = "0.0.7"
+version = "0.0.8"
 description = "A User Parameter-free Bayesian Framework for Uplift Modeling"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -16,7 +16,7 @@ dependencies = [
     "sortedcontainers>=2.4.0",
     "scikit-learn>=1.7.2",
     "khiops>=10.3.2.1",
-    "umodl>=0.0.24"
+    "umodl>=0.0.25"
 ]
 
 [project.optional-dependencies]
