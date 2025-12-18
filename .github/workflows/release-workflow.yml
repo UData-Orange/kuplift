@@ -73,6 +73,6 @@ jobs:
         run: | 
           cd docs/
           make html
-          
+
       - name: Run ghp-import
-        run: python -m ghp-import -n -p -f -o docs/build/html
+        run: python -m ghp_import -n -p -f -o docs/build/html
