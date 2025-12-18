@@ -31,29 +31,34 @@ $ pip install kuplift
 import kuplift as kp
 import pandas as pd
 
-df = pd.read_csv("dataname.csv")
+df = pd.read_csv("data.csv")
 
-# Univariate variable transformation:
+# Make sure the dtype of all categorical variables is object
+df = df.astype({"some_categorical_variable": object})
+
+variables = df[:-2]  # Last two columns are treatment and target columns
+
+# Univariate variable transformation
 ue = kp.UnivariateEncoding()
-encoded_data = ue.fit_transform(df[column_names], df["treatment"], df["outcome"])
+encoded_data = ue.fit_transform(df[variables], df["treatment"], df["target"])
 
 # Univariate variable transformation optimized through the use of umodl
-ue = kp.OptimizedUnivariateEncoding()
-encoded_data = ue.fit_transform(df[column_names], df["treatment"], df["outcome"])
+oue = kp.OptimizedUnivariateEncoding()
+encoded_data = oue.fit_transform(df[variables], df["treatment"], df["target"])
 
 # Feature selection
 fs = kp.FeatureSelection()
-important_vars = fs.filter(df[column_names], df["treatment"], df["outcome"])
+important_vars = fs.filter(df[variables], df["treatment"], df["target"])
 
 # Uplift Bayesian Decision Tree
 tree = kp.BayesianDecisionTree()
-tree.fit(df[column_names], df["treatment"], df["outcome"])
-preds = tree.predict(df[column_names])
+tree.fit(df[variables], df["treatment"], df["target"])
+preds = tree.predict(df[variables])
 
 # Uplift Bayesian Random Forest
 forest = kp.BayesianRandomForest(n_trees=4)
-forest.fit(df[column_names], df["treatment"], df["outcome"])
-preds = forest.predict(df[column_names])
+forest.fit(df[variables], df["treatment"], df["target"])
+preds = forest.predict(df[variables])
 ```
 
 

@@ -1,8 +1,8 @@
 Documentation
--------------
+=============
 
 kuplift.BayesianDecisionTree module
-===================================
+-----------------------------------
 
 .. automodule:: kuplift.BayesianDecisionTree
    :members:
@@ -10,7 +10,7 @@ kuplift.BayesianDecisionTree module
    :show-inheritance:
 
 kuplift.BayesianRandomForest module
-===================================
+-----------------------------------
 
 .. automodule:: kuplift.BayesianRandomForest
    :members:
@@ -18,7 +18,7 @@ kuplift.BayesianRandomForest module
    :show-inheritance:
 
 kuplift.FeatureSelection module
-===============================
+-------------------------------
 
 .. automodule:: kuplift.FeatureSelection
    :members:
@@ -26,7 +26,7 @@ kuplift.FeatureSelection module
    :show-inheritance:
 
 kuplift.UnivariateEncoding module
-=================================
+---------------------------------
 
 .. automodule:: kuplift.UnivariateEncoding
    :members:
@@ -34,7 +34,7 @@ kuplift.UnivariateEncoding module
    :show-inheritance:
 
 kuplift.OptimizedUnivariateEncoding module
-=================================
+------------------------------------------
 
 .. automodule:: kuplift.OptimizedUnivariateEncoding
    :members:
