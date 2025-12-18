@@ -62,7 +62,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - name: Install dependencies
-        run: python -m pip install --extra-index-url=https://test.pypi.org/simple/ .[docs] ghp-import
+        run: python -m pip install .[docs] ghp-import
       - name: Build HTML
         run: | 
           cd docs/

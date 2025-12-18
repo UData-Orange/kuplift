@@ -21,6 +21,6 @@ jobs:
     - name: Remove sources
       run: rm -r kuplift
     - name: Install package from wheel
-      run: pip install --extra-index-url=https://test.pypi.org/simple/ $(ls dist/*.whl)[test]
+      run: pip install $(ls dist/*.whl)[test]
     - name: Test installed package
       run: python -m pytest

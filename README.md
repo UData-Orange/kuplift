@@ -24,12 +24,6 @@ kuplift is a _Python_ package that provides a series of uplift modeling methods 
 $ pip install kuplift
 ```
 
-*or, if the `umodl-wrapper` dependency is still only available on test.pypi.org:*
-
-``` console
-$ pip install --extra-index-url=https://test.pypi.org/simple/ kuplift
-```
-
 
 **User Guide**:
 
