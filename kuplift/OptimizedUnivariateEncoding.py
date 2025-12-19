@@ -11,6 +11,7 @@ import pathlib
 import tempfile
 from warnings import warn
 import json
+from typing import Any, Iterable
 import khiops.sklearn.dataset
 from umodl import run_umodl
 
@@ -18,8 +19,8 @@ from umodl import run_umodl
 class ValGrpPartition:
     """Partition of type 'value groups'."""
     def __init__(self, groups, defaultgroupindex):
-        self.groups = groups
-        self.defaultgroupindex = defaultgroupindex
+        self.groups: Iterable[Iterable[Any]] = groups
+        self.defaultgroupindex: int = defaultgroupindex
 
     def transform(self, col):
         return col.transform(self._transform_elem)
@@ -34,7 +35,7 @@ class ValGrpPartition:
 class IntervalPartition:
     """Partition of type 'intervals'."""
     def __init__(self, intervals):
-        self.intervals = intervals
+        self.intervals: Iterable[tuple[()] | tuple[Any, Any]] = intervals
         first_non_missing_interval_index = next(i for i, interval in enumerate(self.intervals) if interval)
         self.intervals[first_non_missing_interval_index] = (float('-inf'), self.intervals[first_non_missing_interval_index][1])
         self.intervals[-1] = (self.intervals[-1][0], float('inf'))
@@ -55,7 +56,7 @@ class OptimizedUnivariateEncoding:
     """
 
     def __init__(self):
-        self._model = None
+        self._model: dict[str, ValGrpPartition | IntervalPartition] = None
 
     def fit_transform(self, data, treatment_col, y_col, maxpartnumber = None):
         """
