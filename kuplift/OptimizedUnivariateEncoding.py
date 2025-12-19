@@ -11,16 +11,33 @@ import pathlib
 import tempfile
 from warnings import warn
 import json
-from typing import Any, Iterable
+from typing import Any, Iterable, Sequence, override
+from abc import ABC, abstractmethod
 import khiops.sklearn.dataset
+import pandas as pd
 from umodl import run_umodl
 
 
-class ValGrpPartition:
+class Partition(ABC):
+    @property
+    @abstractmethod
+    def parts(self):
+        pass
+
+    def __iter__(self):
+        return iter(self.parts)
+
+
+class ValGrpPartition(Partition):
     """Partition of type 'value groups'."""
     def __init__(self, groups, defaultgroupindex):
-        self.groups: Iterable[Iterable[Any]] = groups
+        self.groups: Sequence[Iterable[Any]] = groups
         self.defaultgroupindex: int = defaultgroupindex
+
+    @property
+    @override
+    def parts(self):
+        return self.groups
 
     def transform(self, col):
         return col.transform(self._transform_elem)
@@ -32,13 +49,18 @@ class ValGrpPartition:
         return self.defaultgroupindex
 
 
-class IntervalPartition:
+class IntervalPartition(Partition):
     """Partition of type 'intervals'."""
     def __init__(self, intervals):
-        self.intervals: Iterable[tuple[()] | tuple[Any, Any]] = intervals
+        self.intervals: Sequence[tuple[()] | tuple[Any, Any]] = intervals
         first_non_missing_interval_index = next(i for i, interval in enumerate(self.intervals) if interval)
         self.intervals[first_non_missing_interval_index] = (float('-inf'), self.intervals[first_non_missing_interval_index][1])
         self.intervals[-1] = (self.intervals[-1][0], float('inf'))
+
+    @property
+    @override
+    def parts(self):
+        return self.intervals
 
     def transform(self, col):
         return col.transform(self._transform_elem)
@@ -159,3 +181,25 @@ class OptimizedUnivariateEncoding:
             The partition corresponding to a single variable of the model.
         """
         return self._model[variable]
+    
+    def get_uplift(self, data, treatment_col, y_col, variable):
+        data = self.transform(data)[variable]
+        treatment_target_pairs = [(treatment, target) for treatment in treatment_col.unique() for target in y_col.unique()]
+        return pd.DataFrame(
+            {
+                **{"Label": map(str, self._model[variable])},
+                **{
+                    (treatment, target): [
+                        [
+                            len(
+                                data[
+                                    data.map(lambda elem: self._model[variable]._transform_elem(elem) == i) & (treatment_col == treatment) & (y_col == target)
+                                ]
+                            ) / len(data)
+                        ]
+                        for i, _ in enumerate(self._model[variable])
+                    ]
+                    for treatment, target in treatment_target_pairs
+                }
+            }
+        )
