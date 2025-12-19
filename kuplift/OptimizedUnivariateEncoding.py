@@ -56,12 +56,10 @@ class OptimizedUnivariateEncoding:
     """
 
     def __init__(self):
-        self._model: dict[str, ValGrpPartition | IntervalPartition] = None
+        self._model: dict[str, ValGrpPartition | IntervalPartition] | None = None
 
     def fit_transform(self, data, treatment_col, y_col, maxpartnumber = None):
-        """
-        fit_transform() learns a discretisation model using UMODL and
-        transforms the data.
+        """fit_transform() learns a discretisation model using UMODL and transforms the data.
 
         Parameters
         ----------
@@ -85,8 +83,7 @@ class OptimizedUnivariateEncoding:
         return self.transform(data)
     
     def fit(self, data, treatment_col, y_col, maxpartnumber = None):
-        """
-        fit() learns a discretisation model using UMODL.
+        """fit() learns a discretisation model using UMODL.
 
         Parameters
         ----------
@@ -133,9 +130,7 @@ class OptimizedUnivariateEncoding:
                 else: raise ValueError("unsupported partition type")
 
     def transform(self, data):
-        """
-        transform() applies the discretisation model learned by the
-        fit() method.
+        """transform() applies the discretisation model learned by the fit() method.
 
         Parameters
         ----------
@@ -149,3 +144,18 @@ class OptimizedUnivariateEncoding:
         """
         data = data[list(self._model.keys())]  # Keep only informative variables
         return data.transform(lambda col: self._model[col.name].transform(col))
+    
+    def get_part(self, variable):
+        """get_part() gets the partition corresponding to a single variable of the model.
+
+        Parameters
+        ----------
+        variable : str
+            The variable name.
+        
+        Returns
+        -------
+        ValGrpPartition | IntervalPartition
+            The partition corresponding to a single variable of the model.
+        """
+        return self._model[variable]
