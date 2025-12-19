@@ -29,7 +29,7 @@ Code example : ::
     ue = kp.UnivariateEncoding()
     encoded_data = ue.fit_transform(df[variables], df["treatment"], df["target"])
 
-    # Univariate variable transformation optimized through the use of umodl
+    # Univariate variable transformation optimized through the use of the C++ implementation of umodl
     oue = kp.OptimizedUnivariateEncoding()
     encoded_data = oue.fit_transform(df[variables], df["treatment"], df["target"])
 

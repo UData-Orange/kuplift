@@ -9,7 +9,7 @@ kuplift is a _Python_ package that provides a series of uplift modeling methods 
 
 1. Encoding data using a discretization method for treatment effect (uplift) modeling called _UMODL_.
 
-2. Same as above but optimized through the use of a modified version of Khiops, written in C++.
+2. OptimizedUnivariateEncoding is an optimized version of the umodl algorithm written in C++ for continuous and categorical variables.
     
 3. Variable selection for uplift modeling with _UMODL-FS_.
     
@@ -42,7 +42,7 @@ variables = list(df.columns[:-2])  # Last two columns are treatment and target c
 ue = kp.UnivariateEncoding()
 encoded_data = ue.fit_transform(df[variables], df["treatment"], df["target"])
 
-# Univariate variable transformation optimized through the use of umodl
+# Univariate variable transformation optimized through the use of the C++ implementation of umodl
 oue = kp.OptimizedUnivariateEncoding()
 encoded_data = oue.fit_transform(df[variables], df["treatment"], df["target"])
 
