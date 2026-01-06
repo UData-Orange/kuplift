@@ -214,7 +214,7 @@ class OptimizedUnivariateEncoding:
         partition = self.get_partition(variable)
         return pd.DataFrame(
             {
-                **{"Label": map(str, partition)},
+                **{"Part": map(str, partition)},
                 **{
                     (treatment, target): [
                         len(
