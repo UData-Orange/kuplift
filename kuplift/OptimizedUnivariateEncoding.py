@@ -12,7 +12,9 @@ import tempfile
 from warnings import warn
 import math
 import json
-from typing import Any, Iterable, Sequence, Union
+from typing import Optional, Sequence, Union
+from itertools import starmap
+from dataclasses import dataclass
 from textwrap import indent
 from abc import ABC, abstractmethod
 import khiops.sklearn.dataset
@@ -28,6 +30,11 @@ class Partition(ABC):
 
     def __iter__(self):
         return iter(self.parts)
+    
+
+class ValGrp(list):
+    def __str__(self):
+        return "{%s}" % ", ".join(self)
 
 
 class ValGrpPartition(Partition):
@@ -35,13 +42,13 @@ class ValGrpPartition(Partition):
     
     Attributes
     ----------
-        groups : Sequence[Iterable[Any]]
+        groups : Sequence[ValGrp]
             The groups. Each group is an iterable of its values.
         defaultgroupindex: int
             The group index affected to transformed elements when they do not explicitly appear in any group.
     """
 
-    def __init__(self, groups: Sequence[Iterable[Any]], defaultgroupindex: int):
+    def __init__(self, groups: Sequence[ValGrp], defaultgroupindex: int):
         if not groups:
             raise ValueError("there must be at least one group")
         if defaultgroupindex < 0 or defaultgroupindex >= len(groups):
@@ -66,34 +73,56 @@ class ValGrpPartition(Partition):
         return f"ValGrpPartition({self.groups!r}, {self.defaultgroupindex!r})"
 
     def __str__(self):
-        def formatgroup(group, isdefault):
-            return f"  {"*" if isdefault else " "} - {{{", ".join(map(str, group))}}}"
+        def formatgroupline(group, isdefault):
+            return f"  {"*" if isdefault else " "} - {group}"
         return f"""
 Value group partition
     {len(self.groups)} groups ("*" indicates the default group):
-{indent("\n".join(formatgroup(group, i == self.defaultgroupindex) for i, group in enumerate(self.groups)), 4 * " ")}
+{indent("\n".join(formatgroupline(group, i == self.defaultgroupindex) for i, group in enumerate(self.groups)), 4 * " ")}
 """[1:-1]
+
+
+@dataclass
+class Interval:
+    lower: Optional[float] = None
+    upper: Optional[float] = None
+        
+    @property
+    def catches_missing(self):
+        return self.lower is None or self.upper is None
+    
+    def __contains__(self, x):
+        return not self.catches_missing and (self.lower <= x < self.upper)
+    
+    def __str__(self):
+        return "[]" if self.catches_missing else f"[{self.lower}, {self.upper}["
+    
+    def __bool__(self):
+        return not self.catches_missing
+
 
 class IntervalPartition(Partition):
     """Partition of type 'intervals'.
     
     Attributes
     ----------
-        intervals: Sequence[tuple[()] | tuple[Any, Any]]
+        intervals: Sequence[Interval]
             The intervals. Each interval is a pair defining its lower bound and its upper bound (in that order).
-            The exception to this rule is the empty tuple representing 'MISSING' values. If present, it must be
-            the first tuple of the sequence.
+            The exception to this rule is the empty interval representing 'MISSING' values. If present, it must be
+            the first interval of the sequence.
     """
 
-    def __init__(self, intervals: Sequence[Union[tuple[()], tuple[Any, Any]]]):
+    def __init__(self, intervals: Sequence[Interval]):
         if not intervals:
             raise ValueError("there must be at least one interval")
-        has_missing_interval = intervals[0] == ()
-        intervals = list(filter(None, intervals))
-        if intervals:
-            intervals[0] = (-math.inf, intervals[0][1])
-            intervals[-1] = (intervals[-1][0], math.inf)
-        self.intervals = [(), *intervals] if has_missing_interval else intervals
+        if intervals[0].catches_missing:
+            if len(intervals) >= 1:
+                intervals[1].lower = -math.inf
+                intervals[-1].upper = math.inf
+        else:
+            intervals[0].lower = -math.inf
+            intervals[-1].upper = math.inf
+        self.intervals = intervals
 
     @property
     def parts(self):
@@ -104,23 +133,23 @@ class IntervalPartition(Partition):
 
     def transform_elem(self, elem):
         if not isinstance(elem, (int, float)) or math.isnan(elem):
-            if self.intervals[0] == ():
+            if self.intervals[0].catches_missing:
                 return 0
             raise ValueError(f"cannot transform element of type {type(elem)} when there is no dedicated 'MISSING' interval")
         for i, interval in enumerate(self.intervals):
-            if interval and interval[0] <= elem < interval[1]:
+            if elem in interval:
                 return i
             
     def __repr__(self):
         return f"IntervalPartition({self.intervals!r})"
     
     def __str__(self):
-        def formatinterval(interval):
-            return f"  - [{interval[0]}, {interval[1]}[" if interval else "  - []"
+        def formatintervalline(interval):
+            return f"  - {interval}"
         return f"""
 Interval partition
     {len(self.intervals)} intervals:
-{indent("\n".join(map(formatinterval, self.intervals)), 4 * " ")}
+{indent("\n".join(map(formatintervalline, self.intervals)), 4 * " ")}
 """[1:-1]
 
 
@@ -130,7 +159,7 @@ class OptimizedUnivariateEncoding:
     """
 
     def __init__(self):
-        self._model: dict[str, Union[ValGrpPartition, IntervalPartition]] | None = None
+        self._model: Optional[dict[str, Union[ValGrpPartition, IntervalPartition]]] = None
 
     def fit_transform(self, data, treatment_col, y_col, maxpartnumber = None):
         """fit_transform() learns a discretisation model using UMODL and transforms the data.
@@ -198,9 +227,9 @@ class OptimizedUnivariateEncoding:
             for variable in docroot['detailed statistics']:
                 vardim = variable['dataGrid']['dimensions'][0]
                 if vardim['partitionType'] == 'Value groups':
-                    self._model[vardim['variable']] = ValGrpPartition(vardim['partition'], vardim['defaultGroupIndex'])
+                    self._model[vardim['variable']] = ValGrpPartition(list(map(ValGrp, vardim['partition'])), vardim['defaultGroupIndex'])
                 elif vardim['partitionType'] == 'Intervals':
-                    self._model[vardim['variable']] = IntervalPartition(list(map(tuple, vardim['partition'])))
+                    self._model[vardim['variable']] = IntervalPartition(list(starmap(Interval, vardim['partition'])))
                 else: raise ValueError("unsupported partition type")
 
     def transform(self, data):
@@ -242,7 +271,7 @@ class OptimizedUnivariateEncoding:
             {
                 **{"Part": map(str, partition)},
                 **{
-                    (treatment, target): [
+                    f"P({target}|{treatment})": [
                         len(
                             varcol[
                                 (treatment_col == treatment) & (y_col == target) & varcol.map(lambda elem: partition.transform_elem(elem) == i)
