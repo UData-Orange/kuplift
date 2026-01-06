@@ -13,6 +13,7 @@ from warnings import warn
 import math
 import json
 from typing import Any, Iterable, Sequence, Union
+from textwrap import indent
 from abc import ABC, abstractmethod
 import khiops.sklearn.dataset
 import pandas as pd
@@ -41,6 +42,10 @@ class ValGrpPartition(Partition):
     """
 
     def __init__(self, groups: Sequence[Iterable[Any]], defaultgroupindex: int):
+        if not groups:
+            raise ValueError("there must be at least one group")
+        if defaultgroupindex < 0 or defaultgroupindex >= len(groups):
+            raise ValueError(f"default group index is {defaultgroupindex} but groups are numbered from 0 to {len(groups) - 1}")
         self.groups = groups
         self.defaultgroupindex = defaultgroupindex
 
@@ -56,7 +61,18 @@ class ValGrpPartition(Partition):
             if str(elem) in group:
                 return i
         return self.defaultgroupindex
+    
+    def __repr__(self):
+        return f"ValGrpPartition({self.groups!r}, {self.defaultgroupindex!r})"
 
+    def __str__(self):
+        def formatgroup(group, isdefault):
+            return f"  {"*" if isdefault else " "} - {{{", ".join(map(str, group))}}}"
+        return f"""
+Value group partition
+    {len(self.groups)} groups ("*" indicates the default group):
+{indent("\n".join(formatgroup(group, i == self.defaultgroupindex) for i, group in enumerate(self.groups)), 4 * " ")}
+"""[1:-1]
 
 class IntervalPartition(Partition):
     """Partition of type 'intervals'.
@@ -94,6 +110,18 @@ class IntervalPartition(Partition):
         for i, interval in enumerate(self.intervals):
             if interval and interval[0] <= elem < interval[1]:
                 return i
+            
+    def __repr__(self):
+        return f"IntervalPartition({self.intervals!r})"
+    
+    def __str__(self):
+        def formatinterval(interval):
+            return f"  - [{interval[0]}, {interval[1]}[" if interval else "  - []"
+        return f"""
+Interval partition
+    {len(self.intervals)} intervals:
+{indent("\n".join(map(formatinterval, self.intervals)), 4 * " ")}
+"""[1:-1]
 
 
 class OptimizedUnivariateEncoding:
@@ -206,7 +234,7 @@ class OptimizedUnivariateEncoding:
         """
         return self._model[variable]
     
-    def get_uplift(self, data, treatment_col, y_col, variable):
+    def get_target_probability(self, data, treatment_col, y_col, variable):
         varcol = data[variable]
         treatment_target_pairs = [(treatment, target) for treatment in treatment_col.unique() for target in y_col.unique()]
         partition = self.get_partition(variable)
