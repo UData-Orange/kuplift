@@ -12,7 +12,7 @@ import tempfile
 from warnings import warn
 import math
 import json
-from typing import Any, Iterable, Sequence
+from typing import Any, Iterable, Sequence, Union
 from abc import ABC, abstractmethod
 import khiops.sklearn.dataset
 import pandas as pd
@@ -69,7 +69,7 @@ class IntervalPartition(Partition):
             the first tuple of the sequence.
     """
 
-    def __init__(self, intervals: Sequence[tuple[()] | tuple[Any, Any]]):
+    def __init__(self, intervals: Sequence[Union[tuple[()], tuple[Any, Any]]]):
         if not intervals:
             raise ValueError("there must be at least one interval")
         has_missing_interval = intervals[0] == ()
@@ -102,7 +102,7 @@ class OptimizedUnivariateEncoding:
     """
 
     def __init__(self):
-        self._model: dict[str, ValGrpPartition | IntervalPartition] | None = None
+        self._model: dict[str, Union[ValGrpPartition, IntervalPartition]] | None = None
 
     def fit_transform(self, data, treatment_col, y_col, maxpartnumber = None):
         """fit_transform() learns a discretisation model using UMODL and transforms the data.
