@@ -12,7 +12,7 @@ import tempfile
 from warnings import warn
 import math
 import json
-from typing import Any, Iterable, Sequence, override
+from typing import Any, Iterable, Sequence
 from abc import ABC, abstractmethod
 import khiops.sklearn.dataset
 import pandas as pd
@@ -45,7 +45,6 @@ class ValGrpPartition(Partition):
         self.defaultgroupindex = defaultgroupindex
 
     @property
-    @override
     def parts(self):
         return self.groups
 
@@ -81,7 +80,6 @@ class IntervalPartition(Partition):
         self.intervals = [(), *intervals] if has_missing_interval else intervals
 
     @property
-    @override
     def parts(self):
         return self.intervals
 
