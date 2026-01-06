@@ -10,6 +10,7 @@
 import pathlib
 import tempfile
 from warnings import warn
+import math
 import json
 from typing import Any, Iterable, Sequence, override
 from abc import ABC, abstractmethod
@@ -29,10 +30,19 @@ class Partition(ABC):
 
 
 class ValGrpPartition(Partition):
-    """Partition of type 'value groups'."""
-    def __init__(self, groups, defaultgroupindex):
-        self.groups: Sequence[Iterable[Any]] = groups
-        self.defaultgroupindex: int = defaultgroupindex
+    """Partition of type 'value groups'.
+    
+    Attributes
+    ----------
+        groups : Sequence[Iterable[Any]]
+            The groups. Each group is an iterable of its values.
+        defaultgroupindex: int
+            The group index affected to transformed elements when they do not explicitly appear in any group.
+    """
+
+    def __init__(self, groups: Sequence[Iterable[Any]], defaultgroupindex: int):
+        self.groups = groups
+        self.defaultgroupindex = defaultgroupindex
 
     @property
     @override
@@ -40,9 +50,9 @@ class ValGrpPartition(Partition):
         return self.groups
 
     def transform(self, col):
-        return col.transform(self._transform_elem)
+        return col.transform(self.transform_elem)
 
-    def _transform_elem(self, elem):
+    def transform_elem(self, elem):
         for i, group in enumerate(self.groups):
             if str(elem) in group:
                 return i
@@ -50,12 +60,25 @@ class ValGrpPartition(Partition):
 
 
 class IntervalPartition(Partition):
-    """Partition of type 'intervals'."""
-    def __init__(self, intervals):
-        self.intervals: Sequence[tuple[()] | tuple[Any, Any]] = intervals
-        first_non_missing_interval_index = next(i for i, interval in enumerate(self.intervals) if interval)
-        self.intervals[first_non_missing_interval_index] = (float('-inf'), self.intervals[first_non_missing_interval_index][1])
-        self.intervals[-1] = (self.intervals[-1][0], float('inf'))
+    """Partition of type 'intervals'.
+    
+    Attributes
+    ----------
+        intervals: Sequence[tuple[()] | tuple[Any, Any]]
+            The intervals. Each interval is a pair defining its lower bound and its upper bound (in that order).
+            The exception to this rule is the empty tuple representing 'MISSING' values. If present, it must be
+            the first tuple of the sequence.
+    """
+
+    def __init__(self, intervals: Sequence[tuple[()] | tuple[Any, Any]]):
+        if not intervals:
+            raise ValueError("there must be at least one interval")
+        has_missing_interval = intervals[0] == ()
+        intervals = list(filter(None, intervals))
+        if intervals:
+            intervals[0] = (-math.inf, intervals[0][1])
+            intervals[-1] = (intervals[-1][0], math.inf)
+        self.intervals = [(), *intervals] if has_missing_interval else intervals
 
     @property
     @override
@@ -63,13 +86,16 @@ class IntervalPartition(Partition):
         return self.intervals
 
     def transform(self, col):
-        return col.transform(self._transform_elem)
+        return col.transform(self.transform_elem)
 
-    def _transform_elem(self, elem):
+    def transform_elem(self, elem):
+        if not isinstance(elem, (int, float)) or math.isnan(elem):
+            if self.intervals[0] == ():
+                return 0
+            raise ValueError(f"cannot transform element of type {type(elem)} when there is no dedicated 'MISSING' interval")
         for i, interval in enumerate(self.intervals):
             if interval and interval[0] <= elem < interval[1]:
                 return i
-        return self.intervals.index(())
 
 
 class OptimizedUnivariateEncoding:
@@ -167,8 +193,8 @@ class OptimizedUnivariateEncoding:
         data = data[list(self._model.keys())]  # Keep only informative variables
         return data.transform(lambda col: self._model[col.name].transform(col))
     
-    def get_part(self, variable):
-        """get_part() gets the partition corresponding to a single variable of the model.
+    def get_partition(self, variable):
+        """get_partition() gets the partition corresponding to a single variable of the model.
 
         Parameters
         ----------
@@ -183,21 +209,20 @@ class OptimizedUnivariateEncoding:
         return self._model[variable]
     
     def get_uplift(self, data, treatment_col, y_col, variable):
-        data = self.transform(data)[variable]
+        varcol = data[variable]
         treatment_target_pairs = [(treatment, target) for treatment in treatment_col.unique() for target in y_col.unique()]
+        partition = self.get_partition(variable)
         return pd.DataFrame(
             {
-                **{"Label": map(str, self._model[variable])},
+                **{"Label": map(str, partition)},
                 **{
                     (treatment, target): [
-                        [
-                            len(
-                                data[
-                                    data.map(lambda elem: self._model[variable]._transform_elem(elem) == i) & (treatment_col == treatment) & (y_col == target)
-                                ]
-                            ) / len(data)
-                        ]
-                        for i, _ in enumerate(self._model[variable])
+                        len(
+                            varcol[
+                                (treatment_col == treatment) & (y_col == target) & varcol.map(lambda elem: partition.transform_elem(elem) == i)
+                            ]
+                        ) / len(varcol)
+                        for i, _ in enumerate(partition)
                     ]
                     for treatment, target in treatment_target_pairs
                 }
