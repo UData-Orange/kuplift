@@ -159,20 +159,21 @@ class OptimizedUnivariateEncoding:
     """
 
     def __init__(self):
-        self._model: Optional[dict[str, Union[ValGrpPartition, IntervalPartition]]] = None
+        self.model: dict[str, Union[ValGrpPartition, IntervalPartition]] = {}
+        self.target_probs: dict[str, pd.DataFrame] = {}
 
-    def fit_transform(self, data, treatment_col, y_col, maxpartnumber = None):
+    def fit_transform(self, data, treatment_col, target_col, maxpartnumber = None):
         """fit_transform() learns a discretisation model using UMODL and transforms the data.
 
         Parameters
         ----------
-        data : pd.Dataframe
+        data : pd.DataFrame
             Dataframe containing feature variables. Categorical
             variables should have the object dtype, otherwise they
             are processed as numerical variables.
         treatment_col : pd.Series
             Treatment column.
-        y_col : pd.Series
+        target_col : pd.Series
             Outcome column.
         maxpartnumber : int, default=None
             The maximal number of intervals or groups. None means default to the 'umodl' program default.
@@ -182,10 +183,10 @@ class OptimizedUnivariateEncoding:
         pd.Dataframe
             Pandas Dataframe that contains encoded data.
         """
-        self.fit(data, treatment_col, y_col, maxpartnumber)
+        self.fit(data, treatment_col, target_col, maxpartnumber)
         return self.transform(data)
     
-    def fit(self, data, treatment_col, y_col, maxpartnumber = None):
+    def fit(self, data, treatment_col, target_col, maxpartnumber = None):
         """fit() learns a discretisation model using UMODL.
 
         Parameters
@@ -196,7 +197,7 @@ class OptimizedUnivariateEncoding:
             are processed as numerical variables.
         treatment_col : pd.Series
             Treatment column.
-        y_col : pd.Series
+        target_col : pd.Series
             Outcome column.
         maxpartnumber : int, default=None
             The maximal number of intervals or groups. None means default to the 'umodl' program default.
@@ -205,48 +206,55 @@ class OptimizedUnivariateEncoding:
         if treatment_col.dtype != object:
             warn("Treatment column's dtype is not object; fixing...")
             treatment_col = treatment_col.astype(object)
-        if y_col.dtype != object:
+        if target_col.dtype != object:
             warn("Target column's dtype is not object; fixing...")
-            y_col = y_col.astype(object)
+            target_col = target_col.astype(object)
 
         # Create temporary .txt (data) and .kdic (Khiops dictionary) files for use with the umodl executable
         with tempfile.TemporaryDirectory() as dirname:
             dirpath = pathlib.Path(dirname)
             kdicfilename = str(dirpath / "main_table.kdic")
-            dataset = khiops.sklearn.dataset.Dataset(data.join([treatment_col, y_col]))
+            dataset = khiops.sklearn.dataset.Dataset(data.join([treatment_col, target_col]))
 
             txtfilename, _ = dataset.create_table_files_for_khiops(dirname)  # Create .txt file
             dataset.create_khiops_dictionary_domain().export_khiops_dictionary_file(kdicfilename)  # Create .kdic file
-            run_umodl(txtfilename, kdicfilename, "main_table", treatment_col.name, y_col.name, maxpartnumber)
+            run_umodl(txtfilename, kdicfilename, "main_table", treatment_col.name, target_col.name, maxpartnumber)
 
             txtfilepath = pathlib.Path(txtfilename)
             with open(txtfilepath.with_name(f"UP_{txtfilepath.stem}.json")) as jsonfile:
                 docroot = json.load(jsonfile)
 
-            self._model = {}
+            self.model = {}
             for variable in docroot['detailed statistics']:
                 vardim = variable['dataGrid']['dimensions'][0]
                 if vardim['partitionType'] == 'Value groups':
-                    self._model[vardim['variable']] = ValGrpPartition(list(map(ValGrp, vardim['partition'])), vardim['defaultGroupIndex'])
+                    self.model[vardim['variable']] = ValGrpPartition(list(map(ValGrp, vardim['partition'])), vardim['defaultGroupIndex'])
                 elif vardim['partitionType'] == 'Intervals':
-                    self._model[vardim['variable']] = IntervalPartition(list(starmap(Interval, vardim['partition'])))
+                    self.model[vardim['variable']] = IntervalPartition(list(starmap(Interval, vardim['partition'])))
                 else: raise ValueError("unsupported partition type")
+
+        self.variable_cols = data
+        self.treatment_col = treatment_col
+        self.target_col = target_col
+        self.treatments = self.treatment_col.unique()
+        self.targets = self.target_col.unique()
 
     def transform(self, data):
         """transform() applies the discretisation model learned by the fit() method.
 
         Parameters
         ----------
-        data : pd.Dataframe
+        data : pd.DataFrame
             Dataframe containing feature variables.
 
         Returns
         -------
-        pd.Dataframe
+        pd.DataFrame
             Pandas Dataframe that contains encoded data.
         """
-        data = data[list(self._model.keys())]  # Keep only informative variables
-        return data.transform(lambda col: self._model[col.name].transform(col))
+        data = data[list(self.model.keys())]  # Keep only informative variables
+        self.transformed_data = data.transform(lambda col: self.model[col.name].transform(col))
+        return self.transformed_data
     
     def get_partition(self, variable):
         """get_partition() gets the partition corresponding to a single variable of the model.
@@ -261,25 +269,40 @@ class OptimizedUnivariateEncoding:
         ValGrpPartition | IntervalPartition
             The partition corresponding to a single variable of the model.
         """
-        return self._model[variable]
+        return self.model[variable]
     
-    def get_target_probability(self, data, treatment_col, y_col, variable):
-        varcol = data[variable]
-        treatment_target_pairs = [(treatment, target) for treatment in treatment_col.unique() for target in y_col.unique()]
+    def get_target_probability(self, variable):
+        varcol = self.variable_cols[variable]
+        treatment_target_pairs = [(treatment, target) for treatment in self.treatments for target in self.targets]
         partition = self.get_partition(variable)
-        return pd.DataFrame(
+        self.target_probs[variable] = pd.DataFrame(
             {
                 **{"Part": map(str, partition)},
                 **{
                     f"P({target}|{treatment})": [
                         len(
                             varcol[
-                                (treatment_col == treatment) & (y_col == target) & varcol.map(lambda elem: partition.transform_elem(elem) == i)
+                                (self.treatment_col == treatment) & (self.target_col == target) & varcol.map(lambda elem: partition.transform_elem(elem) == i)
                             ]
                         ) / len(varcol)
                         for i, _ in enumerate(partition)
                     ]
                     for treatment, target in treatment_target_pairs
+                }
+            }
+        )
+        return self.target_probs[variable]
+    
+    def get_uplift(self, reftreatment, reftarget, variable):
+        # 'tut(s)': Treatment(s) Under Test
+        tuts = [t for t in self.treatments if t != reftreatment]
+        reftarget_probs_for_reftreatment = self.target_probs[variable][f"P({reftarget}|{reftreatment})"]
+        return pd.DataFrame(
+            {
+                **{"Part": self.target_probs[variable]["Part"]},
+                **{
+                    f"Up {reftarget} {treatment}": self.target_probs[variable][f"P({reftarget}|{treatment})"] - reftarget_probs_for_reftreatment
+                    for treatment in tuts
                 }
             }
         )
