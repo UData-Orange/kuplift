@@ -75,11 +75,14 @@ class ValGrpPartition(Partition):
     def __str__(self):
         def formatgroupline(group, isdefault):
             return f"  {'*' if isdefault else ' '} - {group}"
-        return f"""
+        return """
 Value group partition
-    {len(self.groups)} groups ("*" indicates the default group):
-{indent("\n".join(formatgroupline(group, i == self.defaultgroupindex) for i, group in enumerate(self.groups)), 4 * " ")}
-"""[1:-1]
+    {ngroups} groups ("*" indicates the default group):
+{groups}
+"""[1:-1].format(
+    ngroups=len(self.groups),
+    groups=indent("\n".join(formatgroupline(group, i == self.defaultgroupindex) for i, group in enumerate(self.groups)), 4 * " ")
+)
 
 
 @dataclass
