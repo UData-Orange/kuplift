@@ -7,6 +7,18 @@
 # * Unauthorized copying of this file, via any medium is strictly prohibited.        #
 # * See the "LICENSE.md" file for more details.                                      #
 ######################################################################################
+
+"""Optimized Univariate Encoding
+
+This module contains everything needed to make univariate variable transformation
+optimized through the use of the C++ implementation of 'umodl'. It calls the
+'umodl' executable as a subprocess indirectly by the use the 'umodl' library.
+
+The main class of this module is 'OptimizedUnivariateEncoding'.
+
+An example code is in examples/optimized_univariate_encoding.py.
+"""
+
 import pathlib
 import tempfile
 from warnings import warn
