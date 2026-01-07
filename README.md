@@ -18,16 +18,16 @@ kuplift is a _Python_ package that provides a series of uplift modeling methods 
 5. Learning a random forest model for uplift modeling with _UB-RF_.
 
 
-**How to install**:
+### How to install
 
-``` console
+~~~ console
 $ pip install kuplift
-```
+~~~
 
 
-**User Guide**:
+### User Guide
 
-``` python
+~~~ python
 import kuplift as kp
 import pandas as pd
 
@@ -59,26 +59,31 @@ preds = tree.predict(df[variables])
 forest = kp.BayesianRandomForest(n_trees=4)
 forest.fit(df[variables], df["treatment"], df["target"])
 preds = forest.predict(df[variables])
-```
+~~~
 
 
-**Documentation**:
+### Examples
+
+You can find examples in the [examples](./examples) directory.
+
+
+### Documentation
 
 Refer to the documentation at https://udata-orange.github.io/kuplift/
 
 
-**Credits**:
+### Credits
 kuplift has been developed at Orange Labs.
 
 
-**Current contributors**:
+### Current contributors
 
 Mina Rafla
 
 Nicolas Voisine
 
 
-**References**:
+### References
 
 Rafla, M., Voisine, N., Crémilleux, B., & Boullé, M. (2022, September). A non-parametric bayesian approach for uplift discretization and feature selection. **_ECML PKDD 2022_**
 
