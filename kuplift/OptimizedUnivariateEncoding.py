@@ -74,7 +74,7 @@ class ValGrpPartition(Partition):
 
     def __str__(self):
         def formatgroupline(group, isdefault):
-            return f"  {"*" if isdefault else " "} - {group}"
+            return f"  {'*' if isdefault else ' '} - {group}"
         return f"""
 Value group partition
     {len(self.groups)} groups ("*" indicates the default group):
