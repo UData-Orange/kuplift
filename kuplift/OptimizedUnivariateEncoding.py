@@ -312,6 +312,32 @@ class OptimizedUnivariateEncoding:
         return self.target_probs[variable]
     
     def get_uplift(self, reftreatment, reftarget, variable):
+        """get_uplift() gets the uplift for a single variable.
+
+        The probabilities used for computations are the ones stored in the 'self.target_probs' dictionary.
+        These should have been previously populated by a call to 'get_target_probability' with the same variable
+        as specified in the call to this function.
+        See explanations of the computations in the 'Returns' section below.
+        
+        Parameters
+        ----------
+        reftreatment
+            The reference treatment to which all the other treatments are compared.
+        reftarget
+            The reference target.
+        variable: str
+            The name of the variable.
+
+        Returns
+        -------
+        pd.DataFrame
+            A Dataframe containing:
+                - A column named 'Part' as for the target probability Dataframes stored in 'self.target_probs'.
+                - One column per treatment other than the reference treatment.
+                  A column gives the difference P(reftarget|treatment) - P(reftarget|reftreatment), that is,
+                  the benefit (or deficit) of probabilities to have 'reftarget' as the outcome with the column's
+                  treatment compared to the reference treatment.
+        """
         # 'tut(s)': Treatment(s) Under Test
         tuts = [t for t in self.treatments if t != reftreatment]
         refprobs = self.target_probs[variable][f"P({reftarget}|{reftreatment})"]
