@@ -161,6 +161,11 @@ Interval partition
 
 @dataclass
 class ProbSpec:
+    """Probability specification.
+
+    Used to identify a probability by a target and a treatment.
+    """
+
     target: object
     treatment: object
 
