@@ -323,7 +323,7 @@ class OptimizedUnivariateEncoding:
         )
         return self.target_probs[variable]
     
-    def get_uplift(self, reftreatment, reftarget, variable):
+    def get_uplift(self, reftarget, reftreatment, variable):
         """get_uplift() gets the uplift for a single variable.
 
         The probabilities used for computations are the ones stored in the 'self.target_probs' dictionary.
@@ -333,10 +333,10 @@ class OptimizedUnivariateEncoding:
         
         Parameters
         ----------
-        reftreatment
-            The reference treatment to which all the other treatments are compared.
         reftarget
             The reference target.
+        reftreatment
+            The reference treatment to which all the other treatments are compared.
         variable: str
             The name of the variable.
 
