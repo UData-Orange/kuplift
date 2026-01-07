@@ -378,13 +378,8 @@ class OptimizedUnivariateEncoding:
         # 'tut(s)': Treatment(s) Under Test
         tuts = [t for t in self.treatments if t != reftreatment]
         refprobs = self.target_probs[variable][ProbSpec(reftarget, reftreatment)]
-        self.uplift[variable] = pd.DataFrame(
-            {
-                **{"Part": self.target_probs[variable]["Part"]},
-                **{
-                    f"Up {reftarget} {treatment}": self.target_probs[variable][ProbSpec(reftarget, treatment)] - refprobs
-                    for treatment in tuts
-                }
-            }
-        )
+        self.uplift[variable] = self.target_probs[variable]["Part"].to_frame().join(pd.DataFrame({
+            f"Up {reftarget} {treatment}": self.target_probs[variable][ProbSpec(reftarget, treatment)] - refprobs
+            for treatment in tuts
+        }))
         return self.uplift[variable]
