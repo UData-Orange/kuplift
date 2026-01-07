@@ -289,6 +289,9 @@ class OptimizedUnivariateEncoding:
         The probabilities are computed for a single variable.
         The results are both stored in the 'self.target_probs' dictionary for future reference and returned for
         convenience.
+
+        When called with the same variable as a previous call, in will not perform any calculation and will simply
+        return the entry already stored in 'self.target_probs'.
         
         Parameters
         ----------
@@ -302,6 +305,8 @@ class OptimizedUnivariateEncoding:
                 - A column named 'Part' listing all the parts of the variable.
                 - One column per (target, treatment) pair.
         """
+        if variable in self.target_probs:
+            return self.target_probs[variable]
         varcol = self.variable_cols[variable]
         treatment_target_pairs = [ProbSpec(target, treatment) for treatment in self.treatments for target in self.targets]
         partition = self.get_partition(variable)
