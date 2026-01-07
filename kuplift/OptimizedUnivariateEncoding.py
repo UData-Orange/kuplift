@@ -149,11 +149,14 @@ class IntervalPartition(Partition):
     def __str__(self):
         def formatintervalline(interval):
             return f"  - {interval}"
-        return f"""
+        return """
 Interval partition
-    {len(self.intervals)} intervals:
-{indent("\n".join(map(formatintervalline, self.intervals)), 4 * " ")}
-"""[1:-1]
+    {nintervals} intervals:
+{intervals}
+"""[1:-1].format(
+    nintervals=len(self.intervals),
+    intervals=indent("\n".join(map(formatintervalline, self.intervals)), 4 * " ")
+)
     
 
 @dataclass
