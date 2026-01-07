@@ -173,6 +173,7 @@ class OptimizedUnivariateEncoding:
     def __init__(self):
         self.model: dict[str, Union[ValGrpPartition, IntervalPartition]] = {}
         self.target_probs: dict[str, pd.DataFrame] = {}
+        self.uplift: dict[str, pd.DataFrame] = {}
 
     def fit_transform(self, data, treatment_col, target_col, maxpartnumber = None):
         """fit_transform() learns a discretisation model using UMODL and transforms the data.
@@ -331,10 +332,16 @@ class OptimizedUnivariateEncoding:
     def get_uplift(self, reftarget, reftreatment, variable):
         """get_uplift() gets the uplift for a single variable.
 
+        The results are both stored in the 'self.uplift' dictionary for future reference and returned for
+        convenience.
+
         The probabilities used for computations are the ones stored in the 'self.target_probs' dictionary.
         These should have been previously populated by a call to 'get_target_probability' with the same variable
         as specified in the call to this function.
         See explanations of the computations in the 'Returns' section below.
+
+        When called with the same variable as a previous call, in will not perform any calculation and will simply
+        return the entry already stored in 'self.uplift'.
         
         Parameters
         ----------
@@ -355,10 +362,12 @@ class OptimizedUnivariateEncoding:
                   the benefit (or deficit) of probabilities to have 'reftarget' as the outcome with the column's
                   treatment compared to the reference treatment.
         """
+        if variable in self.uplift:
+            return self.uplift[variable]
         # 'tut(s)': Treatment(s) Under Test
         tuts = [t for t in self.treatments if t != reftreatment]
         refprobs = self.target_probs[variable][ProbSpec(reftarget, reftreatment)]
-        return pd.DataFrame(
+        self.uplift[variable] = pd.DataFrame(
             {
                 **{"Part": self.target_probs[variable]["Part"]},
                 **{
@@ -367,3 +376,4 @@ class OptimizedUnivariateEncoding:
                 }
             }
         )
+        return self.uplift[variable]
