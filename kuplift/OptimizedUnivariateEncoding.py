@@ -272,6 +272,24 @@ class OptimizedUnivariateEncoding:
         return self.model[variable]
     
     def get_target_probability(self, variable):
+        """get_target_probability() gets the probabilities P(target|treatment) for each (target, treatment) pair.
+        
+        The probabilities are computed for a single variable.
+        The results are both stored in the 'self.target_probs' dictionary for future reference and returned for
+        convenience.
+        
+        Parameters
+        ----------
+        variable: str
+            The variable name.
+
+        Returns
+        -------
+        pd.DataFrame
+            The probabilities as a Dataframe containing:
+                - A column named 'Part' listing all the parts of the variable.
+                - One column per (target, treatment) pair.
+        """
         varcol = self.variable_cols[variable]
         treatment_target_pairs = [(treatment, target) for treatment in self.treatments for target in self.targets]
         partition = self.get_partition(variable)
