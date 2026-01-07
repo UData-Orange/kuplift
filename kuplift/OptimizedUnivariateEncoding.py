@@ -151,6 +151,18 @@ Interval partition
     {len(self.intervals)} intervals:
 {indent("\n".join(map(formatintervalline, self.intervals)), 4 * " ")}
 """[1:-1]
+    
+
+@dataclass
+class ProbSpec:
+    target: object
+    treatment: object
+
+    def __hash__(self):
+        return hash((self.target, self.treatment))
+    
+    def __str__(self):
+        return f"P({self.target}|{self.treatment})"
 
 
 class OptimizedUnivariateEncoding:
@@ -291,21 +303,21 @@ class OptimizedUnivariateEncoding:
                 - One column per (target, treatment) pair.
         """
         varcol = self.variable_cols[variable]
-        treatment_target_pairs = [(treatment, target) for treatment in self.treatments for target in self.targets]
+        treatment_target_pairs = [ProbSpec(target, treatment) for treatment in self.treatments for target in self.targets]
         partition = self.get_partition(variable)
         self.target_probs[variable] = pd.DataFrame(
             {
-                **{"Part": map(str, partition)},
+                **{"Part": partition},
                 **{
-                    f"P({target}|{treatment})": [
+                    probspec: [
                         len(
                             varcol[
-                                (self.treatment_col == treatment) & (self.target_col == target) & varcol.map(lambda elem: partition.transform_elem(elem) == i)
+                                (self.treatment_col == probspec.treatment) & (self.target_col == probspec.target) & varcol.map(lambda elem: partition.transform_elem(elem) == i)
                             ]
                         ) / len(varcol)
                         for i, _ in enumerate(partition)
                     ]
-                    for treatment, target in treatment_target_pairs
+                    for probspec in treatment_target_pairs
                 }
             }
         )
@@ -340,12 +352,12 @@ class OptimizedUnivariateEncoding:
         """
         # 'tut(s)': Treatment(s) Under Test
         tuts = [t for t in self.treatments if t != reftreatment]
-        refprobs = self.target_probs[variable][f"P({reftarget}|{reftreatment})"]
+        refprobs = self.target_probs[variable][ProbSpec(reftarget, reftreatment)]
         return pd.DataFrame(
             {
                 **{"Part": self.target_probs[variable]["Part"]},
                 **{
-                    f"Up {reftarget} {treatment}": self.target_probs[variable][f"P({reftarget}|{treatment})"] - refprobs
+                    f"Up {reftarget} {treatment}": self.target_probs[variable][ProbSpec(reftarget, treatment)] - refprobs
                     for treatment in tuts
                 }
             }
