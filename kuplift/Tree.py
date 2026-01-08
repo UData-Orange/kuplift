@@ -10,11 +10,11 @@
 import numpy as np
 import pandas as pd
 from math import log
-from .HelperFunctions import (
+from .helperfunctions import (
     log_fact,
     universal_code_natural_numbers,
 )
-from .Node import _Node
+from .node import _Node
 
 
 class _Tree:

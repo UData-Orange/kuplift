@@ -1,42 +1,42 @@
 Documentation
 =============
 
-kuplift.BayesianDecisionTree module
------------------------------------
+kuplift.bayesian_decision_tree module
+-------------------------------------
 
-.. automodule:: kuplift.BayesianDecisionTree
+.. automodule:: kuplift.bayesian_decision_tree
    :members:
    :undoc-members:
    :show-inheritance:
 
-kuplift.BayesianRandomForest module
------------------------------------
+kuplift.bayesian_random_forest module
+-------------------------------------
 
-.. automodule:: kuplift.BayesianRandomForest
+.. automodule:: kuplift.bayesian_random_forest
    :members:
    :undoc-members:
    :show-inheritance:
 
-kuplift.FeatureSelection module
--------------------------------
+kuplift.feature_selection module
+--------------------------------
 
-.. automodule:: kuplift.FeatureSelection
+.. automodule:: kuplift.feature_selection
    :members:
    :undoc-members:
    :show-inheritance:
 
-kuplift.UnivariateEncoding module
----------------------------------
+kuplift.univariate_encoding module
+----------------------------------
 
-.. automodule:: kuplift.UnivariateEncoding
+.. automodule:: kuplift.univariate_encoding
    :members:
    :undoc-members:
    :show-inheritance:
 
-kuplift.OptimizedUnivariateEncoding module
-------------------------------------------
+kuplift.optimized_univariate_encoding module
+--------------------------------------------
 
-.. automodule:: kuplift.OptimizedUnivariateEncoding
+.. automodule:: kuplift.optimized_univariate_encoding
    :members:
    :undoc-members:
    :show-inheritance:

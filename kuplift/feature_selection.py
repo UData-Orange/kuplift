@@ -8,8 +8,8 @@
 # * See the "LICENSE.md" file for more details.                                      #
 ######################################################################################
 import multiprocessing as mp
-from .HelperFunctions import preprocess_data
-from .UMODL_SearchAlgorithm import execute_greedy_search_and_post_opt
+from .helperfunctions import preprocess_data
+from .umodl_search_algorithm import execute_greedy_search_and_post_opt
 import pandas as pd
 
 

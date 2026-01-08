@@ -10,11 +10,11 @@
 from math import log
 import numpy as np
 import random
-from .HelperFunctions import (
+from .helperfunctions import (
     log_fact,
     universal_code_natural_numbers,
 )
-from .Tree import _Tree
+from .tree import _Tree
 
 
 class _UpliftTreeClassifier(_Tree):

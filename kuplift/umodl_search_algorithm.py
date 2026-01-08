@@ -11,8 +11,8 @@ import numpy as np
 from math import log
 from operator import add, sub, itemgetter
 from sortedcontainers import SortedKeyList
-from .HelperFunctions import log_fact, log_binomial_coefficient
-from .BinaryDiscretizationFunctions import start_counter, stop_counter
+from .helperfunctions import log_fact, log_binomial_coefficient
+from .binary_discretization_functions import start_counter, stop_counter
 
 
 class _Interval:

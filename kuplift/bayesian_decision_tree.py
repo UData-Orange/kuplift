@@ -8,11 +8,11 @@
 # * See the "LICENSE.md" file for more details.                                      #
 ######################################################################################
 from math import log
-from .HelperFunctions import (
+from .helperfunctions import (
     log_fact,
     universal_code_natural_numbers,
 )
-from .Tree import _Tree
+from .tree import _Tree
 
 
 class BayesianDecisionTree(_Tree):

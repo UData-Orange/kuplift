@@ -11,7 +11,7 @@ import bisect
 from math import log
 import pandas as pd
 import time
-from .HelperFunctions import (
+from .helperfunctions import (
     _log_fact_table,
     log_fact,
     log_binomial_coefficient,

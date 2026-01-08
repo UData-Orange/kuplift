@@ -7,8 +7,8 @@
 # * Unauthorized copying of this file, via any medium is strictly prohibited.        #
 # * See the "LICENSE.md" file for more details.                                      #
 ######################################################################################
-from .BinaryDiscretizationFunctions import umodl_binary_discretization
-from .HelperFunctions import (
+from .binary_discretization_functions import umodl_binary_discretization
+from .helperfunctions import (
     log_fact,
     log_binomial_coefficient,
 )
