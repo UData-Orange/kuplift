@@ -145,9 +145,7 @@ class IntervalPartition(Partition):
 
     def transform_elem(self, elem):
         if not isinstance(elem, (int, float)) or math.isnan(elem):
-            if self.intervals[0].catches_missing:
-                return 0
-            raise ValueError(f"cannot transform element of type {type(elem)} when there is no dedicated 'MISSING' interval")
+            return 0
         for i, interval in enumerate(self.intervals):
             if elem in interval:
                 return i
