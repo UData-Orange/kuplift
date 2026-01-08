@@ -1,9 +1,7 @@
 """Optimized univariate encoding example code.
 
-Executing this code will generate a model from the data file.
-From this point you can call other methods of the 'OptimizedUnivariateEncoding'
-class, such as 'get_target_probabilities' and 'get_uplift'.
-See the comments at the end of the code for examples of what you can do.
+Executing this code will generate a model from the data file and print various
+statistics.
 """
 
 import pandas as pd
@@ -14,6 +12,10 @@ treatment_col = df["TRAITEMENT"]
 target_col = df["CIBLE"]
 ue = kp.OptimizedUnivariateEncoding()
 ue.fit(data, treatment_col, target_col)
-# >>> ue.get_levels()
-# >>> ue.get_target_probabilities("VAR1")
-# >>> ue.get_uplift(1, "T0", "VAR1")
+print("\nModel generation complete.")
+input("\nPress enter to display the variable levels...")
+print(ue.get_levels())
+input("\nPress enter to display the target probabilities for variable 'VAR1'...")
+print(ue.get_target_probabilities("VAR1"))
+input("\nPress enter to display the uplift for variable 'VAR1'...")
+print(ue.get_uplift(1, "T0", "VAR1"))
