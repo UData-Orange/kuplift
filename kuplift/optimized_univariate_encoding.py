@@ -205,24 +205,6 @@ class OptimizedUnivariateEncoding:
 
     target_col: Series
         The target column from the dataset.
-
-    input_variables: list of str
-        The names of the variables.
-
-    treatment_name: str
-        The name of the treatment column.
-
-    target_name: str
-        The name of the target column.
-
-    treatment_modalities: list
-        All the different treatments from the dataset.
-
-    target_modalities: list
-        All the different targets from the dataset.
-
-    target_treatment_pairs: list of TargetTreatmentPair
-        All (target, treatment) pairs.
     """
 
     def __init__(self):
@@ -234,26 +216,50 @@ class OptimizedUnivariateEncoding:
 
     @property
     def input_variables(self):
+        """list of str
+        
+        The names of the variables.
+        """
         return self.variable_cols.columns.to_list()
     
     @property
     def treatment_name(self):
+        """str
+        
+        The name of the treatment column.
+        """
         return self.treatment_col.name
     
     @property
     def target_name(self):
+        """str
+        
+        The name of the target column.
+        """
         return self.target_col.name
     
     @property
     def treatment_modalities(self):
+        """list
+        
+        All the different treatments from the dataset.
+        """
         return list(self.treatment_col.unique())
     
     @property
     def target_modalities(self):
+        """list
+        
+        All the different targets from the dataset.
+        """
         return list(self.target_col.unique())
     
     @property
     def target_treatment_pairs(self):
+        """list of TargetTreatmentPair
+        
+        All (target, treatment) pairs.
+        """
         return [TargetTreatmentPair(target, treatment) for target in self.target_modalities for treatment in self.treatment_modalities]
 
     def fit_transform(self, data, treatment_col, target_col, maxpartnumber = None):
