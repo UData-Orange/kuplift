@@ -14,5 +14,6 @@ treatment_col = df["TRAITEMENT"]
 target_col = df["CIBLE"]
 ue = kp.OptimizedUnivariateEncoding()
 ue.fit(data, treatment_col, target_col)
+# >>> ue.get_levels()
 # >>> ue.get_target_probability("VAR1")
 # >>> ue.get_uplift(1, "T0", "VAR1")

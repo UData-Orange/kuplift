@@ -195,6 +195,9 @@ class OptimizedUnivariateEncoding:
         It describes the partitioning of values of informative variables into groups or intervals.
         It maps the informative variable names to value partitions.
 
+    levels: list of (str, float) pairs
+        A list of (variable-name, variable-level) pairs in decreasing level order.
+
     target_probs: dict mapping str to DataFrame
         A dictionary mapping informative variable names to dataframes containing the probabilities to
         have 'target' as outcome for treatment 'treatment' for all ('target', 'treatment') pairs.
@@ -227,6 +230,7 @@ class OptimizedUnivariateEncoding:
 
     def __init__(self):
         self.model: dict[str, Union[ValGrpPartition, IntervalPartition]] = {}
+        self.levels: list[tuple[str, float]] = []
         self.target_probs: dict[str, pd.DataFrame] = {}
         self.uplift: dict[str, pd.DataFrame] = {}
         self.variable_cols = None
@@ -234,6 +238,18 @@ class OptimizedUnivariateEncoding:
         self.target_col = None
         self.treatments = None
         self.targets = None
+
+    @property
+    def input_variables(self):
+        return self.variable_cols.columns.to_list()
+    
+    @property
+    def treatment_name(self):
+        return self.treatment_col.name
+    
+    @property
+    def target_name(self):
+        return self.target_col.name
 
     def fit_transform(self, data, treatment_col, target_col, maxpartnumber = None):
         """fit_transform() learns a discretisation model using UMODL and transforms the data.
@@ -305,6 +321,10 @@ class OptimizedUnivariateEncoding:
                 elif vardim['partitionType'] == 'Intervals':
                     self.model[vardim['variable']] = IntervalPartition(list(starmap(Interval, vardim['partition'])))
                 else: raise ValueError("unsupported partition type")
+            self.levels = sorted(
+                ((attr['name'], attr['level']) for attr in docroot['attributes']),
+                key=lambda namelevel: (-namelevel[1], namelevel[0])
+            )
 
         self.variable_cols = data
         self.treatment_col = treatment_col
@@ -328,6 +348,16 @@ class OptimizedUnivariateEncoding:
         data = data[list(self.model.keys())]  # Keep only informative variables
         self.transformed_data = data.transform(lambda col: self.model[col.name].transform(col))
         return self.transformed_data
+    
+    def get_levels(self):
+        """get_levels() gets the levels of all informative variables.
+        
+        Returns
+        -------
+        list[tuple[str, float]]
+            A list of (variable-name, variable-level) pairs in decreasing level order.
+        """
+        return self.levels
     
     def get_partition(self, variable):
         """get_partition() gets the partition corresponding to a single variable of the model.
