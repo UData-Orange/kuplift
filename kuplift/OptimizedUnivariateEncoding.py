@@ -27,7 +27,6 @@ import json
 from typing import Optional, Sequence, Union
 from itertools import starmap
 from dataclasses import dataclass
-from textwrap import indent
 from abc import ABC, abstractmethod
 import khiops.sklearn.dataset
 import pandas as pd
@@ -54,7 +53,7 @@ class ValGrpPartition(Partition):
     
     Attributes
     ----------
-        groups : Sequence[ValGrp]
+        groups: Sequence[ValGrp]
             The groups. Each group is an iterable of its values.
         defaultgroupindex: int
             The group index affected to transformed elements when they do not explicitly appear in any group.
@@ -168,10 +167,11 @@ Interval partition
     
 
 @dataclass
-class ProbSpec:
-    """Probability specification.
+class TargetTreatmentPair:
+    """Target-treatment pair.
 
-    Used to identify a probability by a target and a treatment.
+    Used to identify both a target and a treatment.
+    This class only exists for the purpose of formatting.
     """
 
     target: object
@@ -196,39 +196,43 @@ class OptimizedUnivariateEncoding:
         It maps the informative variable names to value partitions.
 
     levels: list of (str, float) pairs
-        A list of (variable-name, variable-level) pairs in decreasing level order.
-
-    target_probs: dict mapping str to DataFrame
-        A dictionary mapping informative variable names to dataframes containing the probabilities to
-        have 'target' as outcome for treatment 'treatment' for all ('target', 'treatment') pairs.
-        This dictionary is populated when 'get_target_probability' is called.
+        (variable-name, variable-level) pairs in decreasing level order.
 
     variable_cols: DataFrame
-        A dataframe containing the data column for all variables.
+        The data columns of all variables.
         This means all the data from the dataset but the treatment and target columns.
 
     treatment_col: Series
-        A series containing the treatment column from the dataset.
+        The treatment column from the dataset.
 
     target_col: Series
-        A series containing the target columns from the dataset.
+        The target column from the dataset.
 
-    treatment_modalities: ndarray
-        An array containing all the different treatments from the dataset.
+    input_variables: list of str
+        The names of the variables.
 
-    target_modalities: ndarray
-        An array containing all the different targets from the dataset.
+    treatment_name: str
+        The name of the treatment column.
+
+    target_name: str
+        The name of the target column.
+
+    treatment_modalities: list
+        All the different treatments from the dataset.
+
+    target_modalities: list
+        All the different targets from the dataset.
+
+    target_treatment_pairs: list of TargetTreatmentPair
+        All (target, treatment) pairs.
     """
 
     def __init__(self):
         self.model: dict[str, Union[ValGrpPartition, IntervalPartition]] = {}
         self.levels: list[tuple[str, float]] = []
-        self.target_probs: dict[str, pd.DataFrame] = {}
         self.variable_cols = None
         self.treatment_col = None
         self.target_col = None
-        self.treatment_modalities = None
-        self.target_modalities = None
 
     @property
     def input_variables(self):
@@ -241,21 +245,33 @@ class OptimizedUnivariateEncoding:
     @property
     def target_name(self):
         return self.target_col.name
+    
+    @property
+    def treatment_modalities(self):
+        return list(self.treatment_col.unique())
+    
+    @property
+    def target_modalities(self):
+        return list(self.target_col.unique())
+    
+    @property
+    def target_treatment_pairs(self):
+        return [TargetTreatmentPair(target, treatment) for target in self.target_modalities for treatment in self.treatment_modalities]
 
     def fit_transform(self, data, treatment_col, target_col, maxpartnumber = None):
-        """fit_transform() learns a discretisation model using UMODL and transforms the data.
+        """Learn a discretisation model using UMODL and transform the data.
 
         Parameters
         ----------
-        data : pd.DataFrame
+        data: pd.DataFrame
             Dataframe containing feature variables. Categorical
             variables should have the object dtype, otherwise they
             are processed as numerical variables.
-        treatment_col : pd.Series
+        treatment_col: pd.Series
             Treatment column.
-        target_col : pd.Series
+        target_col: pd.Series
             Outcome column.
-        maxpartnumber : int, default=None
+        maxpartnumber: int, default=None
             The maximal number of intervals or groups. None means default to the 'umodl' program default.
 
         Returns
@@ -267,19 +283,19 @@ class OptimizedUnivariateEncoding:
         return self.transform(data)
     
     def fit(self, data, treatment_col, target_col, maxpartnumber = None):
-        """fit() learns a discretisation model using UMODL.
+        """Learn a discretisation model using UMODL.
 
         Parameters
         ----------
-        data : pd.DataFrame
+        data: pd.DataFrame
             Dataframe containing feature variables. Categorical
             variables should have the object dtype, otherwise they
             are processed as numerical variables.
-        treatment_col : pd.Series
+        treatment_col: pd.Series
             Treatment column.
-        target_col : pd.Series
+        target_col: pd.Series
             Outcome column.
-        maxpartnumber : int, default=None
+        maxpartnumber: int, default=None
             The maximal number of intervals or groups. None means default to the 'umodl' program default.
         """
         # Force the types of the treatment and target columns so that khiops lib understands they are categorical
@@ -304,32 +320,34 @@ class OptimizedUnivariateEncoding:
             with open(txtfilepath.with_name(f"UP_{txtfilepath.stem}.json")) as jsonfile:
                 docroot = json.load(jsonfile)
 
-            self.model = {}
-            for variable in docroot['detailed statistics']:
-                vardim = variable['dataGrid']['dimensions'][0]
-                if vardim['partitionType'] == 'Value groups':
-                    self.model[vardim['variable']] = ValGrpPartition(list(map(ValGrp, vardim['partition'])), vardim['defaultGroupIndex'])
-                elif vardim['partitionType'] == 'Intervals':
-                    self.model[vardim['variable']] = IntervalPartition(list(starmap(Interval, vardim['partition'])))
-                else: raise ValueError("unsupported partition type")
-            self.levels = sorted(
-                ((attr['name'], attr['level']) for attr in docroot['attributes']),
-                key=lambda namelevel: (-namelevel[1], namelevel[0])
-            )
+        model = {}
+        for variable in docroot['detailed statistics']:
+            vardim = variable['dataGrid']['dimensions'][0]
+            if vardim['partitionType'] == 'Value groups':
+                model[vardim['variable']] = ValGrpPartition(list(map(ValGrp, vardim['partition'])), vardim['defaultGroupIndex'])
+            elif vardim['partitionType'] == 'Intervals':
+                model[vardim['variable']] = IntervalPartition(list(starmap(Interval, vardim['partition'])))
+            else: raise ValueError("unsupported partition type")
 
+        levels = sorted(
+            ((attr['name'], attr['level']) for attr in docroot['attributes']),
+            key=lambda namelevel: (-namelevel[1], namelevel[0])
+        )
+
+        # Only write to the instance's attributes if all the above succeeded.
+        self.model = model
+        self.levels = levels
         self.variable_cols = data
         self.treatment_col = treatment_col
         self.target_col = target_col
-        self.treatment_modalities = list(self.treatment_col.unique())
-        self.target_modalities = list(self.target_col.unique())
-        self.target_probs = {}
+
 
     def transform(self, data):
-        """transform() applies the discretisation model learned by the fit() method.
+        """Apply the discretisation model learned by the fit() method.
 
         Parameters
         ----------
-        data : pd.DataFrame
+        data: pd.DataFrame
             Dataframe containing feature variables.
 
         Returns
@@ -342,21 +360,21 @@ class OptimizedUnivariateEncoding:
         return self.transformed_data
     
     def get_levels(self):
-        """get_levels() gets the levels of all informative variables.
+        """Get the level of all variables.
         
         Returns
         -------
         list[tuple[str, float]]
-            A list of (variable-name, variable-level) pairs in decreasing level order.
+            (variable-name, variable-level) pairs in decreasing level order.
         """
         return self.levels
     
     def get_partition(self, variable):
-        """get_partition() gets the partition corresponding to a single variable of the model.
+        """Get the partition corresponding to a single variable of the model.
 
         Parameters
         ----------
-        variable : str
+        variable: str
             The variable name.
         
         Returns
@@ -366,8 +384,44 @@ class OptimizedUnivariateEncoding:
         """
         return self.model[variable]
     
-    def get_target_probability(self, variable):
-        """get_target_probability() gets the probabilities P(target|treatment) for each (target, treatment) pair.
+    def get_target_frequencies(self, variable):
+        """Get the frequencies for each (target, treatment) pair.
+        
+        The frequencies are computed for a single variable.
+        
+        Parameters
+        ----------
+        variable: str
+            The variable name.
+
+        Returns
+        -------
+        pd.DataFrame
+            The frequencies as a Dataframe containing:
+                - A column named 'Part' listing all the parts of the variable.
+                - One column per (target, treatment) pair.
+        """
+        varcol = self.variable_cols[variable]
+        partition = self.get_partition(variable)
+        return pd.DataFrame(
+            {
+                **{"Part": partition},
+                **{
+                    ttpair: [
+                        len(
+                            varcol[
+                                (self.treatment_col == ttpair.treatment) & (self.target_col == ttpair.target) & varcol.map(lambda elem: partition.transform_elem(elem) == i)
+                            ]
+                        )
+                        for i, _ in enumerate(partition)
+                    ]
+                    for ttpair in self.target_treatment_pairs
+                }
+            }
+        )
+    
+    def get_target_probabilities(self, variable):
+        """Get the probabilities P(target|treatment) for each (target, treatment) pair.
         
         The probabilities are computed for a single variable.
         
@@ -383,33 +437,14 @@ class OptimizedUnivariateEncoding:
                 - A column named 'Part' listing all the parts of the variable.
                 - One column per (target, treatment) pair.
         """
-        varcol = self.variable_cols[variable]
-        treatment_target_pairs = [ProbSpec(target, treatment) for treatment in self.treatment_modalities for target in self.target_modalities]
-        partition = self.get_partition(variable)
-        self.target_probs[variable] = pd.DataFrame(
-            {
-                **{"Part": partition},
-                **{
-                    probspec: [
-                        len(
-                            varcol[
-                                (self.treatment_col == probspec.treatment) & (self.target_col == probspec.target) & varcol.map(lambda elem: partition.transform_elem(elem) == i)
-                            ]
-                        ) / len(varcol)
-                        for i, _ in enumerate(partition)
-                    ]
-                    for probspec in treatment_target_pairs
-                }
-            }
-        )
-        return self.target_probs[variable]
+        return self.get_target_frequencies(variable).transform({
+            "Part": lambda x: x,
+            **{ttpair: lambda x: x / len(self.variable_cols) for ttpair in self.target_treatment_pairs}
+        })
     
     def get_uplift(self, reftarget, reftreatment, variable):
-        """get_uplift() gets the uplift for a single variable.
+        """Get the uplift for a single variable.
 
-        The probabilities used for computations are the ones stored in the 'self.target_probs' dictionary.
-        These should have been previously populated by a call to 'get_target_probability' with the same variable
-        as specified in the call to this function.
         See explanations of the computations in the 'Returns' section below.
         
         Parameters
@@ -425,16 +460,15 @@ class OptimizedUnivariateEncoding:
         -------
         pd.DataFrame
             A Dataframe containing:
-                - A column named 'Part' as for the target probability Dataframes stored in 'self.target_probs'.
+                - A column named 'Part' listing all the parts of the variable.
                 - One column per treatment other than the reference treatment.
                   A column gives the difference P(reftarget|treatment) - P(reftarget|reftreatment), that is,
                   the benefit (or deficit) of probabilities to have 'reftarget' as the outcome with the column's
                   treatment compared to the reference treatment.
         """
-        # 'tut(s)': Treatment(s) Under Test
-        tuts = [t for t in self.treatment_modalities if t != reftreatment]
-        refprobs = self.target_probs[variable][ProbSpec(reftarget, reftreatment)]
-        return self.target_probs[variable]["Part"].to_frame().join(pd.DataFrame({
-            f"Uplift {reftarget} {treatment}": self.target_probs[variable][ProbSpec(reftarget, treatment)] - refprobs
-            for treatment in tuts
+        probs = self.get_target_probabilities(variable)
+        refprobs = probs[TargetTreatmentPair(reftarget, reftreatment)]
+        return probs["Part"].to_frame().join(pd.DataFrame({
+            f"Uplift {reftarget} {treatment}": probs[TargetTreatmentPair(reftarget, treatment)] - refprobs
+            for treatment in self.treatment_modalities if treatment != reftreatment
         }))
