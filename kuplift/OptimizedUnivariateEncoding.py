@@ -203,14 +203,6 @@ class OptimizedUnivariateEncoding:
         have 'target' as outcome for treatment 'treatment' for all ('target', 'treatment') pairs.
         This dictionary is populated when 'get_target_probability' is called.
 
-    uplift: dict mapping str to DataFrame
-        A dictionary mapping informative variable names to dataframes containing the difference between
-        the probabilities to have some reference target as outcome for some treatment under test and
-        the probabilities to have that same reference target as outcome for some reference treatment.
-        Each dataframe contains the probability differences for all treatments under test, that is,
-        all treatments but the reference one.
-        This dictionary is populated when 'get_uplift' is called.
-
     variable_cols: DataFrame
         A dataframe containing the data column for all variables.
         This means all the data from the dataset but the treatment and target columns.
@@ -221,10 +213,10 @@ class OptimizedUnivariateEncoding:
     target_col: Series
         A series containing the target columns from the dataset.
 
-    treatments: ndarray
+    treatment_modalities: ndarray
         An array containing all the different treatments from the dataset.
 
-    targets: ndarray
+    target_modalities: ndarray
         An array containing all the different targets from the dataset.
     """
 
@@ -232,12 +224,11 @@ class OptimizedUnivariateEncoding:
         self.model: dict[str, Union[ValGrpPartition, IntervalPartition]] = {}
         self.levels: list[tuple[str, float]] = []
         self.target_probs: dict[str, pd.DataFrame] = {}
-        self.uplift: dict[str, pd.DataFrame] = {}
         self.variable_cols = None
         self.treatment_col = None
         self.target_col = None
-        self.treatments = None
-        self.targets = None
+        self.treatment_modalities = None
+        self.target_modalities = None
 
     @property
     def input_variables(self):
@@ -329,8 +320,9 @@ class OptimizedUnivariateEncoding:
         self.variable_cols = data
         self.treatment_col = treatment_col
         self.target_col = target_col
-        self.treatments = self.treatment_col.unique()
-        self.targets = self.target_col.unique()
+        self.treatment_modalities = list(self.treatment_col.unique())
+        self.target_modalities = list(self.target_col.unique())
+        self.target_probs = {}
 
     def transform(self, data):
         """transform() applies the discretisation model learned by the fit() method.
@@ -378,11 +370,6 @@ class OptimizedUnivariateEncoding:
         """get_target_probability() gets the probabilities P(target|treatment) for each (target, treatment) pair.
         
         The probabilities are computed for a single variable.
-        The results are both stored in the 'self.target_probs' dictionary for future reference and returned for
-        convenience.
-
-        When called with the same variable as a previous call, in will not perform any calculation and will simply
-        return the entry already stored in 'self.target_probs'.
         
         Parameters
         ----------
@@ -396,10 +383,8 @@ class OptimizedUnivariateEncoding:
                 - A column named 'Part' listing all the parts of the variable.
                 - One column per (target, treatment) pair.
         """
-        if variable in self.target_probs:
-            return self.target_probs[variable]
         varcol = self.variable_cols[variable]
-        treatment_target_pairs = [ProbSpec(target, treatment) for treatment in self.treatments for target in self.targets]
+        treatment_target_pairs = [ProbSpec(target, treatment) for treatment in self.treatment_modalities for target in self.target_modalities]
         partition = self.get_partition(variable)
         self.target_probs[variable] = pd.DataFrame(
             {
@@ -422,16 +407,10 @@ class OptimizedUnivariateEncoding:
     def get_uplift(self, reftarget, reftreatment, variable):
         """get_uplift() gets the uplift for a single variable.
 
-        The results are both stored in the 'self.uplift' dictionary for future reference and returned for
-        convenience.
-
         The probabilities used for computations are the ones stored in the 'self.target_probs' dictionary.
         These should have been previously populated by a call to 'get_target_probability' with the same variable
         as specified in the call to this function.
         See explanations of the computations in the 'Returns' section below.
-
-        When called with the same variable as a previous call, in will not perform any calculation and will simply
-        return the entry already stored in 'self.uplift'.
         
         Parameters
         ----------
@@ -452,13 +431,10 @@ class OptimizedUnivariateEncoding:
                   the benefit (or deficit) of probabilities to have 'reftarget' as the outcome with the column's
                   treatment compared to the reference treatment.
         """
-        if variable in self.uplift:
-            return self.uplift[variable]
         # 'tut(s)': Treatment(s) Under Test
-        tuts = [t for t in self.treatments if t != reftreatment]
+        tuts = [t for t in self.treatment_modalities if t != reftreatment]
         refprobs = self.target_probs[variable][ProbSpec(reftarget, reftreatment)]
-        self.uplift[variable] = self.target_probs[variable]["Part"].to_frame().join(pd.DataFrame({
-            f"Up {reftarget} {treatment}": self.target_probs[variable][ProbSpec(reftarget, treatment)] - refprobs
+        return self.target_probs[variable]["Part"].to_frame().join(pd.DataFrame({
+            f"Uplift {reftarget} {treatment}": self.target_probs[variable][ProbSpec(reftarget, treatment)] - refprobs
             for treatment in tuts
         }))
-        return self.uplift[variable]
