@@ -441,10 +441,19 @@ class OptimizedUnivariateEncoding:
                 - A column named 'Part' listing all the parts of the variable.
                 - One column per (target, treatment) pair.
         """
-        return self.get_target_frequencies(variable).transform({
-            "Part": lambda x: x,
-            **{ttpair: lambda x: x / len(self.variable_cols) for ttpair in self.target_treatment_pairs}
-        })
+        freqs = self.get_target_frequencies(variable)
+        return freqs["Part"].to_frame().join(
+            pd.DataFrame({
+                ttpair: [
+                    freqs[ttpair][freqs["Part"] == part].sum() / freqs[
+                        [TargetTreatmentPair(target, ttpair.treatment) for target in self.target_modalities]
+                    ][freqs["Part"] == part].sum().sum()
+                    for part in self.get_partition(variable)
+                ]
+                for ttpair in self.target_treatment_pairs
+            })
+        )
+
     
     def get_uplift(self, reftarget, reftreatment, variable):
         """Get the uplift for a single variable.
