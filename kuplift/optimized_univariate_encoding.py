@@ -43,9 +43,18 @@ class Partition(ABC):
         return iter(self.parts)
     
 
-class ValGrp(list):
+class ValGrp:
+    def __init__(self, lst):
+        self.lst = lst
+
+    def __repr__(self):
+        return f"ValGrp({self.lst!r})"
+
     def __str__(self):
-        return "{%s}" % ", ".join(self)
+        return "{%s}" % ", ".join(self.lst)
+    
+    def __contains__(self, x):
+        return x in self.lst
 
 
 class ValGrpPartition(Partition):
@@ -179,7 +188,7 @@ class TargetTreatmentPair:
         return hash((self.target, self.treatment))
     
     def __str__(self):
-        return f"P({self.target}|{self.treatment})"
+        return f"({self.target}|{self.treatment})"
 
 
 class OptimizedUnivariateEncoding:
