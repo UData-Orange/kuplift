@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.abspath("../.."))
 project = "kuplift"
 copyright = "2025, Orange"
 author = "Orange"
-release = "0.0.12"
+release = "0.0.13"
 
 # Be strict about any broken references
 nitpicky = True
