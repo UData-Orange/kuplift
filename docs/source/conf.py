@@ -12,9 +12,9 @@ sys.path.insert(0, os.path.abspath("../.."))
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 project = "kuplift"
-copyright = "2025, Orange"
+copyright = "2026, Orange"
 author = "Orange"
-release = "0.0.13"
+release = "0.0.14"
 
 # Be strict about any broken references
 nitpicky = True
