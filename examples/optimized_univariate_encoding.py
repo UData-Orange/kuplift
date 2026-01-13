@@ -1,3 +1,7 @@
+# Copyright (c) 2026 Orange. All rights reserved.
+# This software is distributed under the MIT License, the text of which is available
+# at https://spdx.org/licenses/MIT.html or see the "LICENSE" file for more details.
+
 """Optimized univariate encoding example code.
 
 Executing this code will generate a model from the data file and print various

@@ -1,12 +1,7 @@
-######################################################################################
-# Copyright (c) 2023 Orange - All Rights Reserved                             #
-# * This software is the confidential and proprietary information of Orange.         #
-# * You shall not disclose such Restricted Information and shall use it only in      #
-#   accordance with the terms of the license agreement you entered into with Orange  #
-#   named the "kuplift - Python Library Evaluation License".                          #
-# * Unauthorized copying of this file, via any medium is strictly prohibited.        #
-# * See the "LICENSE.md" file for more details.                                      #
-######################################################################################
+# Copyright (c) 2026 Orange. All rights reserved.
+# This software is distributed under the MIT License, the text of which is available
+# at https://spdx.org/licenses/MIT.html or see the "LICENSE" file for more details.
+
 import bisect
 from math import log
 import pandas as pd
