@@ -376,6 +376,21 @@ class OptimizedUnivariateEncoding:
         """
         return self.levels
     
+    def get_level(self, variable):
+        """Get the level of a single variable.
+
+        Parameters
+        ----------
+        variable: str
+            The variable to get the level from.
+        
+        Returns
+        -------
+        float
+            The level of the specified variable.
+        """
+        return dict(self.levels)[variable]
+    
     def get_partition(self, variable):
         """Get the partition corresponding to a single variable of the model.
 
