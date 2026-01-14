@@ -2,18 +2,116 @@
 # This software is distributed under the MIT License, the text of which is available
 # at https://spdx.org/licenses/MIT.html or see the "LICENSE" file for more details.
 
-import pytest
 import re
+from math import inf
+import pytest
 import pandas as pd
 from kuplift import OptimizedUnivariateEncoding
+from kuplift.optimized_univariate_encoding import TargetTreatmentPair as TT, ValGrpPartition, ValGrp, IntervalPartition, Interval
 
-def test_fit_transform_a(test_dataframe_with_categorical_variable):
-    test_dataframe = test_dataframe_with_categorical_variable
+def test_input_variables(opt_ue_with_catvar):
+    assert opt_ue_with_catvar.input_variables == ["VAR1", "VAR2", "VAR3", "VAR4"]
+    assert opt_ue_with_catvar.informative_input_variables == ["VAR1", "VAR2", "VAR3"]
+    assert opt_ue_with_catvar.noninformative_input_variables == ["VAR4"]
+
+def test_treatment_name(opt_ue_with_catvar):
+    assert opt_ue_with_catvar.treatment_name == "TRAITEMENT"
+
+def test_target_name(opt_ue_with_catvar):
+    assert opt_ue_with_catvar.target_name == "CIBLE"
+
+def test_treatment_modalities(opt_ue_with_catvar):
+    assert set(opt_ue_with_catvar.treatment_modalities) == {"T0", "T1"}
+
+def test_target_modalities(opt_ue_with_catvar):
+    assert set(opt_ue_with_catvar.target_modalities) == {0, 1}
+
+def test_target_treatment_pairs(opt_ue_with_catvar):
+    assert set(opt_ue_with_catvar.target_treatment_pairs) == {TT(0, "T0"), TT(1, "T0"), TT(0, "T1"), TT(1, "T1")}
+
+def test_get_levels(opt_ue_with_catvar):
+    assert opt_ue_with_catvar.get_levels() == [("VAR2", 0.973101), ("VAR1", 0.883716), ("VAR3", 0.881227), ("VAR4", 0)]
+
+def test_get_level(opt_ue_with_catvar):
+    assert opt_ue_with_catvar.get_level("VAR1") == 0.883716
+    assert opt_ue_with_catvar.get_level("VAR2") == 0.973101
+    assert opt_ue_with_catvar.get_level("VAR3") == 0.881227
+    assert opt_ue_with_catvar.get_level("VAR4") == 0
+
+def test_get_partition(opt_ue_with_catvar):
+    assert opt_ue_with_catvar.get_partition("VAR1") == IntervalPartition([Interval(lower=None, upper=None),
+                                                                          Interval(lower=-inf, upper=2.0004),
+                                                                          Interval(lower=2.0004, upper=3.00025),
+                                                                          Interval(lower=3.00025, upper=4),
+                                                                          Interval(lower=4, upper=4.9983),
+                                                                          Interval(lower=4.9983, upper=5.991),
+                                                                          Interval(lower=5.991, upper=7.0002),
+                                                                          Interval(lower=7.0002, upper=8.0009),
+                                                                          Interval(lower=8.0009, upper=9),
+                                                                          Interval(lower=9, upper=inf)])
+    assert opt_ue_with_catvar.get_partition("VAR2") == ValGrpPartition([ValGrp(['8', '6', '0', '4', '2']),
+                                                                        ValGrp(['3', '7', '1', '5', '9'])],
+                                                                        1)
+    assert opt_ue_with_catvar.get_partition("VAR3") == IntervalPartition([Interval(lower=-inf, upper=12.004),
+                                                                          Interval(lower=12.004, upper=14.0009),
+                                                                          Interval(lower=14.0009, upper=16.0005),
+                                                                          Interval(lower=16.0005, upper=18),
+                                                                          Interval(lower=18, upper=19.99999),
+                                                                          Interval(lower=19.99999, upper=21.983),
+                                                                          Interval(lower=21.983, upper=24.0004),
+                                                                          Interval(lower=24.0004, upper=25.9957),
+                                                                          Interval(lower=25.9957, upper=28),
+                                                                          Interval(lower=28, upper=inf)])
+
+def test_get_target_frequencies(opt_ue_with_catvar):
+    assert repr(opt_ue_with_catvar.get_target_frequencies("VAR1")) == """
+                Part  (1|T1)  (1|T0)  (0|T1)  (0|T0)
+0                 []     110       0       0     100
+1     [-inf, 2.0004[       0      92     100       0
+2  [2.0004, 3.00025[      95       0       0      97
+3       [3.00025, 4[       0     108     107       0
+4        [4, 4.9983[      97       0       0     106
+5    [4.9983, 5.991[       0      93      97       1
+6    [5.991, 7.0002[     106       0       0     113
+7   [7.0002, 8.0009[       1      91     103       0
+8        [8.0009, 9[     101       0       0     118
+9           [9, inf[       0      81      83       0"""[1:]
+
+def test_get_target_probabilities(opt_ue_with_catvar):
+    assert repr(opt_ue_with_catvar.get_target_probabilities("VAR1")) == """
+                Part    (1|T1)    (1|T0)    (0|T1)    (0|T0)
+0                 []  1.000000  0.000000  0.000000  1.000000
+1     [-inf, 2.0004[  0.000000  1.000000  1.000000  0.000000
+2  [2.0004, 3.00025[  1.000000  0.000000  0.000000  1.000000
+3       [3.00025, 4[  0.000000  1.000000  1.000000  0.000000
+4        [4, 4.9983[  1.000000  0.000000  0.000000  1.000000
+5    [4.9983, 5.991[  0.000000  0.989362  1.000000  0.010638
+6    [5.991, 7.0002[  1.000000  0.000000  0.000000  1.000000
+7   [7.0002, 8.0009[  0.009615  1.000000  0.990385  0.000000
+8        [8.0009, 9[  1.000000  0.000000  0.000000  1.000000
+9           [9, inf[  0.000000  1.000000  1.000000  0.000000"""[1:]
+
+def test_get_uplift(opt_ue_with_catvar):
+    assert repr(opt_ue_with_catvar.get_uplift(1, "T0", "VAR1")) == """
+                Part  Uplift 1 T1
+0                 []     1.000000
+1     [-inf, 2.0004[    -1.000000
+2  [2.0004, 3.00025[     1.000000
+3       [3.00025, 4[    -1.000000
+4        [4, 4.9983[     1.000000
+5    [4.9983, 5.991[    -0.989362
+6    [5.991, 7.0002[     1.000000
+7   [7.0002, 8.0009[    -0.990385
+8        [8.0009, 9[     1.000000
+9           [9, inf[    -1.000000"""[1:]
+
+def test_fit_transform(df_with_catvar):
+    test_dataframe = df_with_catvar
     test_dataframe = test_dataframe.astype({"VAR2": object})
-    features = list(test_dataframe.columns[:-2])
-    oue = OptimizedUnivariateEncoding()
+    input_variables = list(test_dataframe.columns[:-2])
+    ue = OptimizedUnivariateEncoding()
     with pytest.warns(UserWarning, match=f"""^{re.escape("Target column's dtype is not object; fixing...")}$"""):
-        encoded_data = oue.fit_transform(test_dataframe[features], test_dataframe["TRAITEMENT"], test_dataframe["CIBLE"], 10)
+        encoded_data = ue.fit_transform(test_dataframe[input_variables], test_dataframe["TRAITEMENT"], test_dataframe["CIBLE"])
     assert encoded_data.equals(pd.DataFrame(columns=["VAR2", "VAR1", "VAR3"], data=[
         [0, 0, 0],
         [0, 0, 0],
