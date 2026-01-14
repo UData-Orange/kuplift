@@ -5,7 +5,6 @@
 import re
 from math import inf
 import pytest
-import pandas as pd
 from kuplift import OptimizedUnivariateEncoding
 from kuplift.optimized_univariate_encoding import TargetTreatmentPair as TT, ValGrpPartition, ValGrp, IntervalPartition, Interval
 
