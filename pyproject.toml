@@ -15,7 +15,7 @@ dependencies = [
     "pandas>=2.3.3",
     "sortedcontainers>=2.4.0",
     "scikit-learn>=1.6.1",
-    "khiops>=10.3.2.1,<11.0.0.0",
+    "khiops>=10.3.2.1,<11.0.0.0",  # Code would have to be adapted to avoid a warning from khiops 11.0.0.0
     "umodl>=0.0.28"
 ]
 
