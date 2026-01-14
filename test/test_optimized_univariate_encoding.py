@@ -109,9 +109,8 @@ def test_fit_transform(df_with_catvar):
     test_dataframe = df_with_catvar
     test_dataframe = test_dataframe.astype({"VAR2": object})
     input_variables = list(test_dataframe.columns[:-2])
-    ue = OptimizedUnivariateEncoding()
     with pytest.warns(UserWarning, match=f"""^{re.escape("Target column's dtype is not object; fixing...")}$"""):
-        assert ue.fit_transform(test_dataframe[input_variables], test_dataframe["TRAITEMENT"], test_dataframe["CIBLE"]).to_string() == """
+        assert OptimizedUnivariateEncoding().fit_transform(test_dataframe[input_variables], test_dataframe["TRAITEMENT"], test_dataframe["CIBLE"]).to_string() == """
       VAR2  VAR1  VAR3
 0        0     0     0
 1        0     0     0
