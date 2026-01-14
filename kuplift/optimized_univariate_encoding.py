@@ -226,6 +226,22 @@ class OptimizedUnivariateEncoding:
         return self.variable_cols.columns.to_list()
     
     @property
+    def informative_input_variables(self):
+        """list of str
+        
+        The names of the informative variables.
+        """
+        return [v for v in self.input_variables if v in self.model]
+    
+    @property
+    def noninformative_input_variables(self):
+        """list of str
+        
+        The names of the non-informative variables.
+        """
+        return [v for v in self.input_variables if v not in self.model]
+    
+    @property
     def treatment_name(self):
         """str
         
