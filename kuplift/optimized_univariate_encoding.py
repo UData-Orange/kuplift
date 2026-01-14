@@ -35,6 +35,9 @@ class Partition(ABC):
 
     def __iter__(self):
         return iter(self.parts)
+
+    def __eq__(self, other):
+        return self.parts == other.parts
     
 
 class ValGrp:
@@ -49,6 +52,9 @@ class ValGrp:
     
     def __contains__(self, x):
         return x in self.lst
+    
+    def __eq__(self, other):
+        return self.lst == other.lst
 
 
 class ValGrpPartition(Partition):
