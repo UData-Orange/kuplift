@@ -5,6 +5,7 @@
 
 import os
 import sys
+import tomlkit
 
 sys.path.insert(0, os.path.abspath("../.."))
 
@@ -14,7 +15,8 @@ sys.path.insert(0, os.path.abspath("../.."))
 project = "kuplift"
 copyright = "2026, Orange"
 author = "Orange"
-release = "0.0.14"
+with open("../../pyproject.toml") as pyprojectfile:
+    release = tomlkit.load(pyprojectfile)["project"]["version"].unwrap()
 
 # Be strict about any broken references
 nitpicky = True

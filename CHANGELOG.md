@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.0.15] - 2026-01-14
+
+- Set minimal version of *umodl* to *0.0.28*.
+- Additions in class kuplift.optimized_univariate_encoding.OptimizedUnivariateEncoding:
+    - New method `get_level` to get level of a single variable
+    - New properties `informative_input_variables` and `noninformative_input_variables`
+- Change in documentation generation: fetch package version from pyproject.toml to avoid duplicate version specification
+
 ## [0.0.14] - 2026-01-13
 
 - Update copyright year and fix license reference in source files, for consistency with the LICENSE file
