@@ -52,6 +52,8 @@ $ jupyter lab  # Open the just-installed Jupyter web application inside a browse
 $ # Look at you web browser, Jupyter Lab should be ready to use!
 ~~~
 
+> You can also install jupyterlab separately using *pipx*: `pipx install jupyterlab`. That way it will not be in the same virtual environment kuplift lives in. To execute: `jupyter-lab`.
+
 ### Using the Jupyter extension of Visual Studio Code
 
 If you want to use the Jupyter extension of Visual Studio Code, installing `ipykernel` instead of `jupyterlab` would
