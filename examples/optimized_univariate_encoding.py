@@ -12,19 +12,27 @@ import pandas
 import kuplift
 from pprint import pprint  # So that the user does not have to import it.
 
+
 def main():
     global ue  # Make it available for study after execution of this function.
     ue = kuplift.OptimizedUnivariateEncoding()
     df = pandas.read_csv("data/data_uplift_missing.csv").astype({"VAR2": object, "CIBLE": object})
     ue.fit(df[df.columns[:-2]], df["TRAITEMENT"], df["CIBLE"])
-    print("\nModel generation complete. OptimizedUnivariateEncoding instance available under the name 'ue'. 'pprint.pprint' is already imported.")
-    print("At any of the following steps, press Enter to continue or type 'stop' then Enter to stop at a given step (useful in inspection mode).")
-    if input("\nPress Enter to display the variable levels...") == "stop": return
+    print()
+    print("Model generation complete. OptimizedUnivariateEncoding instance available under the name 'ue'. 'pprint.pprint' is already imported.")
+    print()
+    print()
+    print("Variable levels:")
     print(ue.get_levels())
-    if input("\nPress Enter to display the target probabilities for variable 'VAR1'...") == "stop": return
-    print(ue.get_target_probabilities("VAR1"))
-    if input("\nPress Enter to display the uplift for variable 'VAR1'...") == "stop": return
-    print(ue.get_uplift(1, "T0", "VAR1"))
+    print()
+    print()
+    VARNAME = "VAR1"
+    print("Target probabilities for variable '{}':".format(VARNAME))
+    print(ue.get_target_probabilities(VARNAME))
+    print()
+    print()
+    print("Uplift for variable '{}':".format(VARNAME))
+    print(ue.get_uplift(1, "T0", VARNAME))
 
 
 if __name__ == "__main__":
