@@ -40,21 +40,18 @@ class Partition(ABC):
         return self.parts == other.parts
     
 
+@dataclass(frozen=True)
 class ValGrp:
-    def __init__(self, lst):
-        self.lst = lst
+    values: list
 
     def __repr__(self):
-        return f"ValGrp({self.lst!r})"
+        return f"ValGrp({self.values!r})"
 
     def __str__(self):
-        return "{%s}" % ", ".join(self.lst)
+        return "{%s}" % ", ".join(self.values)
     
     def __contains__(self, x):
-        return x in self.lst
-    
-    def __eq__(self, other):
-        return self.lst == other.lst
+        return x in self.values
 
 
 class ValGrpPartition(Partition):
@@ -103,7 +100,7 @@ Value group partition
 )
 
 
-@dataclass
+@dataclass(frozen=True)
 class Interval:
     lower: Optional[float] = None
     upper: Optional[float] = None
@@ -112,11 +109,14 @@ class Interval:
     def catches_missing(self):
         return self.lower is None or self.upper is None
     
-    def __contains__(self, x):
-        return not self.catches_missing and (self.lower <= x < self.upper)
+    def __repr__(self):
+        return "Interval({}, {})".format(self.lower, self.upper)
     
     def __str__(self):
         return "[]" if self.catches_missing else f"[{self.lower}, {self.upper}["
+    
+    def __contains__(self, x):
+        return not self.catches_missing and (self.lower <= x < self.upper)
     
     def __bool__(self):
         return not self.catches_missing
@@ -138,11 +138,11 @@ class IntervalPartition(Partition):
             raise ValueError("there must be at least one interval")
         if intervals[0].catches_missing:
             if len(intervals) >= 1:
-                intervals[1].lower = -math.inf
-                intervals[-1].upper = math.inf
+                intervals[1] = Interval(-math.inf, intervals[1].upper)
+                intervals[-1] = Interval(intervals[-1].lower, +math.inf)
         else:
-            intervals[0].lower = -math.inf
-            intervals[-1].upper = math.inf
+            intervals[0] = Interval(-math.inf, intervals[0].upper)
+            intervals[-1] = Interval(intervals[-1].lower, +math.inf)
         self.intervals = intervals
 
     @property
@@ -214,6 +214,10 @@ class OptimizedUnivariateEncoding:
 
     target_col: Series
         The target column from the dataset.
+
+    treatment_groups: dict mapping str to dict mapping ValGrp or Interval to int
+        The keys are the variable names. The values are themselves dictionaries, which keys are ValGrp
+        or Interval and which values are numbers.
     """
 
     def __init__(self):
@@ -360,7 +364,7 @@ class OptimizedUnivariateEncoding:
             elif vardim['partitionType'] == 'Intervals':
                 model[varname] = IntervalPartition(list(starmap(Interval, vardim['partition'])))
             else: raise ValueError("unsupported partition type")
-            treatment_groups[varname] = list(zip(model[varname], variable.get('Treatement Groups', [])))
+            treatment_groups[varname] = dict(zip(model[varname], variable.get('Treatement Groups', [])))
 
         levels = sorted(
             ((attr['name'], attr['level']) for attr in docroot['attributes']),
