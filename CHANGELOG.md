@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.0.16] - 2026-03-25
+
+- Contrain dependency versions using upper limits to exclude newer major releases containing breaking changes (this is the case of *pandas*).
+
 ## [0.0.15] - 2026-01-14
 
 - Set minimal version of *umodl* to *0.0.28*.
