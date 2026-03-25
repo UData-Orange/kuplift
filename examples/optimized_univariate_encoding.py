@@ -12,7 +12,7 @@ import pandas
 import kuplift
 
 def main():
-    global ue
+    global ue  # Make it available for study after execution of this function.
     ue = kuplift.OptimizedUnivariateEncoding()
     df = pandas.read_csv("data/data_uplift_missing.csv").astype({"VAR2": object, "CIBLE": object})
     ue.fit(df[df.columns[:-2]], df["TRAITEMENT"], df["CIBLE"])
