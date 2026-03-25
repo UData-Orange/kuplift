@@ -10,13 +10,14 @@ statistics.
 
 import pandas
 import kuplift
+from pprint import pprint  # So that the user does not have to import it.
 
 def main():
     global ue  # Make it available for study after execution of this function.
     ue = kuplift.OptimizedUnivariateEncoding()
     df = pandas.read_csv("data/data_uplift_missing.csv").astype({"VAR2": object, "CIBLE": object})
     ue.fit(df[df.columns[:-2]], df["TRAITEMENT"], df["CIBLE"])
-    print("\nModel generation complete. OptimizedUnivariateEncoding instance available under the name 'ue'.")
+    print("\nModel generation complete. OptimizedUnivariateEncoding instance available under the name 'ue'. 'pprint.pprint' is already imported.")
     print("At any of the following steps, press Enter to continue or type 'stop' then Enter to stop at a given step (useful in inspection mode).")
     if input("\nPress Enter to display the variable levels...") == "stop": return
     print(ue.get_levels())
