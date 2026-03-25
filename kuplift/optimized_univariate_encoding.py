@@ -222,6 +222,7 @@ class OptimizedUnivariateEncoding:
         self.variable_cols = None
         self.treatment_col = None
         self.target_col = None
+        self.treatment_groups = None
 
     @property
     def input_variables(self):
@@ -350,13 +351,16 @@ class OptimizedUnivariateEncoding:
                 docroot = json.load(jsonfile)
 
         model = {}
+        treatment_groups = {}
         for variable in docroot['detailed statistics']:
             vardim = variable['dataGrid']['dimensions'][0]
+            varname = vardim['variable']
             if vardim['partitionType'] == 'Value groups':
-                model[vardim['variable']] = ValGrpPartition(list(map(ValGrp, vardim['partition'])), vardim['defaultGroupIndex'])
+                model[varname] = ValGrpPartition(list(map(ValGrp, vardim['partition'])), vardim['defaultGroupIndex'])
             elif vardim['partitionType'] == 'Intervals':
-                model[vardim['variable']] = IntervalPartition(list(starmap(Interval, vardim['partition'])))
+                model[varname] = IntervalPartition(list(starmap(Interval, vardim['partition'])))
             else: raise ValueError("unsupported partition type")
+            treatment_groups[varname] = list(zip(model[varname], variable.get('Treatement Groups', [])))
 
         levels = sorted(
             ((attr['name'], attr['level']) for attr in docroot['attributes']),
@@ -369,6 +373,7 @@ class OptimizedUnivariateEncoding:
         self.variable_cols = data
         self.treatment_col = treatment_col
         self.target_col = target_col
+        self.treatment_groups = treatment_groups
 
 
     def transform(self, data):
