@@ -3,6 +3,10 @@
 # at https://spdx.org/licenses/MIT.html or see the "LICENSE" file for more details.
 
 from math import log
+from contextlib import contextmanager
+from pathlib import Path
+import os
+import tempfile
 
 _log_fact_table = []
 
@@ -205,3 +209,20 @@ def preprocess_data(data, treatment_col="segment", y_col="visit"):
             encoded_i += 1
     data[treatment_col] = data[treatment_col].astype(str)
     return data
+
+
+@contextmanager
+def in_dir(d):
+    olddir = Path.cwd()
+    os.chdir(d)
+    try:
+        yield
+    finally:
+        os.chdir(olddir)
+
+
+@contextmanager
+def in_tempdir():
+    with tempfile.TemporaryDirectory() as dirname:
+        with in_dir(Path(dirname)):
+            yield
