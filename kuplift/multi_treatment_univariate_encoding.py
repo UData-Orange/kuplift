@@ -13,10 +13,9 @@ The main class of this module is 'MultiTreatmentUnivariateEncoding'.
 from pathlib import Path
 from .helperclasses import ValGrp, ValGrpPartition, Interval, IntervalPartition, TargetTreatmentPair
 from tempfile import TemporaryDirectory
+import logging
 
-
-## TODO: REMOVE THAT; IT IS FOR DEBUGGING PURPOSES ONLY
-from pprint import pprint
+logger = logging.getLogger(__name__)
 
 
 class MultiTreatmentUnivariateEncoding:
@@ -114,7 +113,7 @@ class MultiTreatmentUnivariateEncoding:
         maxpartnumber: int, default=None
             The maximal number of intervals or groups. None means default to the 'khiops' program default.
         """
-        pprint(uplift_MODL(data, treatment_col, target_col, maxpartnumber))
+        uplift_MODL(data, treatment_col, target_col, maxpartnumber)
 
 
     def transform(self, data):
@@ -346,17 +345,28 @@ def group_reparation(partition_groupe, all_t_values):
 
 def uplift_MODL(data, treatment_col, target_col, maxpartnumber):
     t, y, x = treatment_col.name, target_col.name, data.columns[0]
+    logger.debug("Computing uplift with %d lines of data, variable columns {%s}, treatment column '%s' and target column '%s'...", len(data), f"'{x}'", t, y)
     upper_bounds = []
     nb_int = 0
+    all_t_values = np.sort(treatment_col.unique())
+    results_by_interval = {}
         
     with TemporaryDirectory() as dirname:
-        all_t_values = np.sort(treatment_col.unique())
-        results_by_interval = {}
+        logger.debug("Temporary file output will be in '%s'.", dirname)
+        
         dirpath = Path(dirname)
         data_table_path = dirpath / "data.csv"
-        data.join([treatment_col, target_col]).to_csv(data_table_path, index=False)
-        dictionary_name = "upliftMT"
         dictionary_file_path = dirpath / "dictionary.kdic"
+        dictionary_name = "upliftMT"
+        snd_dictionary_file_path = dirpath / dictionary_name
+        logger.debug("Data file name: %s.", data_table_path)
+        logger.debug("Dictionary file name: %s.", dictionary_file_path)
+        logger.debug("Second dictionary file name: %s.", snd_dictionary_file_path)
+
+        logger.debug("Writing to data file...")
+        data.join([treatment_col, target_col]).to_csv(data_table_path, index=False)
+        logger.debug("Done writing.")
+        logger.debug("Building dictionary from data...")
         with warnings.catch_warnings():
             warnings.filterwarnings(
                 "ignore",
@@ -365,15 +375,16 @@ def uplift_MODL(data, treatment_col, target_col, maxpartnumber):
                 UserWarning, f"^{kh.internals.runner.__name__}$")
             kh.build_dictionary_from_data_table(
                 str(data_table_path), dictionary_name, str(dictionary_file_path))
+        logger.debug("Done building dictionary.")
+        logger.debug("Reading from dictionary file...")
         domain = kh.read_dictionary_file(str(dictionary_file_path))
+        logger.debug("Done reading.")
+
         dictionary = domain.get_dictionary(dictionary_name)
-        
         E_variable = dictionary.get_variable(t)
         E_variable.type = "Categorical"
-        
         E_variable = dictionary.get_variable(y)
         E_variable.type = "Categorical"
-
         is_in_train_dataset_variable = kh.Variable()
         is_in_train_dataset_variable.name = f"{y}_{t}"
         is_in_train_dataset_variable.type = "Categorical"
@@ -381,8 +392,11 @@ def uplift_MODL(data, treatment_col, target_col, maxpartnumber):
         is_in_train_dataset_variable.rule = f"""Concat({y},"_",{t})"""
         dictionary.add_variable(is_in_train_dataset_variable)
         results_dir = "analyse_uplift"
-        domain.export_khiops_dictionary_file(str(dirpath / dictionary_name))
+        logger.debug("Exporting dictionary to file...")
+        domain.export_khiops_dictionary_file(str(snd_dictionary_file_path))
+        logger.debug("Done exporting.")
 
+        logger.debug("Training recoder...")
         retour = kh.train_recoder(
             domain,
             dictionary_name,
@@ -393,8 +407,11 @@ def uplift_MODL(data, treatment_col, target_col, maxpartnumber):
             max_trees=0,
             max_pairs=0,
         )
+        logger.debug("Done training.")
     
+        logger.debug("Reading analysis result file...")
         train_results = kh.read_analysis_results_file(retour[0])
+        logger.debug("Done reading.")
         pair_results = train_results.preparation_report.get_variable_statistics(x)
 
         if pair_results.level == 0:
@@ -410,7 +427,7 @@ def uplift_MODL(data, treatment_col, target_col, maxpartnumber):
         
         bounds_str = ",".join(upper_bounds)
         
-        filtre_index_variable.rule = f"IntervalId(IntervalBounds({bounds_str}), {x})"
+        filtre_index_variable.rule = "IntervalId(IntervalBounds(%s), %s)" % (bounds_str, x)
         
         dictionary.add_variable(filtre_index_variable)
         
@@ -421,6 +438,7 @@ def uplift_MODL(data, treatment_col, target_col, maxpartnumber):
         interval_names = [f"I{i+1}" for i in range(len(upper_bounds))]
         nb_int = len(interval_names)
         for interval_name in interval_names:
+            logger.debug("Training recoder of interval %s...", interval_name)
             # with warnings.catch_warnings():
             #     warnings.filterwarnings(
             #         "ignore",
@@ -436,8 +454,11 @@ def uplift_MODL(data, treatment_col, target_col, maxpartnumber):
                 max_trees=0,#100,
                 max_pairs=100,
             )
+            logger.debug("Done training.")
             
+            logger.debug("Reading analysis result file of interval %s...", interval_name)
             train_results = kh.read_analysis_results_file(retour[0])
+            logger.debug("Done reading.")
 
             group_results = train_results.preparation_report.get_variable_statistics(t)
 
@@ -445,9 +466,11 @@ def uplift_MODL(data, treatment_col, target_col, maxpartnumber):
                 results_by_interval[interval_name] = [list(map(str, all_t_values))]
             else:
                 partition_groupe = group_results.data_grid.dimensions[0].partition
+                logger.debug("Repairing groups of interval %s...", interval_name)
                 results_by_interval[interval_name] = group_reparation(partition_groupe, all_t_values)
+                logger.debug("Done repairing.")
         
-        return results_by_interval,upper_bounds,nb_int
+    return results_by_interval,upper_bounds,nb_int
 
 
 class modele_E_y_avec_rapprochement_MODL(BaseEstimator, TransformerMixin):
