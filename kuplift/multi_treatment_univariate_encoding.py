@@ -345,7 +345,7 @@ def group_reparation(partition_groupe, all_t_values):
 
 
 def uplift_MODL(data, treatment_col, target_col, maxpartnumber):
-    t, y, x = "TREATMENT", "TARGET", "VARIABLE1"
+    t, y, x = treatment_col.name, target_col.name, data.columns[0]
     upper_bounds = []
     nb_int = 0
         

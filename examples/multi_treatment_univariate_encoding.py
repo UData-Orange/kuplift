@@ -17,7 +17,7 @@ def main():
     global ue  # Make it available for study after execution of this function.
     ue = kuplift.MultiTreatmentUnivariateEncoding()
     random = False
-    random = True
+    # random = True
     if random:
         df = pandas.read_csv("/home/user1/Testfiles/random_dataset.csv")
     else:
