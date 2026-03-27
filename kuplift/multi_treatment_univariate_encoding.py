@@ -114,7 +114,7 @@ class MultiTreatmentUnivariateEncoding:
         maxpartnumber: int, default=None
             The maximal number of intervals or groups. None means default to the 'khiops' program default.
         """
-        pprint(uplift_MODL_V2(data, treatment_col, target_col, maxpartnumber))
+        pprint(uplift_MODL(data, treatment_col, target_col, maxpartnumber))
 
 
     def transform(self, data):
@@ -344,8 +344,7 @@ def group_reparation(partition_groupe, all_t_values):
     return res
 
 
-def uplift_MODL_V2(data, treatment_col, target_col, maxpartnumber):
-# def uplift_MODL_V2(datafilepath, treatment, target, variables):
+def uplift_MODL(data, treatment_col, target_col, maxpartnumber):
     t, y, x = "TREATMENT", "TARGET", "VARIABLE1"
     upper_bounds = []
     nb_int = 0
