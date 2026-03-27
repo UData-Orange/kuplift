@@ -10,8 +10,9 @@ capable of merging treatments that give similar outcome.
 The main class of this module is 'MultiTreatmentUnivariateEncoding'.
 """
 
-
+from pathlib import Path
 from .helperclasses import ValGrp, ValGrpPartition, Interval, IntervalPartition, TargetTreatmentPair
+from .helperfunctions import in_tempdir
 
 
 class MultiTreatmentUnivariateEncoding:
@@ -261,3 +262,609 @@ class MultiTreatmentUnivariateEncoding:
                   treatment compared to the reference treatment.
         """
         raise NotImplementedError
+
+
+#############################################################################
+# Computation classes and functions from this point till the end of the file.
+# This has been copied-pasted here and 10~15 dead lines have been removed but
+# much more work is needed.
+
+
+import pandas as pd
+import numpy as np
+from scipy.special import gammaln
+import os
+from khiops import core as kh
+from .KWStat import *
+from sklearn.base import clone
+from sklearn.base import BaseEstimator, ClassifierMixin
+from sklearn.base import BaseEstimator, TransformerMixin
+import warnings
+
+
+class SingleClassPredictor(BaseEstimator, ClassifierMixin):
+    def fit(self, X, y=None):
+        self.unique_class_ = np.unique(y)[0]
+        self.classes_ = np.array([0, 1])  # Explicitly state classes for consistency
+        return self
+
+    def predict(self, X):
+        return np.full(X.shape[0], self.unique_class_)
+
+    def predict_proba(self, X):
+        probabilities = np.zeros((X.shape[0], 2)) 
+        
+        # Determine the index of the unique class (0 or 1)
+        class_index = int(self.unique_class_) 
+        
+        # Set the probabilities for the unique class to 1.0
+        probabilities[:, class_index] = 1.0
+        
+        return probabilities
+
+
+
+def group_reparation(partition_groupe, all_t_values):
+    res = []
+    elements_mentionnes = set()
+    
+    default_group_index_in_res = -1
+    default_group_values = set()
+
+    # 1. Analyser la partition, trouver les groupes et le groupe par défaut
+    for i, part in enumerate(partition_groupe):
+        groupe_actuel = list(part.values) 
+        res.append(groupe_actuel)
+        elements_mentionnes.update(groupe_actuel)
+
+        if part.is_default_part:
+            default_group_index_in_res = i
+            default_group_values.update(groupe_actuel)
+
+    # 2. Trouver les éléments non cités
+    total_treatments_set = set(str(t) for t in all_t_values)
+    elements_non_cites = total_treatments_set.difference(elements_mentionnes)
+
+    # 3. Fusionner les non-cités dans le groupe par défaut (s'il existe)
+    if elements_non_cites:
+        if default_group_index_in_res != -1:
+            # Un groupe par défaut a été trouvé
+            # Fusionner les non-cités avec les valeurs existantes du groupe par défaut
+            merged_group = default_group_values.union(elements_non_cites)
+            # Mettre à jour la liste 'res' à l'index correct
+            res[default_group_index_in_res] = sorted(list(merged_group))
+        else:
+            # Pas de groupe par défaut trouvé, on les ajoute séparément
+            res.append(sorted(list(elements_non_cites)))
+
+    return res
+
+def uplift_MODL_V2(datafilepath, treatment, target, variable):
+    t, y, x = treatment, target, variable
+    warnings.simplefilter("error")
+    upper_bounds = []
+    nb_int=0
+    try:
+        df_t_values = pd.read_csv(datafilepath, usecols=[t])
+        all_t_values = np.sort(df_t_values[t].unique())
+            
+        results_by_interval = {}
+        titre_sans_extension = datafilepath.removesuffix('.csv')
+        
+        data_table_path = datafilepath
+        
+        dictionary_name = "upliftMT"
+        dictionary_file_path = os.path.join(titre_sans_extension+".kdic")
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                r"""^Sample datasets location does not exist \([^)]*/khiops_data/samples\)\.\s+"""
+                r"""Execute the kh-download-datasets script or the khiops\.tools\.download_datasets function to download them\.$""",
+                UserWarning, f"^{kh.internals.runner.__name__}$")
+            kh.build_dictionary_from_data_table(
+                data_table_path, dictionary_name, dictionary_file_path)
+        
+        domain = kh.read_dictionary_file(dictionary_file_path)
+        dictionary = domain.get_dictionary(dictionary_name)
+        
+        E_variable = dictionary.get_variable(t)
+        E_variable.type = "Categorical"
+        
+        E_variable = dictionary.get_variable(y)
+        E_variable.type = "Categorical"
+
+        is_in_train_dataset_variable = kh.Variable()
+        is_in_train_dataset_variable.name = f"{y}_{t}"
+        is_in_train_dataset_variable.type = "Categorical"
+        is_in_train_dataset_variable.used = True
+        is_in_train_dataset_variable.rule = f"""Concat({y},"_",{t})"""
+        dictionary.add_variable(is_in_train_dataset_variable)
+        results_dir = "analyse_uplift"
+        domain.export_khiops_dictionary_file(dictionary_name)
+            
+        retour = kh.train_recoder(
+            domain,
+            dictionary_name,
+            data_table_path,
+            f"{y}_{t}",
+            str(Path(results_dir)/"predictor_analysis_result.khj"),
+            sample_percentage=100,
+            max_trees=0,
+            max_pairs=0,
+        )
+        
+        train_results = kh.read_analysis_results_file(retour[0])
+        pair_results  = train_results.preparation_report.get_variable_statistics(x)
+
+        decoupage=[]
+        
+        for i in pair_results.data_grid.dimensions[0].partition:
+            decoupage.append([i.lower_bound,i.upper_bound])
+
+        filtre_index_variable = kh.Variable()
+        filtre_index_variable.name = "Filtre"
+        filtre_index_variable.type = "Categorical"
+        filtre_index_variable.used = True
+        upper_bounds = [str(interval[1]) for interval in decoupage]
+        
+        bounds_str = ",".join(upper_bounds)
+        
+        filtre_index_variable.rule = f"IntervalId(IntervalBounds({bounds_str}), {x})"
+        
+        dictionary.add_variable(filtre_index_variable)
+        
+        X_variable = dictionary.get_variable(x)
+        X_variable.used = False
+    
+        
+        interval_names = [f"I{i+1}" for i in range(len(upper_bounds))]
+        nb_int = len(interval_names)
+        for interval_name in interval_names:
+            try:
+                with warnings.catch_warnings():
+                    warnings.filterwarnings(
+                        "ignore",
+                        r"""^Khiops ended correctly but there were minor issues:\s+"""
+                        r"""Warnings in log:\s+"""
+                        r"""Line \d+: warning : Decision Tree variable creation : No informative tree built among the \d+ planned$""",
+                        UserWarning, f"^{kh.internals.runner.__name__}$")
+                    retour = kh.train_recoder(
+                        domain, dictionary_name, data_table_path, y, str(Path(results_dir)/f"x_{interval_name}_analysis_result.khj"),
+                        sample_percentage=100,
+                        selection_variable="Filtre",
+                        selection_value=interval_name,
+                        max_trees=100,
+                        max_pairs=100,
+                    )
+                
+                train_results = kh.read_analysis_results_file(retour[0])
+
+                group_results = train_results.preparation_report.get_variable_statistics(t)
+
+                if group_results.level == 0:  # ==> Put on treatments into the same group.
+                    results_by_interval[interval_name] = [list(map(str, all_t_values))]
+                else:
+                    partition_groupe = group_results.data_grid.dimensions[0].partition
+                    results_by_interval[interval_name] = group_reparation(partition_groupe, all_t_values)
+            
+            except Exception as e:
+                raise
+                print(f"Erreur lors de l'analyse pour {interval_name}: {e}.")
+                results_by_interval[interval_name] = [[]]
+
+    except Exception as e:
+        raise
+        print(f"Une erreur générale est survenue : {e}")
+              
+    return results_by_interval,upper_bounds,nb_int
+
+
+class modele_E_y_avec_rapprochement_MODL(BaseEstimator, TransformerMixin):
+    def __init__(self, classifier):
+        self.classifier = classifier
+    
+    def fit(self, X, nom_col_trait, nom_col_outcome, nom_col_X, groupements_par_intervalle, bornes_superieures):
+        self.classifiers_dict = {}
+        self.nom_col_trait = nom_col_trait
+        self.nom_col_outcome = nom_col_outcome
+        self.nom_col_X = nom_col_X
+        self.traitements = np.unique(X[self.nom_col_trait])
+        
+        # Convertir les bornes en float pour le calcul
+        bornes_superieures = [float(b) for b in bornes_superieures]
+        
+        # Créer une copie pour ne pas modifier le DataFrame original
+        X_combined = X.copy()
+        
+        # Liste pour stocker les DataFrames dupliqués
+        dfs_a_ajouter = []
+        
+        # Parcourir chaque intervalle et ses règles de regroupement
+        for i, (interval_name, groupes) in enumerate(groupements_par_intervalle.items()):
+            # Définir les bornes de l'intervalle courant
+            borne_inf = bornes_superieures[i-1] if i > 0 else -np.inf
+            borne_sup = bornes_superieures[i]
+            
+            # Sélectionner les individus de cet intervalle
+            X_intervalle = X[(X[self.nom_col_X] >= borne_inf) & (X[self.nom_col_X] < borne_sup)]
+            
+            # Parcourir les groupes de traitements à dupliquer
+            for groupe in groupes:
+                # Gérer le cas du groupe avec 'tous les autres' (' * ')
+                if ' * ' in groupe:
+                    t_specifique = [t for t in groupe if t != ' * '][0]
+                    traitements_autres = [t for t in self.traitements if t not in groupe]
+                    
+                    # Dupliquer les individus du traitement spécifique vers les autres
+                    for t_cible in traitements_autres:
+                        df_copie = X_intervalle[X_intervalle[self.nom_col_trait] == t_specifique].copy()
+                        df_copie[self.nom_col_trait] = t_cible
+                        dfs_a_ajouter.append(df_copie)
+                    
+                    # Dupliquer les individus des autres traitements vers le traitement spécifique
+                    df_autres_traitements = X_intervalle[X_intervalle[self.nom_col_trait].isin(traitements_autres)].copy()
+                    df_autres_traitements[self.nom_col_trait] = t_specifique
+                    dfs_a_ajouter.append(df_autres_traitements)
+                else:
+                    # Gérer les groupes de taille > 1 sans ' * '
+                    for t_source in groupe:
+                        for t_cible in groupe:
+                            if t_source != t_cible:
+                                df_copie = X_intervalle[X_intervalle[self.nom_col_trait] == t_source].copy()
+                                df_copie[self.nom_col_trait] = t_cible
+                                dfs_a_ajouter.append(df_copie)
+        
+        # Concaténer le DataFrame original avec toutes les copies
+        if dfs_a_ajouter:
+            X_combined = pd.concat([X_combined] + dfs_a_ajouter, ignore_index=True)
+
+        # La partie restante de la méthode fit est inchangée, elle utilise maintenant X_combined
+        self.traitements = np.unique(X_combined[self.nom_col_trait])
+        for traitement in self.traitements:
+            X_trait = X_combined[X_combined[self.nom_col_trait] == traitement]
+            X_train_trait = X_trait.drop(columns=[self.nom_col_outcome, self.nom_col_trait])
+            y_train_trait = X_trait[self.nom_col_outcome]
+            if y_train_trait.nunique() > 1:
+                classifier_clone = clone(self.classifier)
+                classifier_clone.fit(X_train_trait, y_train_trait)
+                self.classifiers_dict[traitement] = classifier_clone
+            else:
+                single_class_predictor = SingleClassPredictor()
+                single_class_predictor.fit(X_train_trait, y_train_trait)
+                self.classifiers_dict[traitement] = single_class_predictor
+                print(f"Avertissement : Le classifieur pour le traitement {traitement} a été remplacé par un prédicteur de classe unique.")
+                
+        return self
+
+    def predict_e_y(self, X):
+        X_test=X.copy()
+        self.X_test_list = []
+        for value in self.traitements:
+            X_test_copy = X_test.copy()
+            X_test_copy[self.nom_col_trait] = value
+            X_test_copy = X_test_copy.drop(columns=[self.nom_col_trait])
+            self.X_test_list.append(1)   
+        probabilities_0 = self.classifiers_dict[self.traitements[0]].predict_proba(X_test_copy)[:, 1]
+        probabilities_1 = self.classifiers_dict[self.traitements[1]].predict_proba(X_test_copy)[:, 1]
+        uplift_values=[]
+        for i in range(len(probabilities_0)):
+            uplift_values.append([probabilities_0[i]])
+            uplift_values.append([probabilities_1[i]])
+        i = 2
+        all_probabilities = []
+        for i in range(len(self.classifiers_dict)):
+            probabilities = self.classifiers_dict[self.traitements[i]].predict_proba(X_test_copy)[:, 1]
+            all_probabilities.append(probabilities)
+        
+        return all_probabilities
+
+class SingleClassPredictor(BaseEstimator, ClassifierMixin):
+    def fit(self, X, y=None):
+        self.unique_class_ = np.unique(y)[0]
+        self.classes_ = np.array([0, 1])  # Explicitly state classes for consistency
+        return self
+
+    def predict(self, X):
+        return np.full(X.shape[0], self.unique_class_)
+
+    def predict_proba(self, X):
+        probabilities = np.zeros((X.shape[0], 2)) 
+        
+        # Determine the index of the unique class (0 or 1)
+        class_index = int(self.unique_class_) 
+        
+        # Set the probabilities for the unique class to 1.0
+        probabilities[:, class_index] = 1.0
+        
+        return probabilities
+
+
+def calculer_probas_groupees(df, groupements_par_intervalle, bornes_superieures_str):
+    
+    global_mean_y = df['Y'].mean()
+
+    # Cas spécial : aucun groupement ni intervalle fourni
+    if not groupements_par_intervalle and not bornes_superieures_str:
+        resultats_plats = []
+        interval_label = "[-inf, +inf)" # Un seul intervalle global
+        traitements_uniques = sorted(df['T'].unique())
+        # Calculer la proba pour chaque traitement séparément
+        for t in traitements_uniques:
+            df_traitement = df[df['T'] == t]
+            if df_traitement.empty:
+                probabilite = np.nan
+            else:
+                probabilite = df_traitement['Y'].mean()
+            
+            resultats_plats.append({
+                'Intervalle': interval_label,
+                'Traitement': t,
+                'Probabilite_Y1': probabilite
+            })
+        
+        df_resultat_long = pd.DataFrame(resultats_plats)
+        
+        # Pivoter
+        df_pivot = df_resultat_long.pivot_table(
+            index='Traitement', 
+            columns='Intervalle', 
+            values='Probabilite_Y1'
+        )
+        
+        # Reindexer pour inclure tous les traitements attendus
+        traitements_attendus = range(df['T'].min(), df['T'].max() + 1)
+        df_pivot = df_pivot.reindex(traitements_attendus)
+        df_pivot = df_pivot.fillna(global_mean_y)
+        return df_pivot
+    
+    # --- Logique originale ---
+    
+    bornes_superieures = [float(b) for b in bornes_superieures_str]
+    
+    resultats_plats = []
+    borne_inf_filter = -np.inf 
+    
+    for i, borne_sup in enumerate(bornes_superieures):
+        interval_name = f"I{i+1}" 
+        
+        if interval_name not in groupements_par_intervalle:
+            borne_inf_filter = borne_sup 
+            continue
+            
+        borne_inf_label = 0.0 if i == 0 else bornes_superieures[i-1]
+        interval_label = f"[{borne_inf_label}, {borne_sup})" 
+            
+        df_intervalle = df[(df['X'] >= borne_inf_filter) & (df['X'] < borne_sup)]
+        
+        groupes_str_list = groupements_par_intervalle[interval_name]
+        for groupe_str in groupes_str_list:
+            
+            groupe_int = [int(float(t)) for t in groupe_str]
+            
+            df_groupe = df_intervalle[df_intervalle['T'].isin(groupe_int)]
+            
+            if df_groupe.empty:
+                probabilite = np.nan
+            else:
+                probabilite = df_groupe['Y'].mean()
+            
+            for t_str in groupe_str:
+                resultats_plats.append({
+                    'Intervalle': interval_label,
+                    'Traitement': int(t_str), 
+                    'Probabilite_Y1': probabilite
+                })
+
+        borne_inf_filter = borne_sup 
+        
+    df_resultat_long = pd.DataFrame(resultats_plats)
+    
+    df_resultat_long = df_resultat_long.drop_duplicates(subset=['Intervalle', 'Traitement'])
+    
+    df_pivot = df_resultat_long.pivot_table(
+        index='Traitement', 
+        columns='Intervalle', 
+        values='Probabilite_Y1'
+    )
+    
+    traitements_attendus = sorted(df['T'].unique())
+    df_pivot = df_pivot.reindex(traitements_attendus)
+    df_pivot = df_pivot.fillna(global_mean_y)
+    return df_pivot
+
+def predict_probas_from_pivot(X_test, df_probas_pivot):
+    labels = df_probas_pivot.columns
+    
+    try:
+        bins = [float(labels[0].split(', ')[0].strip('['))]
+        bins.extend([float(col.split(', ')[1].strip(')')) for col in labels])
+        bins[0] = -np.inf
+        bins[-1] = np.inf
+    except Exception as e:
+        raise e
+
+    X_test_copy = X_test.copy()
+    
+    X_test_copy['Intervalle'] = pd.cut(
+        X_test_copy['X'], 
+        bins=bins, 
+        labels=labels, 
+        right=False, 
+        include_lowest=True
+    )
+    
+    df_lookup = df_probas_pivot.T.reset_index()
+    
+    X_test_with_probas = X_test_copy.merge(
+        df_lookup, 
+        on='Intervalle', 
+        how='left'
+    )
+    
+    traitement_cols = sorted(df_probas_pivot.index)
+    output_list_of_arrays = []
+    
+    for t in traitement_cols:
+        arr = X_test_with_probas[t].values.astype(np.float32)
+        output_list_of_arrays.append(arr)
+        
+    return output_list_of_arrays
+
+def calculate_rmse(true_values, predictions):
+    return np.sqrt(np.mean((true_values - predictions) ** 2))
+
+def critere_modl(df, col_X, col_T, col_Y, intervalles, regroupements_traitements):
+    """
+    Calcule la valeur de l'expression mathématique complète.
+
+    Args:
+        df (pd.DataFrame): Le dataset.
+        col_X (str): Le nom de la colonne X (variable continue).
+        col_T (str): Le nom de la colonne T (traitements).
+        col_Y (str): Le nom de la colonne Y (variable cible).
+        intervalles (list): Liste des intervalles, e.g., [[0, 0.1], [0.1, 0.2]].
+        regroupements_traitements (list): Liste des regroupements de traitements par intervalle.
+            Exemple : [[[0,2],[3,1]], [[0,3],[2,1]]]
+
+    Returns:
+        float: Le résultat de l'expression.
+    """
+    
+    N = len(df)
+    I = len(intervalles)
+    T = df[col_T].nunique()
+    J = df[col_Y].nunique()
+    
+    total_somme = 0.0
+
+    # Terme 1: log(N) OK
+    total_somme += np.log(N)
+
+    # Terme 2: log(C(N+I-1, I-1)) OK
+    # Utilisation de gammaln(n+1) = log(n!)
+    total_somme += gammaln(N + I) - gammaln(I) - gammaln(N + 1)
+
+    # Terme 3: I * log(T) OK
+    #total_somme += 20 * I * np.log(T)
+    total_somme += I * np.log(T)
+
+    # Terme 4: Somme des log(Beta(T, G_i)) OK
+    # G_i est le nombre de groupes dans l'intervalle i.
+
+    for i in range(I):
+        if i < len(regroupements_traitements):
+            G_i = len(regroupements_traitements[i])
+            total_somme += KWStat.LnBell(T, G_i)
+
+    # Terme 5: Double sommation OK
+    for i in range(I):
+        if i < len(regroupements_traitements):
+            # Obtention des groupes de traitements pour l'intervalle i
+            groupes_traitements_0 = regroupements_traitements[i]
+            groupes_traitements = [[int(element) for element in sous_liste] for sous_liste in groupes_traitements_0]
+            # Filtrage des données pour l'intervalle i
+            df_i = df[(df[col_X] >= intervalles[i][0]) & (df[col_X] < intervalles[i][1])].copy()
+            for groupe_g in groupes_traitements:
+                # Filtrage des données pour le groupe de traitements g
+                df_ig = df_i[df_i[col_T].isin(groupe_g)].copy()
+                N_ig = len(df_ig)
+                
+                # Terme A: log(C(N_ig + J - 1, J - 1))
+                terme_A = gammaln(N_ig + J) - gammaln(J) - gammaln(N_ig + 1)
+                
+                # Terme B: log(N_ig!)
+                terme_B = gammaln(N_ig + 1)
+                
+                # Terme C: Somme des -log(N_igj!)
+                terme_C = 0.0
+                for y_val in df_ig[col_Y].unique():
+                    N_igj = len(df_ig[df_ig[col_Y] == y_val])
+                    terme_C += -gammaln(N_igj + 1)
+
+                total_somme += terme_A + terme_B + terme_C
+
+    return total_somme
+
+def dict_to_ordered_list(data_dict):
+  sorted_items = sorted(data_dict.items(), key=lambda item: int(item[0][1:]))
+  
+  ordered_list = [value for key, value in sorted_items]
+  
+  return ordered_list
+
+def applique_MODL(X, nom_col_trait, nom_col_outcome, nom_col_X, groupements_par_intervalle, bornes_superieures):
+    bornes_superieures = [float(b) for b in bornes_superieures]
+    
+    X_combined = X.copy()
+    dfs_a_ajouter = []
+    
+    for i, (interval_name, groupes) in enumerate(groupements_par_intervalle.items()):
+        borne_inf = bornes_superieures[i-1] if i > 0 else -np.inf
+        borne_sup = bornes_superieures[i]
+        
+        X_intervalle = X[(X[nom_col_X] >= borne_inf) & (X[nom_col_X] < borne_sup)]
+        
+        for groupe in groupes:
+            for t_source in groupe:
+                for t_cible in groupe:
+                    if t_source != t_cible:
+                        df_copie = X_intervalle[X_intervalle[nom_col_trait] == int(t_source)].copy()
+                        df_copie[nom_col_trait] = t_cible
+                        dfs_a_ajouter.append(df_copie)
+    if dfs_a_ajouter:
+        X_combined = pd.concat([X_combined] + dfs_a_ajouter, ignore_index=True)
+    
+    return X_combined
+
+class S_Learner(BaseEstimator, TransformerMixin):
+    def __init__(self, classifier):
+        self.classifier = classifier
+        
+    def fit(self, X_train, y_train,nom_col_trait):
+        self.classifier.fit(X_train, y_train)
+        self.nom_col_trait=nom_col_trait
+        self.traitements = np.unique(X_train[nom_col_trait])
+        return self
+        
+    def predict_uplift(self, X):
+        X_test=X.copy()
+        self.X_test_list = []
+        for value in self.traitements:
+            X_test_copy = X_test.copy()
+            X_test_copy[self.nom_col_trait] = value
+            self.X_test_list.append(X_test_copy)
+
+        probabilities_0 = self.classifier.predict_proba(self.X_test_list[0])[:, 1]
+        probabilities_1 = self.classifier.predict_proba(self.X_test_list[1])[:, 1]
+        uplift_values=[]
+        for i in range(len(probabilities_0)):
+            uplift_values.append([probabilities_1[i] - probabilities_0[i]])
+        for X_test in self.X_test_list[2:]:
+            probabilities = self.classifier.predict_proba(X_test)[:, 1]
+            uplift = probabilities - probabilities_0
+            for i in range(len(uplift_values)):
+                l=[]
+                ll=[]
+                for j in uplift_values[i]:
+                    ll.append(j)
+                ll.append(uplift[i])
+                uplift_values[i] = ll
+        #return np.array(self.X_test_list)
+        uplift_values = np.array(uplift_values)
+        return uplift_values
+    
+    def predict_policy(self, X):
+        uplift_values = self.predict_uplift(X)
+        indices = np.argmax(uplift_values, axis=1) + 1
+        for i, values in enumerate(uplift_values):
+            if np.all(values <= 0):
+                indices[i] = 0 
+        return indices
+
+    def predict_worst_policy(self, X):
+        uplift_values = self.predict_uplift(X)
+        indices = np.argmin(uplift_values, axis=1) + 1
+        for i, values in enumerate(uplift_values):
+            if np.all(values >= 0):
+                indices[i] = 0 
+        return indices

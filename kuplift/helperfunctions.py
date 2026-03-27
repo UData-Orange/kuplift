@@ -224,5 +224,6 @@ def in_dir(d):
 @contextmanager
 def in_tempdir():
     with tempfile.TemporaryDirectory() as dirname:
-        with in_dir(Path(dirname)):
-            yield
+        dirpath = Path(dirname)
+        with in_dir(dirpath):
+            yield dirpath

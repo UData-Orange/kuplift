@@ -40,3 +40,11 @@ kuplift.optimized_univariate_encoding module
    :members:
    :undoc-members:
    :show-inheritance:
+
+kuplift.multi_treatment_univariate_encoding module
+--------------------------------------------
+
+.. automodule:: kuplift.multi_treatment_univariate_encoding
+   :members:
+   :undoc-members:
+   :show-inheritance:
