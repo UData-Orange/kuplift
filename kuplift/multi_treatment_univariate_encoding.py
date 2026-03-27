@@ -15,6 +15,10 @@ from .helperclasses import ValGrp, ValGrpPartition, Interval, IntervalPartition,
 from .helperfunctions import in_tempdir
 
 
+## TODO: REMOVE THAT; IT IS FOR DEBUGGING PURPOSES ONLY
+from pprint import pprint
+
+
 class MultiTreatmentUnivariateEncoding:
     """
     The MultiTreatmentUnivariateEncoding class makes use of the khiops Python wrapper
@@ -110,7 +114,9 @@ class MultiTreatmentUnivariateEncoding:
         maxpartnumber: int, default=None
             The maximal number of intervals or groups. None means default to the 'khiops' program default.
         """
-        raise NotImplementedError
+        with in_tempdir() as dirpath:
+            random = True
+            pprint(uplift_MODL_V2("/home/user1/Testfiles/{}".format("random_dataset.csv" if random else "dataset.csv"), "TREATMENT", "TARGET", "VARIABLE1"))
 
 
     def transform(self, data):
@@ -339,9 +345,10 @@ def group_reparation(partition_groupe, all_t_values):
 
     return res
 
+
+# def uplift_MODL_V2(data, treatment_col, target_col):
 def uplift_MODL_V2(datafilepath, treatment, target, variable):
     t, y, x = treatment, target, variable
-    warnings.simplefilter("error")
     upper_bounds = []
     nb_int=0
     try:
@@ -381,7 +388,7 @@ def uplift_MODL_V2(datafilepath, treatment, target, variable):
         dictionary.add_variable(is_in_train_dataset_variable)
         results_dir = "analyse_uplift"
         domain.export_khiops_dictionary_file(dictionary_name)
-            
+
         retour = kh.train_recoder(
             domain,
             dictionary_name,
@@ -397,9 +404,12 @@ def uplift_MODL_V2(datafilepath, treatment, target, variable):
         pair_results  = train_results.preparation_report.get_variable_statistics(x)
 
         decoupage=[]
-        
-        for i in pair_results.data_grid.dimensions[0].partition:
-            decoupage.append([i.lower_bound,i.upper_bound])
+
+        if pair_results.level == 0:
+            pass  ## TODO
+        else:
+            for i in pair_results.data_grid.dimensions[0].partition:
+                decoupage.append([i.lower_bound,i.upper_bound])
 
         filtre_index_variable = kh.Variable()
         filtre_index_variable.name = "Filtre"
@@ -441,7 +451,7 @@ def uplift_MODL_V2(datafilepath, treatment, target, variable):
 
                 group_results = train_results.preparation_report.get_variable_statistics(t)
 
-                if group_results.level == 0:  # ==> Put on treatments into the same group.
+                if group_results.level == 0:  # ==> Put all treatments into the same group.
                     results_by_interval[interval_name] = [list(map(str, all_t_values))]
                 else:
                     partition_groupe = group_results.data_grid.dimensions[0].partition
