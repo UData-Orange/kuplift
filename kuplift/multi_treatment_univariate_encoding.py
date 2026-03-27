@@ -12,7 +12,7 @@ The main class of this module is 'MultiTreatmentUnivariateEncoding'.
 
 from pathlib import Path
 from .helperclasses import ValGrp, ValGrpPartition, Interval, IntervalPartition, TargetTreatmentPair
-from .helperfunctions import in_tempdir
+from tempfile import TemporaryDirectory
 
 
 ## TODO: REMOVE THAT; IT IS FOR DEBUGGING PURPOSES ONLY
@@ -114,9 +114,7 @@ class MultiTreatmentUnivariateEncoding:
         maxpartnumber: int, default=None
             The maximal number of intervals or groups. None means default to the 'khiops' program default.
         """
-        with in_tempdir() as dirpath:
-            random = True
-            pprint(uplift_MODL_V2("/home/user1/Testfiles/{}".format("random_dataset.csv" if random else "dataset.csv"), "TREATMENT", "TARGET", "VARIABLE1"))
+        pprint(uplift_MODL_V2(data, treatment_col, target_col, maxpartnumber))
 
 
     def transform(self, data):
@@ -346,22 +344,20 @@ def group_reparation(partition_groupe, all_t_values):
     return res
 
 
-# def uplift_MODL_V2(data, treatment_col, target_col):
-def uplift_MODL_V2(datafilepath, treatment, target, variable):
-    t, y, x = treatment, target, variable
+def uplift_MODL_V2(data, treatment_col, target_col, maxpartnumber):
+# def uplift_MODL_V2(datafilepath, treatment, target, variables):
+    t, y, x = "TREATMENT", "TARGET", "VARIABLE1"
     upper_bounds = []
-    nb_int=0
-    try:
-        df_t_values = pd.read_csv(datafilepath, usecols=[t])
-        all_t_values = np.sort(df_t_values[t].unique())
-            
+    nb_int = 0
+        
+    with TemporaryDirectory() as dirname:
+        all_t_values = np.sort(treatment_col.unique())
         results_by_interval = {}
-        titre_sans_extension = datafilepath.removesuffix('.csv')
-        
-        data_table_path = datafilepath
-        
+        dirpath = Path(dirname)
+        data_table_path = dirpath / "data.csv"
+        data.join([treatment_col, target_col]).to_csv(data_table_path, index=False)
         dictionary_name = "upliftMT"
-        dictionary_file_path = os.path.join(titre_sans_extension+".kdic")
+        dictionary_file_path = dirpath / "dictionary.kdic"
         with warnings.catch_warnings():
             warnings.filterwarnings(
                 "ignore",
@@ -369,9 +365,8 @@ def uplift_MODL_V2(datafilepath, treatment, target, variable):
                 r"""Execute the kh-download-datasets script or the khiops\.tools\.download_datasets function to download them\.$""",
                 UserWarning, f"^{kh.internals.runner.__name__}$")
             kh.build_dictionary_from_data_table(
-                data_table_path, dictionary_name, dictionary_file_path)
-        
-        domain = kh.read_dictionary_file(dictionary_file_path)
+                str(data_table_path), dictionary_name, str(dictionary_file_path))
+        domain = kh.read_dictionary_file(str(dictionary_file_path))
         dictionary = domain.get_dictionary(dictionary_name)
         
         E_variable = dictionary.get_variable(t)
@@ -387,29 +382,26 @@ def uplift_MODL_V2(datafilepath, treatment, target, variable):
         is_in_train_dataset_variable.rule = f"""Concat({y},"_",{t})"""
         dictionary.add_variable(is_in_train_dataset_variable)
         results_dir = "analyse_uplift"
-        domain.export_khiops_dictionary_file(dictionary_name)
+        domain.export_khiops_dictionary_file(str(dirpath / dictionary_name))
 
         retour = kh.train_recoder(
             domain,
             dictionary_name,
-            data_table_path,
+            str(data_table_path),
             f"{y}_{t}",
-            str(Path(results_dir)/"predictor_analysis_result.khj"),
+            str(dirpath / results_dir / "predictor_analysis_result.khj"),
             sample_percentage=100,
             max_trees=0,
             max_pairs=0,
         )
-        
+    
         train_results = kh.read_analysis_results_file(retour[0])
-        pair_results  = train_results.preparation_report.get_variable_statistics(x)
-
-        decoupage=[]
+        pair_results = train_results.preparation_report.get_variable_statistics(x)
 
         if pair_results.level == 0:
-            pass  ## TODO
+            raise NotImplementedError  ## TODO
         else:
-            for i in pair_results.data_grid.dimensions[0].partition:
-                decoupage.append([i.lower_bound,i.upper_bound])
+            decoupage = [(i.lower_bound, i.upper_bound) for i in pair_results.data_grid.dimensions[0].partition]
 
         filtre_index_variable = kh.Variable()
         filtre_index_variable.name = "Filtre"
@@ -430,43 +422,33 @@ def uplift_MODL_V2(datafilepath, treatment, target, variable):
         interval_names = [f"I{i+1}" for i in range(len(upper_bounds))]
         nb_int = len(interval_names)
         for interval_name in interval_names:
-            try:
-                with warnings.catch_warnings():
-                    warnings.filterwarnings(
-                        "ignore",
-                        r"""^Khiops ended correctly but there were minor issues:\s+"""
-                        r"""Warnings in log:\s+"""
-                        r"""Line \d+: warning : Decision Tree variable creation : No informative tree built among the \d+ planned$""",
-                        UserWarning, f"^{kh.internals.runner.__name__}$")
-                    retour = kh.train_recoder(
-                        domain, dictionary_name, data_table_path, y, str(Path(results_dir)/f"x_{interval_name}_analysis_result.khj"),
-                        sample_percentage=100,
-                        selection_variable="Filtre",
-                        selection_value=interval_name,
-                        max_trees=100,
-                        max_pairs=100,
-                    )
-                
-                train_results = kh.read_analysis_results_file(retour[0])
-
-                group_results = train_results.preparation_report.get_variable_statistics(t)
-
-                if group_results.level == 0:  # ==> Put all treatments into the same group.
-                    results_by_interval[interval_name] = [list(map(str, all_t_values))]
-                else:
-                    partition_groupe = group_results.data_grid.dimensions[0].partition
-                    results_by_interval[interval_name] = group_reparation(partition_groupe, all_t_values)
+            # with warnings.catch_warnings():
+            #     warnings.filterwarnings(
+            #         "ignore",
+            #         r"""^Khiops ended correctly but there were minor issues:\s+"""
+            #         r"""Warnings in log:\s+"""
+            #         r"""Line \d+: warning : Decision Tree variable creation : No informative tree built among the \d+ planned$""",
+            #         UserWarning, f"^{kh.internals.runner.__name__}$")
+            retour = kh.train_recoder(
+                domain, dictionary_name, str(data_table_path), y, str(dirpath / results_dir / "x_{}_analysis_result.khj".format(interval_name)),
+                sample_percentage=100,
+                selection_variable="Filtre",
+                selection_value=interval_name,
+                max_trees=0,#100,
+                max_pairs=100,
+            )
             
-            except Exception as e:
-                raise
-                print(f"Erreur lors de l'analyse pour {interval_name}: {e}.")
-                results_by_interval[interval_name] = [[]]
+            train_results = kh.read_analysis_results_file(retour[0])
 
-    except Exception as e:
-        raise
-        print(f"Une erreur générale est survenue : {e}")
-              
-    return results_by_interval,upper_bounds,nb_int
+            group_results = train_results.preparation_report.get_variable_statistics(t)
+
+            if group_results.level == 0:  # ==> Put all treatments into the same group.
+                results_by_interval[interval_name] = [list(map(str, all_t_values))]
+            else:
+                partition_groupe = group_results.data_grid.dimensions[0].partition
+                results_by_interval[interval_name] = group_reparation(partition_groupe, all_t_values)
+        
+        return results_by_interval,upper_bounds,nb_int
 
 
 class modele_E_y_avec_rapprochement_MODL(BaseEstimator, TransformerMixin):

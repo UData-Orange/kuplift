@@ -209,21 +209,3 @@ def preprocess_data(data, treatment_col="segment", y_col="visit"):
             encoded_i += 1
     data[treatment_col] = data[treatment_col].astype(str)
     return data
-
-
-@contextmanager
-def in_dir(d):
-    olddir = Path.cwd()
-    os.chdir(d)
-    try:
-        yield
-    finally:
-        os.chdir(olddir)
-
-
-@contextmanager
-def in_tempdir():
-    with tempfile.TemporaryDirectory() as dirname:
-        dirpath = Path(dirname)
-        with in_dir(dirpath):
-            yield dirpath
