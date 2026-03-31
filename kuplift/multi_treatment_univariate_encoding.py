@@ -113,7 +113,11 @@ class MultiTreatmentUnivariateEncoding:
         maxpartnumber: int, default=None
             The maximal number of intervals or groups. None means default to the 'khiops' program default.
         """
-        uplift_MODL(data, treatment_col, target_col, maxpartnumber)
+        for varname, (treatmentgroups, upperbounds, nintervals) in uplift_MODL(data, treatment_col, target_col, maxpartnumber).items():
+            print(f"{varname=}")
+            print(f"  {treatmentgroups=}")
+            print(f"  {upperbounds=}")
+            print(f"  {nintervals=}")
 
 
     def transform(self, data):
@@ -344,18 +348,17 @@ def group_reparation(partition_groupe, all_t_values):
 
 
 def uplift_MODL(data, treatment_col, target_col, maxpartnumber):
-    t, y, x = treatment_col.name, target_col.name, data.columns[0]
-    logger.debug("Computing uplift with %d lines of data, variable columns {%s}, treatment column '%s' and target column '%s'...", len(data), f"'{x}'", t, y)
-    upper_bounds = []
-    nb_int = 0
+    t, y, xs = treatment_col.name, target_col.name, data.columns
+    logger.debug("Computing uplift with %d lines of data, variable columns {%s}, treatment column '%s' and target column '%s'...",
+                 len(data), ", ".join(f"'{x}'" for x in xs), t, y)
     all_t_values = np.sort(treatment_col.unique())
-    results_by_interval = {}
         
     with TemporaryDirectory() as dirname:
         logger.debug("Temporary file output will be in '%s'.", dirname)
         
         dirpath = Path(dirname)
         data_table_path = dirpath / "data.csv"
+        datatable_filename = str(data_table_path)
         dictionary_file_path = dirpath / "dictionary.kdic"
         dictionary_name = "upliftMT"
         snd_dictionary_file_path = dirpath / dictionary_name
@@ -374,7 +377,7 @@ def uplift_MODL(data, treatment_col, target_col, maxpartnumber):
                 r"""Execute the kh-download-datasets script or the khiops\.tools\.download_datasets function to download them\.$""",
                 UserWarning, f"^{kh.internals.runner.__name__}$")
             kh.build_dictionary_from_data_table(
-                str(data_table_path), dictionary_name, str(dictionary_file_path))
+                datatable_filename, dictionary_name, str(dictionary_file_path))
         logger.debug("Done building dictionary.")
         logger.debug("Reading from dictionary file...")
         domain = kh.read_dictionary_file(str(dictionary_file_path))
@@ -391,86 +394,93 @@ def uplift_MODL(data, treatment_col, target_col, maxpartnumber):
         is_in_train_dataset_variable.used = True
         is_in_train_dataset_variable.rule = f"""Concat({y},"_",{t})"""
         dictionary.add_variable(is_in_train_dataset_variable)
-        results_dir = "analyse_uplift"
+        result_dir = "analyse_uplift"
         logger.debug("Exporting dictionary to file...")
         domain.export_khiops_dictionary_file(str(snd_dictionary_file_path))
         logger.debug("Done exporting.")
 
         logger.debug("Training recoder...")
-        retour = kh.train_recoder(
-            domain,
-            dictionary_name,
-            str(data_table_path),
-            f"{y}_{t}",
-            str(dirpath / results_dir / "predictor_analysis_result.khj"),
-            sample_percentage=100,
-            max_trees=0,
-            max_pairs=0,
-        )
+        retour = kh.train_recoder(domain, dictionary_name, datatable_filename, f"{y}_{t}",
+            str(dirpath / result_dir / "predictor_analysis_result.khj"),
+            sample_percentage=100, max_trees=0, max_pairs=0)
         logger.debug("Done training.")
     
         logger.debug("Reading analysis result file...")
         train_results = kh.read_analysis_results_file(retour[0])
         logger.debug("Done reading.")
-        pair_results = train_results.preparation_report.get_variable_statistics(x)
 
-        if pair_results.level == 0:
-            raise NotImplementedError  ## TODO
-        else:
-            decoupage = [(i.lower_bound, i.upper_bound) for i in pair_results.data_grid.dimensions[0].partition]
-
-        filtre_index_variable = kh.Variable()
-        filtre_index_variable.name = "Filtre"
-        filtre_index_variable.type = "Categorical"
-        filtre_index_variable.used = True
-        upper_bounds = [str(interval[1]) for interval in decoupage]
-        
-        bounds_str = ",".join(upper_bounds)
-        
-        filtre_index_variable.rule = "IntervalId(IntervalBounds(%s), %s)" % (bounds_str, x)
-        
-        dictionary.add_variable(filtre_index_variable)
-        
-        X_variable = dictionary.get_variable(x)
-        X_variable.used = False
-    
-        
-        interval_names = [f"I{i+1}" for i in range(len(upper_bounds))]
-        nb_int = len(interval_names)
-        for interval_name in interval_names:
-            logger.debug("Training recoder of interval %s...", interval_name)
-            # with warnings.catch_warnings():
-            #     warnings.filterwarnings(
-            #         "ignore",
-            #         r"""^Khiops ended correctly but there were minor issues:\s+"""
-            #         r"""Warnings in log:\s+"""
-            #         r"""Line \d+: warning : Decision Tree variable creation : No informative tree built among the \d+ planned$""",
-            #         UserWarning, f"^{kh.internals.runner.__name__}$")
-            retour = kh.train_recoder(
-                domain, dictionary_name, str(data_table_path), y, str(dirpath / results_dir / "x_{}_analysis_result.khj".format(interval_name)),
-                sample_percentage=100,
-                selection_variable="Filtre",
-                selection_value=interval_name,
-                max_trees=0,#100,
-                max_pairs=100,
-            )
-            logger.debug("Done training.")
+        result = {}
+        for x in xs:
+            logger.debug("Computing uplift for variable '{}'...".format(x))
+            result[x] = uplift_MODL_for_var(x, y, t, all_t_values, train_results, domain, dictionary, dictionary_name,
+                                            datatable_filename, "/".join([dirname, result_dir, f"{x}_{{}}_analysis_result.khj"]))
+            logger.debug("Done computing uplift for variable '{}'.".format(x))
             
-            logger.debug("Reading analysis result file of interval %s...", interval_name)
-            train_results = kh.read_analysis_results_file(retour[0])
-            logger.debug("Done reading.")
+        logger.debug("Done computing uplift.")
+            
+        return result
 
-            group_results = train_results.preparation_report.get_variable_statistics(t)
 
-            if group_results.level == 0:  # ==> Put all treatments into the same group.
-                results_by_interval[interval_name] = [list(map(str, all_t_values))]
-            else:
-                partition_groupe = group_results.data_grid.dimensions[0].partition
-                logger.debug("Repairing groups of interval %s...", interval_name)
-                results_by_interval[interval_name] = group_reparation(partition_groupe, all_t_values)
-                logger.debug("Done repairing.")
+def uplift_MODL_for_var(x, y, t, all_t_values, train_results, domain, dictionary, dictionary_name, datatable_filename, interval_result_filename_template):
+    logger.debug("Analysis result file name template: %s.", interval_result_filename_template)
+    pair_results = train_results.preparation_report.get_variable_statistics(x)
+
+    if pair_results.level == 0:
+        raise NotImplementedError  ## TODO
+    else:
+        decoupage = [(i.lower_bound, i.upper_bound) for i in pair_results.data_grid.dimensions[0].partition]
+
+    filtre_index_variable = kh.Variable()
+    filtre_index_variable.name = "Filtre_{}".format(x)
+    filtre_index_variable.type = "Categorical"
+    filtre_index_variable.used = True
+    upper_bounds = [str(interval[1]) for interval in decoupage]
+    
+    bounds_str = ",".join(upper_bounds)
+    
+    filtre_index_variable.rule = "IntervalId(IntervalBounds(%s), %s)" % (bounds_str, x)
+    
+    dictionary.add_variable(filtre_index_variable)
+    
+    X_variable = dictionary.get_variable(x)
+    X_variable.used = False
+    
+    interval_names = [f"I{i}" for i in range(1, len(upper_bounds) + 1)]
+    groups_by_interval = {}
+    for interval_name in interval_names:
+        logger.debug("Training recoder of interval %s...", interval_name)
+        # with warnings.catch_warnings():
+        #     warnings.filterwarnings(
+        #         "ignore",
+        #         r"""^Khiops ended correctly but there were minor issues:\s+"""
+        #         r"""Warnings in log:\s+"""
+        #         r"""Line \d+: warning : Decision Tree variable creation : No informative tree built among the \d+ planned$""",
+        #         UserWarning, f"^{kh.internals.runner.__name__}$")
+        retour = kh.train_recoder(
+            domain, dictionary_name, datatable_filename, y, interval_result_filename_template.format(interval_name),
+            sample_percentage=100,
+            selection_variable="Filtre_{}".format(x),
+            selection_value=interval_name,
+            max_trees=0,#100,
+            max_pairs=100,
+        )
+        logger.debug("Done training.")
         
-    return results_by_interval,upper_bounds,nb_int
+        logger.debug("Reading analysis result file of interval %s...", interval_name)
+        train_results = kh.read_analysis_results_file(retour[0])
+        logger.debug("Done reading.")
+
+        group_results = train_results.preparation_report.get_variable_statistics(t)
+
+        if group_results.level == 0:  # ==> Put all treatments into the same group.
+            groups_by_interval[interval_name] = [list(map(str, all_t_values))]
+        else:
+            partition_groupe = group_results.data_grid.dimensions[0].partition
+            logger.debug("Repairing groups of interval %s...", interval_name)
+            groups_by_interval[interval_name] = group_reparation(partition_groupe, all_t_values)
+            logger.debug("Done repairing.")
+        
+    return groups_by_interval, upper_bounds, len(interval_names)
 
 
 class modele_E_y_avec_rapprochement_MODL(BaseEstimator, TransformerMixin):

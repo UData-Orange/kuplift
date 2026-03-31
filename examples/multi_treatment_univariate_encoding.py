@@ -23,9 +23,9 @@ def main():
     random = False
     # random = True
     if random:
-        df = pandas.read_csv("/home/user1/Testfiles/random_dataset.csv")
+        df = pandas.read_csv("/home/user1/testfiles/kuplift/random_dataset.csv")
     else:
-        df = pandas.read_csv("/home/user1/Testfiles/dataset.csv")
+        df = pandas.read_csv("/home/user1/testfiles/kuplift/dataset_multivar.csv")
     ue.fit(df[df.columns[:-2]], df["TREATMENT"], df["TARGET"])
 
 
