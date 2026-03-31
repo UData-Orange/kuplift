@@ -7,7 +7,7 @@ name = "kuplift"
 version = "0.0.17"
 description = "A User Parameter-free Bayesian Framework for Uplift Modeling"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 license-files = ["LICENSE"]
 maintainers = [{name="The Khiops Team", email="khiops.team@orange.com"}]
 dependencies = [
