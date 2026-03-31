@@ -20,13 +20,6 @@ def main():
     global ue  # Make it available for study after execution of this function.
     logging.basicConfig(level=logging.DEBUG)
     ue = kuplift.MultiTreatmentUnivariateEncoding()
-    random = False
-    # random = True
-    if random:
-        df = pandas.read_csv("/home/user1/testfiles/kuplift/random_dataset.csv")
-    else:
-        df = pandas.read_csv("/home/user1/testfiles/kuplift/dataset_multivar.csv")
-    ue.fit(df[df.columns[:-2]], df["TREATMENT"], df["TARGET"])
 
 
 if __name__ == "__main__":
