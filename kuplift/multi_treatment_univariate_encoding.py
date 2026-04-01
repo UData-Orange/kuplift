@@ -836,8 +836,7 @@ def critere_modl(df, col_X, col_T, col_Y, intervalles, regroupements_traitements
         col_T (str): Le nom de la colonne T (traitements).
         col_Y (str): Le nom de la colonne Y (variable cible).
         intervalles (list): Liste des intervalles, e.g., [[0, 0.1], [0.1, 0.2]].
-        regroupements_traitements (list): Liste des regroupements de traitements par intervalle.
-            Exemple : [[[0,2],[3,1]], [[0,3],[2,1]]]
+        regroupements_traitements (list): Liste des regroupements de traitements par intervalle. Exemple : [[[0,2],[3,1]], [[0,3],[2,1]]]
 
     Returns:
         float: Le résultat de l'expression.
