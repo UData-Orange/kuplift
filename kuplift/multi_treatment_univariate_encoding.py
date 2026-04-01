@@ -381,17 +381,17 @@ def uplift_MODL(data, treatment_col, target_col, maxpartnumber):
         domain = kh.read_dictionary_file(str(dct_filepath))
         logger.debug("Done reading.")
 
-        dictionary = domain.get_dictionary(dct_name)
-        E_variable = dictionary.get_variable(t)
+        dct = domain.get_dictionary(dct_name)
+        E_variable = dct.get_variable(t)
         E_variable.type = "Categorical"
-        E_variable = dictionary.get_variable(y)
+        E_variable = dct.get_variable(y)
         E_variable.type = "Categorical"
         is_in_train_dataset_variable = kh.Variable()
         is_in_train_dataset_variable.name = f"{y}_{t}"
         is_in_train_dataset_variable.type = "Categorical"
         is_in_train_dataset_variable.used = True
         is_in_train_dataset_variable.rule = f"""Concat({y},"_",{t})"""
-        dictionary.add_variable(is_in_train_dataset_variable)
+        dct.add_variable(is_in_train_dataset_variable)
         result_dir = "analyse_uplift"
         logger.debug("Exporting dictionary to file...")
         domain.export_khiops_dictionary_file(str(second_dct_filepath))
@@ -410,7 +410,7 @@ def uplift_MODL(data, treatment_col, target_col, maxpartnumber):
         result = {}
         for x in xs:
             logger.debug("Computing uplift for variable '{}'...".format(x))
-            result[x] = uplift_MODL_for_var(x, y, t, all_treatments, train_results, domain, dictionary, dct_name,
+            result[x] = uplift_MODL_for_var(x, y, t, all_treatments, train_results, domain, dct, dct_name,
                                             datatable_filename, "/".join([dirname, result_dir, f"{x}_{{}}_analysis_result.khj"]))
             logger.debug("Done computing uplift for variable '{}'.".format(x))
             
