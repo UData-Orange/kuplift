@@ -135,6 +135,7 @@ class MultiTreatmentUnivariateEncoding:
         return self.treatment_groups
     
 
+    ## TODO: Add optional parameter that is a path to replace the temporary directory's role.
     def fit(self, data, treatment_col, target_col, maxpartnumber = None):
         """Learn a discretisation model using Khiops.
 
@@ -440,9 +441,6 @@ def uplift_MODL(data, treatment_col, target_col, maxpartnumber):
         analysis_result_dirpath = dirpath / "analyse_uplift"
         logger.debug("Analysis result path: %s.", analysis_result_dirpath)
         dct_name = "upliftMT"
-        ## TODO: Remove?
-        # second_dct_filepath = dirpath / dct_name
-        # logger.debug("Second dictionary file name: %s.", second_dct_filepath)
 
         logger.debug("Writing to data file...")
         data.join([treatment_col, target_col]).to_csv(datatable_path, index=False)
@@ -470,7 +468,7 @@ def uplift_MODL(data, treatment_col, target_col, maxpartnumber):
         is_in_train_dataset_variable.used = True
         is_in_train_dataset_variable.rule = f"""Concat({y},"_",{t})"""
         dct.add_variable(is_in_train_dataset_variable)
-        ## TODO: Remove?
+        ## TODO: Remove? Or export the dict to file for reference (when an output dir is configured by the caller code).
         # logger.debug("Exporting dictionary to file...")
         # domain.export_khiops_dictionary_file(str(second_dct_filepath))
         # logger.debug("Done exporting.")
@@ -478,7 +476,7 @@ def uplift_MODL(data, treatment_col, target_col, maxpartnumber):
         logger.debug("Training recoder...")
         analysis_result_files = kh.train_recoder(domain, dct_name, datatable_filename, f"{y}_{t}",
             str(analysis_result_dirpath / "predictor_analysis_result.khj"),
-            sample_percentage=100, max_trees=0, max_pairs=0)#, max_parts=maxpartnumber) ## TODO
+            sample_percentage=100, max_trees=0, max_pairs=0, max_parts=maxpartnumber or 0)
         logger.debug("Analysis result files: %s, %s.", analysis_result_files[0], analysis_result_files[1])
         logger.debug("Done training.")
     
@@ -537,22 +535,16 @@ def uplift_MODL_for_var(x, y, t, all_t_values, train_results, domain, dct, dct_n
     groups_by_interval = {}
     for i, interval in enumerate(model):
         logger.debug("Training recoder of interval %s...", interval)
-        ## TODO
-        # with warnings.catch_warnings():
-        #     warnings.filterwarnings(
-        #         "ignore",
-        #         r"""^Khiops ended correctly but there were minor issues:\s+"""
-        #         r"""Warnings in log:\s+"""
-        #         r"""Line \d+: warning : Decision Tree variable creation : No informative tree built among the \d+ planned$""",
-        #         UserWarning, f"^{kh.internals.runner.__name__}$")
         analysis_result_files = kh.train_recoder(
             domain, dct_name, datatable_filename, y, analysis_result_filename_template.format(f"{interval.lower}_{interval.upper}"),
             sample_percentage=100,
             selection_variable="Filtre_{}".format(x),
-            selection_value=f"I{i + 1}",#str(interval),
-            max_trees=0,#100, ## TODO
-            max_pairs=100,
-            # max_parts=maxpartnumber, ## TODO
+            selection_value=f"I{i + 1}",
+            max_trees=0,
+            max_pairs=0,
+            max_constructed_variables=0,
+            max_text_features=0
+            # max_parts=TBD, ## TODO Nb de regroupements max des traitements
         )
         logger.debug("Analysis result files: %s, %s.", analysis_result_files[0], analysis_result_files[1])
         logger.debug("Done training.")
