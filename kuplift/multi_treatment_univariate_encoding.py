@@ -129,6 +129,12 @@ class MultiTreatmentUnivariateEncoding:
         return [TargetTreatmentPair(target, treatment) for target in self.target_modalities for treatment in self.treatment_modalities]
     
 
+    @property
+    def get_treatment_groups(self):
+        """Dict mapping variable names to dictionaries mapping parts to treatment groups."""
+        return self.treatment_groups
+    
+
     def fit(self, data, treatment_col, target_col, maxpartnumber = None):
         """Learn a discretisation model using Khiops.
 
@@ -146,12 +152,6 @@ class MultiTreatmentUnivariateEncoding:
             The maximal number of intervals or groups. None means default to the 'khiops' program default.
         """
         model, treatment_groups, levels = uplift_MODL(data, treatment_col, target_col, maxpartnumber)
-        for varname, varmodel in model.items():
-            print(f"{varname=}")
-            print(f"  {varmodel=}")
-        for varname, treatmentgroups in treatment_groups.items():
-            print(f"{varname=}")
-            print(f"  {treatmentgroups=}")
 
         # Only write to the instance's attributes if all the above succeeded.
         self.model = model
@@ -424,8 +424,8 @@ def repair_groups(groups, all_treatments):
 
 def uplift_MODL(data, treatment_col, target_col, maxpartnumber):
     t, y, xs = treatment_col.name, target_col.name, data.columns
-    logger.debug("Computing uplift with %d lines of data, variable columns {%s}, treatment column '%s' and target column '%s'...",
-                 len(data), ", ".join(f"'{x}'" for x in xs), t, y)
+    logger.info("Computing uplift with %d lines of data, %d variables, treatment column '%s' and target column '%s'...",
+                 len(data), len(xs), t, y)
     all_treatments = np.sort(treatment_col.unique())
         
     with TemporaryDirectory() as dirname:
@@ -490,12 +490,20 @@ def uplift_MODL(data, treatment_col, target_col, maxpartnumber):
         groups_by_interval_by_variable = {}
         levels = {}
         for x in xs:
-            logger.debug("Computing uplift for variable '{}'...".format(x))
-            model[x], groups_by_interval_by_variable[x], levels[x] = uplift_MODL_for_var(x, y, t, all_treatments, train_results, domain, dct,
-                                                                    dct_name, datatable_filename, str(analysis_result_dirpath) + f"/{x}_{{}}_analysis_result.khj")
-            logger.debug("Done computing uplift for variable '{}'.".format(x))
+            logger.info("Computing uplift for variable '{}'...".format(x))
+            otherxs = [x_ for x_ in xs if x_ != x]
+            for otherx in otherxs:
+                dct.get_variable(otherx).used = False
+            varmodel, groups_by_interval_for_variable, level = uplift_MODL_for_var(
+                x, y, t, all_treatments, train_results, domain, dct, dct_name, datatable_filename, str(analysis_result_dirpath) + f"/{x}_{{}}_analysis_result.khj")
+            if varmodel is not None:
+                model[x] = varmodel
+            if groups_by_interval_for_variable is not None:
+                groups_by_interval_by_variable[x] = groups_by_interval_for_variable
+            levels[x] = level
+            logger.info("Done computing uplift for variable '{}'.".format(x))
             
-        logger.debug("Done computing uplift.")
+        logger.info("Done computing uplift.")
             
         return model, groups_by_interval_by_variable, sorted((var_level_pair for var_level_pair in levels.items()), key=lambda namelevel: (-namelevel[1], namelevel[0]))
 
@@ -506,7 +514,7 @@ def uplift_MODL_for_var(x, y, t, all_t_values, train_results, domain, dct, dct_n
     level = pair_results.level
 
     if level == 0:
-        raise NotImplementedError  ## TODO
+        return None, None, 0.0
     else:
         vardim = pair_results.data_grid.dimensions[0]
         match vardim.partition_type:
