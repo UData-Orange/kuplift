@@ -23,7 +23,39 @@ class MultiTreatmentUnivariateEncoding:
     The MultiTreatmentUnivariateEncoding class makes use of the khiops Python wrapper
     and enables one to fit and transform data while grouping treatments giving similar
     outcome.
+    
+    Attributes
+    ----------
+    model: dict mapping str to ValGrpPartition or IntervalPartition
+        It describes the partitioning of values of informative variables into groups or intervals.
+        It maps the informative variable names to value partitions.
+
+    levels: list of (str, float) pairs
+        (variable-name, variable-level) pairs in decreasing level order.
+
+    variable_cols: DataFrame
+        The data columns of all variables.
+        This means all the data from the dataset but the treatment and target columns.
+
+    treatment_col: Series
+        The treatment column from the dataset.
+
+    target_col: Series
+        The target column from the dataset.
+
+    treatment_groups: dict mapping str to dict mapping ValGrp or Interval to int
+        The keys are the variable names. The values are themselves dictionaries, which keys are ValGrp
+        or Interval and which values are numbers.
     """
+
+    def __init__(self):
+        self.model: dict[str, ValGrpPartition | IntervalPartition] = {}
+        self.levels: list[tuple[str, float]] = []
+        self.variable_cols = None
+        self.treatment_col = None
+        self.target_col = None
+        self.treatment_groups = None
+
 
     @property
     def input_variables(self):
@@ -113,9 +145,21 @@ class MultiTreatmentUnivariateEncoding:
         maxpartnumber: int, default=None
             The maximal number of intervals or groups. None means default to the 'khiops' program default.
         """
-        for varname, treatmentgroups in uplift_MODL(data, treatment_col, target_col, maxpartnumber).items():
+        model, treatment_groups, levels = uplift_MODL(data, treatment_col, target_col, maxpartnumber)
+        for varname, varmodel in model.items():
+            print(f"{varname=}")
+            print(f"  {varmodel=}")
+        for varname, treatmentgroups in treatment_groups.items():
             print(f"{varname=}")
             print(f"  {treatmentgroups=}")
+
+        # Only write to the instance's attributes if all the above succeeded.
+        self.model = model
+        self.levels = levels
+        self.variable_cols = data
+        self.treatment_col = treatment_col
+        self.target_col = target_col
+        self.treatment_groups = treatment_groups
 
 
     def transform(self, data):
@@ -131,7 +175,9 @@ class MultiTreatmentUnivariateEncoding:
         pd.DataFrame
             Pandas Dataframe that contains encoded data.
         """
-        raise NotImplementedError
+        data = data[list(self.model.keys())]  # Keep only informative variables
+        self.transformed_data = data.transform(lambda col: self.model[col.name].transform(col))
+        return self.transformed_data
 
     
     def fit_transform(self, data, treatment_col, target_col, maxpartnumber = None):
@@ -167,7 +213,7 @@ class MultiTreatmentUnivariateEncoding:
         list[tuple[str, float]]
             (variable-name, variable-level) pairs in decreasing level order.
         """
-        raise NotImplementedError
+        return self.levels
     
 
     def get_level(self, variable):
@@ -183,7 +229,7 @@ class MultiTreatmentUnivariateEncoding:
         float
             The level of the specified variable.
         """
-        raise NotImplementedError
+        return dict(self.levels)[variable]
     
 
     def get_partition(self, variable):
@@ -199,7 +245,7 @@ class MultiTreatmentUnivariateEncoding:
         ValGrpPartition | IntervalPartition
             The partition corresponding to a single variable of the model.
         """
-        raise NotImplementedError
+        return self.model[variable]
     
 
     def get_target_frequencies(self, variable):
@@ -219,7 +265,24 @@ class MultiTreatmentUnivariateEncoding:
                 - A column named 'Part' listing all the parts of the variable.
                 - One column per (target, treatment) pair.
         """
-        raise NotImplementedError
+        varcol = self.variable_cols[variable]
+        partition = self.get_partition(variable)
+        return pd.DataFrame(
+            {
+                **{"Part": partition},
+                **{
+                    ttpair: [
+                        len(
+                            varcol[
+                                (self.treatment_col == ttpair.treatment) & (self.target_col == ttpair.target) & varcol.map(lambda elem: partition.transform_elem(elem) == i)
+                            ]
+                        )
+                        for i, _ in enumerate(partition)
+                    ]
+                    for ttpair in self.target_treatment_pairs
+                }
+            }
+        )
     
 
     def get_target_probabilities(self, variable):
@@ -239,7 +302,18 @@ class MultiTreatmentUnivariateEncoding:
                 - A column named 'Part' listing all the parts of the variable.
                 - One column per (target, treatment) pair.
         """
-        raise NotImplementedError
+        freqs = self.get_target_frequencies(variable)
+        return freqs["Part"].to_frame().join(
+            pd.DataFrame({
+                ttpair: [
+                    freqs[ttpair][freqs["Part"] == part].sum() / freqs[
+                        [TargetTreatmentPair(target, ttpair.treatment) for target in self.target_modalities]
+                    ][freqs["Part"] == part].sum().sum()
+                    for part in self.get_partition(variable)
+                ]
+                for ttpair in self.target_treatment_pairs
+            })
+        )
     
 
     def get_uplift(self, reftarget, reftreatment, variable):
@@ -266,7 +340,12 @@ class MultiTreatmentUnivariateEncoding:
                   the benefit (or deficit) of probabilities to have 'reftarget' as the outcome with the column's
                   treatment compared to the reference treatment.
         """
-        raise NotImplementedError
+        probs = self.get_target_probabilities(variable)
+        refprobs = probs[TargetTreatmentPair(reftarget, reftreatment)]
+        return probs["Part"].to_frame().join(pd.DataFrame({
+            f"Uplift {reftarget} {treatment}": probs[TargetTreatmentPair(reftarget, treatment)] - refprobs
+            for treatment in self.treatment_modalities if treatment != reftreatment
+        }))
 
 
 #############################################################################
@@ -407,39 +486,48 @@ def uplift_MODL(data, treatment_col, target_col, maxpartnumber):
         train_results = kh.read_analysis_results_file(analysis_result_files[0])
         logger.debug("Done reading.")
 
+        model = {}
         groups_by_interval_by_variable = {}
+        levels = {}
         for x in xs:
             logger.debug("Computing uplift for variable '{}'...".format(x))
-            groups_by_interval_by_variable[x] = uplift_MODL_for_var(x, y, t, all_treatments, train_results, domain, dct,
+            model[x], groups_by_interval_by_variable[x], levels[x] = uplift_MODL_for_var(x, y, t, all_treatments, train_results, domain, dct,
                                                                     dct_name, datatable_filename, str(analysis_result_dirpath) + f"/{x}_{{}}_analysis_result.khj")
             logger.debug("Done computing uplift for variable '{}'.".format(x))
             
         logger.debug("Done computing uplift.")
             
-        return groups_by_interval_by_variable
+        return model, groups_by_interval_by_variable, sorted((var_level_pair for var_level_pair in levels.items()), key=lambda namelevel: (-namelevel[1], namelevel[0]))
 
 
 def uplift_MODL_for_var(x, y, t, all_t_values, train_results, domain, dct, dct_name, datatable_filename, analysis_result_filename_template):
     logger.debug("Analysis result file name template: %s.", analysis_result_filename_template)
     pair_results = train_results.preparation_report.get_variable_statistics(x)
+    level = pair_results.level
 
-    if pair_results.level == 0:
+    if level == 0:
         raise NotImplementedError  ## TODO
     else:
-        intervals = [Interval(interval.lower_bound, interval.upper_bound) for interval in pair_results.data_grid.dimensions[0].partition]
+        vardim = pair_results.data_grid.dimensions[0]
+        match vardim.partition_type:
+            case "Value groups":
+                model = ValGrpPartition([ValGrp(valgrp.values) for valgrp in vardim.partition], next(i for i, valgrp in enumerate(vardim.partition) if valgrp.is_default_part))
+            case "Intervals":
+                model = IntervalPartition([Interval(interval.lower_bound, interval.upper_bound) for interval in vardim.partition])
+            case ptype: raise ValueError("unsupported partition type '%s'" % ptype)
 
     filtre_index_variable = kh.Variable()
     filtre_index_variable.name = "Filtre_{}".format(x)
     filtre_index_variable.type = "Categorical"
     filtre_index_variable.used = True
-    filtre_index_variable.rule = "IntervalId(IntervalBounds(%s), %s)" % (",".join(str(interval.upper) for interval in intervals), x)
+    filtre_index_variable.rule = "IntervalId(IntervalBounds(%s), %s)" % (",".join(str(interval.upper) for interval in model if interval.upper != +math.inf), x)
     dct.add_variable(filtre_index_variable)
 
     x_variable = dct.get_variable(x)
     x_variable.used = False
     
     groups_by_interval = {}
-    for i, interval in enumerate(intervals):
+    for i, interval in enumerate(model):
         logger.debug("Training recoder of interval %s...", interval)
         ## TODO
         # with warnings.catch_warnings():
@@ -481,7 +569,7 @@ def uplift_MODL_for_var(x, y, t, all_t_values, train_results, domain, dct, dct_n
     dct.remove_variable(filtre_index_variable.name)
     x_variable.used = True
         
-    return groups_by_interval
+    return model, groups_by_interval, level
 
 
 class modele_E_y_avec_rapprochement_MODL(BaseEstimator, TransformerMixin):

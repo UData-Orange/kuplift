@@ -20,6 +20,28 @@ def main():
     global ue  # Make it available for study after execution of this function.
     logging.basicConfig(level=logging.DEBUG)
     ue = kuplift.MultiTreatmentUnivariateEncoding()
+    random = False
+    # random = True
+    if random:
+        df = pandas.read_csv("/home/user1/testfiles/kuplift/random_dataset.csv")
+    else:
+        df = pandas.read_csv("/home/user1/testfiles/kuplift/dataset_multivar.csv")
+    ue.fit(df[df.columns[:-2]], df["TREATMENT"], df["TARGET"])
+    print()
+    print("Model generation complete. MultiTreatmentUnivariateEncoding instance available under the name 'ue'. 'pprint.pprint' is already imported.")
+    print()
+    print()
+    print("Variable levels:")
+    print(ue.get_levels())
+    print()
+    print()
+    VARNAME = "VARIABLE1"
+    print("Target probabilities for variable '{}':".format(VARNAME))
+    print(ue.get_target_probabilities(VARNAME))
+    print()
+    print()
+    print("Uplift for variable '{}':".format(VARNAME))
+    print(ue.get_uplift(1, 0, VARNAME))
 
 
 if __name__ == "__main__":
