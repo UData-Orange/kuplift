@@ -113,11 +113,9 @@ class MultiTreatmentUnivariateEncoding:
         maxpartnumber: int, default=None
             The maximal number of intervals or groups. None means default to the 'khiops' program default.
         """
-        for varname, (treatmentgroups, upperbounds, nintervals) in uplift_MODL(data, treatment_col, target_col, maxpartnumber).items():
+        for varname, treatmentgroups in uplift_MODL(data, treatment_col, target_col, maxpartnumber).items():
             print(f"{varname=}")
             print(f"  {treatmentgroups=}")
-            print(f"  {upperbounds=}")
-            print(f"  {nintervals=}")
 
 
     def transform(self, data):
@@ -356,13 +354,16 @@ def uplift_MODL(data, treatment_col, target_col, maxpartnumber):
         
         dirpath = Path(dirname)
         datatable_path = dirpath / "data.csv"
+        logger.debug("Data file name: %s.", datatable_path)
         datatable_filename = str(datatable_path)
         dct_filepath = dirpath / "dictionary.kdic"
-        dct_name = "upliftMT"
-        second_dct_filepath = dirpath / dct_name
-        logger.debug("Data file name: %s.", datatable_path)
         logger.debug("Dictionary file name: %s.", dct_filepath)
-        logger.debug("Second dictionary file name: %s.", second_dct_filepath)
+        analysis_result_dirpath = dirpath / "analyse_uplift"
+        logger.debug("Analysis result path: %s.", analysis_result_dirpath)
+        dct_name = "upliftMT"
+        ## TODO: Remove?
+        # second_dct_filepath = dirpath / dct_name
+        # logger.debug("Second dictionary file name: %s.", second_dct_filepath)
 
         logger.debug("Writing to data file...")
         data.join([treatment_col, target_col]).to_csv(datatable_path, index=False)
@@ -382,71 +383,64 @@ def uplift_MODL(data, treatment_col, target_col, maxpartnumber):
         logger.debug("Done reading.")
 
         dct = domain.get_dictionary(dct_name)
-        E_variable = dct.get_variable(t)
-        E_variable.type = "Categorical"
-        E_variable = dct.get_variable(y)
-        E_variable.type = "Categorical"
+        dct.get_variable(t).type = "Categorical"
+        dct.get_variable(y).type = "Categorical"
         is_in_train_dataset_variable = kh.Variable()
         is_in_train_dataset_variable.name = f"{y}_{t}"
         is_in_train_dataset_variable.type = "Categorical"
         is_in_train_dataset_variable.used = True
         is_in_train_dataset_variable.rule = f"""Concat({y},"_",{t})"""
         dct.add_variable(is_in_train_dataset_variable)
-        result_dir = "analyse_uplift"
-        logger.debug("Exporting dictionary to file...")
-        domain.export_khiops_dictionary_file(str(second_dct_filepath))
-        logger.debug("Done exporting.")
+        ## TODO: Remove?
+        # logger.debug("Exporting dictionary to file...")
+        # domain.export_khiops_dictionary_file(str(second_dct_filepath))
+        # logger.debug("Done exporting.")
 
         logger.debug("Training recoder...")
         analysis_result_files = kh.train_recoder(domain, dct_name, datatable_filename, f"{y}_{t}",
-            str(dirpath / result_dir / "predictor_analysis_result.khj"),
+            str(analysis_result_dirpath / "predictor_analysis_result.khj"),
             sample_percentage=100, max_trees=0, max_pairs=0)#, max_parts=maxpartnumber) ## TODO
+        logger.debug("Analysis result files: %s, %s.", analysis_result_files[0], analysis_result_files[1])
         logger.debug("Done training.")
     
         logger.debug("Reading analysis result file...")
         train_results = kh.read_analysis_results_file(analysis_result_files[0])
         logger.debug("Done reading.")
 
-        result = {}
+        groups_by_interval_by_variable = {}
         for x in xs:
             logger.debug("Computing uplift for variable '{}'...".format(x))
-            result[x] = uplift_MODL_for_var(x, y, t, all_treatments, train_results, domain, dct, dct_name,
-                                            datatable_filename, "/".join([dirname, result_dir, f"{x}_{{}}_analysis_result.khj"]))
+            groups_by_interval_by_variable[x] = uplift_MODL_for_var(x, y, t, all_treatments, train_results, domain, dct,
+                                                                    dct_name, datatable_filename, str(analysis_result_dirpath) + f"/{x}_{{}}_analysis_result.khj")
             logger.debug("Done computing uplift for variable '{}'.".format(x))
             
         logger.debug("Done computing uplift.")
             
-        return result
+        return groups_by_interval_by_variable
 
 
-def uplift_MODL_for_var(x, y, t, all_t_values, train_results, domain, dictionary, dictionary_name, datatable_filename, interval_result_filename_template):
-    logger.debug("Analysis result file name template: %s.", interval_result_filename_template)
+def uplift_MODL_for_var(x, y, t, all_t_values, train_results, domain, dct, dct_name, datatable_filename, analysis_result_filename_template):
+    logger.debug("Analysis result file name template: %s.", analysis_result_filename_template)
     pair_results = train_results.preparation_report.get_variable_statistics(x)
 
     if pair_results.level == 0:
         raise NotImplementedError  ## TODO
     else:
-        intervals = [(i.lower_bound, i.upper_bound) for i in pair_results.data_grid.dimensions[0].partition]
+        intervals = [Interval(interval.lower_bound, interval.upper_bound) for interval in pair_results.data_grid.dimensions[0].partition]
 
     filtre_index_variable = kh.Variable()
     filtre_index_variable.name = "Filtre_{}".format(x)
     filtre_index_variable.type = "Categorical"
     filtre_index_variable.used = True
-    upper_bounds = [str(interval[1]) for interval in intervals]
+    filtre_index_variable.rule = "IntervalId(IntervalBounds(%s), %s)" % (",".join(str(interval.upper) for interval in intervals), x)
+    dct.add_variable(filtre_index_variable)
+
+    x_variable = dct.get_variable(x)
+    x_variable.used = False
     
-    bounds_str = ",".join(upper_bounds)
-    
-    filtre_index_variable.rule = "IntervalId(IntervalBounds(%s), %s)" % (bounds_str, x)
-    
-    dictionary.add_variable(filtre_index_variable)
-    
-    X_variable = dictionary.get_variable(x)
-    X_variable.used = False
-    
-    interval_names = [f"I{i}" for i in range(1, len(intervals) + 1)]
     groups_by_interval = {}
-    for interval_name in interval_names:
-        logger.debug("Training recoder of interval %s...", interval_name)
+    for i, interval in enumerate(intervals):
+        logger.debug("Training recoder of interval %s...", interval)
         ## TODO
         # with warnings.catch_warnings():
         #     warnings.filterwarnings(
@@ -456,31 +450,38 @@ def uplift_MODL_for_var(x, y, t, all_t_values, train_results, domain, dictionary
         #         r"""Line \d+: warning : Decision Tree variable creation : No informative tree built among the \d+ planned$""",
         #         UserWarning, f"^{kh.internals.runner.__name__}$")
         analysis_result_files = kh.train_recoder(
-            domain, dictionary_name, datatable_filename, y, interval_result_filename_template.format(interval_name),
+            domain, dct_name, datatable_filename, y, analysis_result_filename_template.format(f"{interval.lower}_{interval.upper}"),
             sample_percentage=100,
             selection_variable="Filtre_{}".format(x),
-            selection_value=interval_name,
+            selection_value=f"I{i + 1}",#str(interval),
             max_trees=0,#100, ## TODO
             max_pairs=100,
             # max_parts=maxpartnumber, ## TODO
         )
+        logger.debug("Analysis result files: %s, %s.", analysis_result_files[0], analysis_result_files[1])
         logger.debug("Done training.")
         
-        logger.debug("Reading analysis result file of interval %s...", interval_name)
+        logger.debug("Reading analysis result file of interval %s...", interval)
         train_results = kh.read_analysis_results_file(analysis_result_files[0])
         logger.debug("Done reading.")
+
+        logger.debug("Analysis result refers to these variable names: {%s}",
+                     ", ".join(f"'{varname}'" for varname in train_results.preparation_report.get_variable_names()))
 
         group_results = train_results.preparation_report.get_variable_statistics(t)
 
         if group_results.level == 0:  # ==> Put all treatments into the same group.
-            groups_by_interval[interval_name] = [list(map(str, all_t_values))]
+            groups_by_interval[interval] = [list(map(str, all_t_values))]
         else:
             partition_groupe = group_results.data_grid.dimensions[0].partition
-            logger.debug("Repairing groups of interval %s...", interval_name)
-            groups_by_interval[interval_name] = repair_groups(partition_groupe, all_t_values)
+            logger.debug("Repairing groups of interval %s...", interval)
+            groups_by_interval[interval] = repair_groups(partition_groupe, all_t_values)
             logger.debug("Done repairing.")
+
+    dct.remove_variable(filtre_index_variable.name)
+    x_variable.used = True
         
-    return groups_by_interval, upper_bounds, len(interval_names)
+    return groups_by_interval
 
 
 class modele_E_y_avec_rapprochement_MODL(BaseEstimator, TransformerMixin):
