@@ -400,7 +400,7 @@ def uplift_MODL(data, treatment_col, target_col, maxpartnumber):
         logger.debug("Training recoder...")
         analysis_result_files = kh.train_recoder(domain, dct_name, datatable_filename, f"{y}_{t}",
             str(dirpath / result_dir / "predictor_analysis_result.khj"),
-            sample_percentage=100, max_trees=0, max_pairs=0)#, max_parts=maxpartnumber)
+            sample_percentage=100, max_trees=0, max_pairs=0)#, max_parts=maxpartnumber) ## TODO
         logger.debug("Done training.")
     
         logger.debug("Reading analysis result file...")
@@ -447,6 +447,7 @@ def uplift_MODL_for_var(x, y, t, all_t_values, train_results, domain, dictionary
     groups_by_interval = {}
     for interval_name in interval_names:
         logger.debug("Training recoder of interval %s...", interval_name)
+        ## TODO
         # with warnings.catch_warnings():
         #     warnings.filterwarnings(
         #         "ignore",
@@ -459,9 +460,9 @@ def uplift_MODL_for_var(x, y, t, all_t_values, train_results, domain, dictionary
             sample_percentage=100,
             selection_variable="Filtre_{}".format(x),
             selection_value=interval_name,
-            max_trees=0,#100,
+            max_trees=0,#100, ## TODO
             max_pairs=100,
-            # max_parts=maxpartnumber,
+            # max_parts=maxpartnumber, ## TODO
         )
         logger.debug("Done training.")
         
