@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.0.17] - 2026-MM-DD
+
+- Add kuplift.MultiTreatmentUnivariateEncoding
+- Set minimal Python version to 3.10 because of khiops v11
+
 ## [0.0.16] - 2026-03-25
 
 - Contrain dependency versions using upper limits to exclude newer major releases containing breaking changes (this is the case of *pandas*).
