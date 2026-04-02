@@ -186,7 +186,7 @@ class MultiTreatmentUnivariateEncoding:
         return self.transformed_data
 
     
-    def fit_transform(self, data, treatment_col, target_col, maxpartnumber = None):
+    def fit_transform(self, data, treatment_col, target_col, *, maxpartnumber = None, maxtreatmentgroups = None, outputdir = None):
         """Learn a discretisation model using Khiops and transform the data.
 
         Parameters
@@ -201,13 +201,19 @@ class MultiTreatmentUnivariateEncoding:
             Outcome column.
         maxpartnumber: int, default=None
             The maximal number of intervals or groups. None means default to the 'khiops' program default.
+        maxtreatmentgroups: int, default=None
+            The maximal number of groups to define when grouping treatments together. None means automatic.
+        outputdir: Path-like
+            Set this if you want khiops's workfiles to be kept in a specific directory. If None, fallback
+            to the default behaviour which is to have khiops write its files into a temporary directory that
+            is deleted when the work is done.
 
         Returns
         -------
         pd.Dataframe
             Pandas Dataframe that contains encoded data.
         """
-        self.fit(data, treatment_col, target_col, maxpartnumber)
+        self.fit(data, treatment_col, target_col, maxpartnumber=maxpartnumber, maxtreatmentgroups=maxtreatmentgroups, outputdir=outputdir)
         return self.transform(data)
     
 
@@ -495,11 +501,12 @@ def uplift_MODL(data, treatment_col, target_col, *, maxpartnumber, maxtreatmentg
     model = {}
     groups_by_interval_by_variable = {}
     levels = {}
+    # Disable all input variables since we will create a filter variable for each one in turn
+    # and it is that filter variable that will be enabled.
+    for x in xs:
+        dct.get_variable(x).used = False
     for x in xs:
         logger.info("Computing uplift for variable '{}'...".format(x))
-        otherxs = [x_ for x_ in xs if x_ != x]
-        for otherx in otherxs:
-            dct.get_variable(otherx).used = False
         varmodel, groups_by_interval_for_variable, level = uplift_MODL_for_var(
             x, y, t, all_treatments, train_results, domain, dct, dct_name, datatable_filename, str(analysis_result_dirpath) + f"/{x}_{{}}_analysis_result.khj", maxtreatmentgroups)
         if varmodel is not None:
@@ -523,6 +530,7 @@ def uplift_MODL_for_var(x, y, t, all_t_values, train_results, domain, dct, dct_n
         return None, None, 0.0
     else:
         vardim = pair_results.data_grid.dimensions[0]
+        logger.debug("Partition type of variable '%s' is '%s'.", x, vardim.partition_type)
         match vardim.partition_type:
             case "Value groups":
                 model = ValGrpPartition([ValGrp(valgrp.values) for valgrp in vardim.partition], next(i for i, valgrp in enumerate(vardim.partition) if valgrp.is_default_part))
@@ -534,11 +542,9 @@ def uplift_MODL_for_var(x, y, t, all_t_values, train_results, domain, dct, dct_n
     filtre_index_variable.name = "Filtre_{}".format(x)
     filtre_index_variable.type = "Categorical"
     filtre_index_variable.used = True
-    filtre_index_variable.rule = "IntervalId(IntervalBounds(%s), %s)" % (",".join(str(interval.upper) for interval in model if interval.upper != +math.inf), x)
+    filtre_index_variable.rule = "IntervalId(IntervalBounds(%s), %s)" % (",".join(str(interval.upper) for interval in model if interval.upper is not None and interval.upper != +math.inf), x)
+    logger.debug("Filter index variable rule: '%s'.", filtre_index_variable.rule)
     dct.add_variable(filtre_index_variable)
-
-    x_variable = dct.get_variable(x)
-    x_variable.used = False
     
     groups_by_interval = {}
     for i, interval in enumerate(model):
@@ -569,13 +575,14 @@ def uplift_MODL_for_var(x, y, t, all_t_values, train_results, domain, dct, dct_n
         if group_results.level == 0:  # ==> Put all treatments into the same group.
             groups_by_interval[interval] = [list(map(str, all_t_values))]
         else:
-            partition_groupe = group_results.data_grid.dimensions[0].partition
+            treatment_groups = group_results.data_grid.dimensions[0].partition
+            logger.debug("Groups before repairs: %s.", [grp.to_dict() for grp in treatment_groups])
             logger.debug("Repairing groups of interval %s...", interval)
-            groups_by_interval[interval] = repair_groups(partition_groupe, all_t_values)
+            groups_by_interval[interval] = repair_groups(treatment_groups, all_t_values)
             logger.debug("Done repairing.")
+            logger.debug("Groups after repairs: %s.", groups_by_interval[interval])
 
     dct.remove_variable(filtre_index_variable.name)
-    x_variable.used = True
         
     return model, groups_by_interval, level
 
