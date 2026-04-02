@@ -352,6 +352,10 @@ class MultiTreatmentUnivariateEncoding:
                   the benefit (or deficit) of probabilities to have 'reftarget' as the outcome with the column's
                   treatment compared to the reference treatment.
         """
+        if reftreatment not in self.treatment_modalities:
+            raise ValueError("treatment '%s' not in known treatments {%s}" % (reftreatment, ", ".join(f"'{t}'" for t in self.treatment_modalities)))
+        if reftarget not in self.target_modalities:
+            raise ValueError("target '%s' not in known targets {%s}" % (reftarget, ", ".join(f"'{y}'" for y in self.target_modalities)))
         probs = self.get_target_probabilities(variable)
         refprobs = probs[TargetTreatmentPair(reftarget, reftreatment)]
         return probs["Part"].to_frame().join(pd.DataFrame({
