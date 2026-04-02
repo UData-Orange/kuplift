@@ -135,8 +135,7 @@ class MultiTreatmentUnivariateEncoding:
         return self.treatment_groups
     
 
-    ## TODO: Add optional parameter that is a path to replace the temporary directory's role.
-    def fit(self, data, treatment_col, target_col, maxpartnumber = None):
+    def fit(self, data, treatment_col, target_col, *, maxpartnumber = None, maxtreatmentgroups = None, outputdir = None):
         """Learn a discretisation model using Khiops.
 
         Parameters
@@ -151,8 +150,14 @@ class MultiTreatmentUnivariateEncoding:
             Outcome column.
         maxpartnumber: int, default=None
             The maximal number of intervals or groups. None means default to the 'khiops' program default.
+        maxtreatmentgroups: int, default=None
+            The maximal number of groups to define when grouping treatments together. None means automatic.
+        outputdir: Path-like
+            Set this if you want khiops's workfiles to be kept in a specific directory. If None, fallback
+            to the default behaviour which is to have khiops write its files into a temporary directory that
+            is deleted when the work is done.
         """
-        model, treatment_groups, levels = uplift_MODL(data, treatment_col, target_col, maxpartnumber)
+        model, treatment_groups, levels = uplift_MODL(data, treatment_col, target_col, maxpartnumber=maxpartnumber, maxtreatmentgroups=maxtreatmentgroups, outputdir=outputdir)
 
         # Only write to the instance's attributes if all the above succeeded.
         self.model = model
@@ -423,90 +428,93 @@ def repair_groups(groups, all_treatments):
     return resulting_groups
 
 
-def uplift_MODL(data, treatment_col, target_col, maxpartnumber):
+def uplift_MODL(data, treatment_col, target_col, *, maxpartnumber, maxtreatmentgroups, outputdir):
     t, y, xs = treatment_col.name, target_col.name, data.columns
     logger.info("Computing uplift with %d lines of data, %d variables, treatment column '%s' and target column '%s'...",
                  len(data), len(xs), t, y)
     all_treatments = np.sort(treatment_col.unique())
-        
-    with TemporaryDirectory() as dirname:
-        logger.debug("Temporary file output will be in '%s'.", dirname)
-        
-        dirpath = Path(dirname)
-        datatable_path = dirpath / "data.csv"
-        logger.debug("Data file name: %s.", datatable_path)
-        datatable_filename = str(datatable_path)
-        dct_filepath = dirpath / "dictionary.kdic"
-        logger.debug("Dictionary file name: %s.", dct_filepath)
-        analysis_result_dirpath = dirpath / "analyse_uplift"
-        logger.debug("Analysis result path: %s.", analysis_result_dirpath)
-        dct_name = "upliftMT"
-
-        logger.debug("Writing to data file...")
-        data.join([treatment_col, target_col]).to_csv(datatable_path, index=False)
-        logger.debug("Done writing.")
-        logger.debug("Building dictionary from data...")
-        with warnings.catch_warnings():
-            warnings.filterwarnings(
-                "ignore",
-                r"""^Sample datasets location does not exist \([^)]*/khiops_data/samples\)\.\s+"""
-                r"""Execute the kh-download-datasets script or the khiops\.tools\.download_datasets function to download them\.$""",
-                UserWarning, f"^{kh.internals.runner.__name__}$")
-            kh.build_dictionary_from_data_table(
-                datatable_filename, dct_name, str(dct_filepath))
-        logger.debug("Done building dictionary.")
-        logger.debug("Reading from dictionary file...")
-        domain = kh.read_dictionary_file(str(dct_filepath))
-        logger.debug("Done reading.")
-
-        dct = domain.get_dictionary(dct_name)
-        dct.get_variable(t).type = "Categorical"
-        dct.get_variable(y).type = "Categorical"
-        is_in_train_dataset_variable = kh.Variable()
-        is_in_train_dataset_variable.name = f"{y}_{t}"
-        is_in_train_dataset_variable.type = "Categorical"
-        is_in_train_dataset_variable.used = True
-        is_in_train_dataset_variable.rule = f"""Concat({y},"_",{t})"""
-        dct.add_variable(is_in_train_dataset_variable)
-        ## TODO: Remove? Or export the dict to file for reference (when an output dir is configured by the caller code).
-        # logger.debug("Exporting dictionary to file...")
-        # domain.export_khiops_dictionary_file(str(second_dct_filepath))
-        # logger.debug("Done exporting.")
-
-        logger.debug("Training recoder...")
-        analysis_result_files = kh.train_recoder(domain, dct_name, datatable_filename, f"{y}_{t}",
-            str(analysis_result_dirpath / "predictor_analysis_result.khj"),
-            sample_percentage=100, max_trees=0, max_pairs=0, max_parts=maxpartnumber or 0)
-        logger.debug("Analysis result files: %s, %s.", analysis_result_files[0], analysis_result_files[1])
-        logger.debug("Done training.")
     
-        logger.debug("Reading analysis result file...")
-        train_results = kh.read_analysis_results_file(analysis_result_files[0])
-        logger.debug("Done reading.")
+    if outputdir is None:
+        tmpdir = TemporaryDirectory()
+        dirpath = Path(tmpdir.name)
+    else:
+        dirpath = Path(outputdir)
+    logger.debug("Temporary file output will be in '%s'.", dirpath)
+    
+    datatable_path = dirpath / "data.csv"
+    logger.debug("Data file name: %s.", datatable_path)
+    datatable_filename = str(datatable_path)
+    dct_filepath = dirpath / "dictionary.kdic"
+    logger.debug("Dictionary file name: %s.", dct_filepath)
+    analysis_result_dirpath = dirpath / "analyse_uplift"
+    logger.debug("Analysis result path: %s.", analysis_result_dirpath)
+    dct_name = "upliftMT"
 
-        model = {}
-        groups_by_interval_by_variable = {}
-        levels = {}
-        for x in xs:
-            logger.info("Computing uplift for variable '{}'...".format(x))
-            otherxs = [x_ for x_ in xs if x_ != x]
-            for otherx in otherxs:
-                dct.get_variable(otherx).used = False
-            varmodel, groups_by_interval_for_variable, level = uplift_MODL_for_var(
-                x, y, t, all_treatments, train_results, domain, dct, dct_name, datatable_filename, str(analysis_result_dirpath) + f"/{x}_{{}}_analysis_result.khj")
-            if varmodel is not None:
-                model[x] = varmodel
-            if groups_by_interval_for_variable is not None:
-                groups_by_interval_by_variable[x] = groups_by_interval_for_variable
-            levels[x] = level
-            logger.info("Done computing uplift for variable '{}'.".format(x))
-            
-        logger.info("Done computing uplift.")
-            
-        return model, groups_by_interval_by_variable, sorted((var_level_pair for var_level_pair in levels.items()), key=lambda namelevel: (-namelevel[1], namelevel[0]))
+    logger.debug("Writing to data file...")
+    data.join([treatment_col, target_col]).to_csv(datatable_path, index=False)
+    logger.debug("Done writing.")
+    logger.debug("Building dictionary from data...")
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            r"""^Sample datasets location does not exist \([^)]*/khiops_data/samples\)\.\s+"""
+            r"""Execute the kh-download-datasets script or the khiops\.tools\.download_datasets function to download them\.$""",
+            UserWarning, f"^{kh.internals.runner.__name__}$")
+        kh.build_dictionary_from_data_table(
+            datatable_filename, dct_name, str(dct_filepath))
+    logger.debug("Done building dictionary.")
+    logger.debug("Reading from dictionary file...")
+    domain = kh.read_dictionary_file(str(dct_filepath))
+    logger.debug("Done reading.")
+
+    dct = domain.get_dictionary(dct_name)
+    dct.get_variable(t).type = "Categorical"
+    dct.get_variable(y).type = "Categorical"
+    is_in_train_dataset_variable = kh.Variable()
+    is_in_train_dataset_variable.name = f"{y}_{t}"
+    is_in_train_dataset_variable.type = "Categorical"
+    is_in_train_dataset_variable.used = True
+    is_in_train_dataset_variable.rule = f"""Concat({y},"_",{t})"""
+    dct.add_variable(is_in_train_dataset_variable)
+    if outputdir is not None:
+        logger.debug("Exporting dictionary to file...")
+        domain.export_khiops_dictionary_file(str(dirpath / "dictionary.kdic"))
+        logger.debug("Done exporting.")
+
+    logger.debug("Training recoder...")
+    analysis_result_files = kh.train_recoder(domain, dct_name, datatable_filename, f"{y}_{t}",
+        str(analysis_result_dirpath / "predictor_analysis_result.khj"),
+        sample_percentage=100, max_trees=0, max_pairs=0, max_parts=maxpartnumber or 0)
+    logger.debug("Analysis result files: %s, %s.", analysis_result_files[0], analysis_result_files[1])
+    logger.debug("Done training.")
+
+    logger.debug("Reading analysis result file...")
+    train_results = kh.read_analysis_results_file(analysis_result_files[0])
+    logger.debug("Done reading.")
+
+    model = {}
+    groups_by_interval_by_variable = {}
+    levels = {}
+    for x in xs:
+        logger.info("Computing uplift for variable '{}'...".format(x))
+        otherxs = [x_ for x_ in xs if x_ != x]
+        for otherx in otherxs:
+            dct.get_variable(otherx).used = False
+        varmodel, groups_by_interval_for_variable, level = uplift_MODL_for_var(
+            x, y, t, all_treatments, train_results, domain, dct, dct_name, datatable_filename, str(analysis_result_dirpath) + f"/{x}_{{}}_analysis_result.khj", maxtreatmentgroups)
+        if varmodel is not None:
+            model[x] = varmodel
+        if groups_by_interval_for_variable is not None:
+            groups_by_interval_by_variable[x] = groups_by_interval_for_variable
+        levels[x] = level
+        logger.info("Done computing uplift for variable '{}'.".format(x))
+        
+    logger.info("Done computing uplift.")
+        
+    return model, groups_by_interval_by_variable, sorted((var_level_pair for var_level_pair in levels.items()), key=lambda namelevel: (-namelevel[1], namelevel[0]))
 
 
-def uplift_MODL_for_var(x, y, t, all_t_values, train_results, domain, dct, dct_name, datatable_filename, analysis_result_filename_template):
+def uplift_MODL_for_var(x, y, t, all_t_values, train_results, domain, dct, dct_name, datatable_filename, analysis_result_filename_template, maxtreatmentgroups):
     logger.debug("Analysis result file name template: %s.", analysis_result_filename_template)
     pair_results = train_results.preparation_report.get_variable_statistics(x)
     level = pair_results.level
@@ -543,8 +551,8 @@ def uplift_MODL_for_var(x, y, t, all_t_values, train_results, domain, dct, dct_n
             max_trees=0,
             max_pairs=0,
             max_constructed_variables=0,
-            max_text_features=0
-            # max_parts=TBD, ## TODO Nb de regroupements max des traitements
+            max_text_features=0,
+            max_parts=maxtreatmentgroups or 0
         )
         logger.debug("Analysis result files: %s, %s.", analysis_result_files[0], analysis_result_files[1])
         logger.debug("Done training.")
