@@ -529,6 +529,7 @@ def uplift_MODL_for_var(x, y, t, all_t_values, train_results, domain, dct, dct_n
     logger.debug("Analysis result file name template: %s.", analysis_result_filename_template)
     pair_results = train_results.preparation_report.get_variable_statistics(x)
     level = pair_results.level
+    logger.debug("Level of variable '%s' is %f.", x, level)
 
     if level == 0:
         return None, None, 0.0
@@ -551,7 +552,7 @@ def uplift_MODL_for_var(x, y, t, all_t_values, train_results, domain, dct, dct_n
     dct.add_variable(filtre_index_variable)
     
     groups_by_interval = {}
-    for i, interval in enumerate(model):
+    for i, interval in enumerate(interval for interval in model if not interval.catches_missing):
         logger.debug("Training recoder of interval %s...", interval)
         analysis_result_files = kh.train_recoder(
             domain, dct_name, datatable_filename, y, analysis_result_filename_template.format(f"{interval.lower}_{interval.upper}"),
@@ -574,7 +575,10 @@ def uplift_MODL_for_var(x, y, t, all_t_values, train_results, domain, dct, dct_n
         logger.debug("Analysis result refers to these variable names: {%s}",
                      ", ".join(f"'{varname}'" for varname in train_results.preparation_report.get_variable_names()))
 
+        if not train_results.preparation_report.target_values:
+            logger.debug("Empty preparation report.")
         group_results = train_results.preparation_report.get_variable_statistics(t)
+        logger.debug("Level of treatment '%s' is %f.", t, group_results.level)
 
         if group_results.level == 0:  # ==> Put all treatments into the same group.
             groups_by_interval[interval] = [list(map(str, all_t_values))]
