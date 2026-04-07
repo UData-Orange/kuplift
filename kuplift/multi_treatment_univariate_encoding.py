@@ -11,9 +11,10 @@ The main class of this module is 'MultiTreatmentUnivariateEncoding'.
 """
 
 from pathlib import Path
-from .helperclasses import ValGrp, ValGrpPartition, Interval, IntervalPartition, TargetTreatmentPair
+from helperclasses import ValGrp, ValGrpPartition, Interval, IntervalPartition, TargetTreatmentPair
 from tempfile import TemporaryDirectory
 import logging
+from functools import singledispatch
 
 logger = logging.getLogger(__name__)
 
@@ -374,7 +375,7 @@ import pandas as pd
 import numpy as np
 from scipy.special import gammaln
 from khiops import core as kh
-from .KWStat import *
+from KWStat import *
 from sklearn.base import clone
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.base import BaseEstimator, TransformerMixin
@@ -512,7 +513,7 @@ def uplift_MODL(data, treatment_col, target_col, *, maxpartnumber, maxtreatmentg
     for x in xs:
         logger.info("(variable '%s')  Computing uplift...", x)
         varmodel, groups_by_interval_for_variable, level = uplift_MODL_for_var(
-            x, y, t, all_treatments, train_results, domain, dct, dct_name, datatable_filename, str(analysis_result_dirpath) + f"/{x}_{{}}_analysis_result.khj", maxtreatmentgroups)
+            x, y, t, all_treatments, train_results, domain, dct, dct_name, datatable_filename, str(analysis_result_dirpath) + f"/{x}_%(interval)s_analysis_result.khj", maxtreatmentgroups)
         if varmodel is not None:
             model[x] = varmodel
         if groups_by_interval_for_variable is not None:
@@ -538,60 +539,98 @@ def uplift_MODL_for_var(x, y, t, all_t_values, train_results, domain, dct, dct_n
         logger.debug("(variable '%s')  Partition type is '%s'.", x, vardim.partition_type)
         match vardim.partition_type:
             case "Value groups":
-                model = ValGrpPartition([ValGrp(valgrp.values) for valgrp in vardim.partition], next(i for i, valgrp in enumerate(vardim.partition) if valgrp.is_default_part))
+                partition = ValGrpPartition([ValGrp(valgrp.values) for valgrp in vardim.partition], next(i for i, valgrp in enumerate(vardim.partition) if valgrp.is_default_part))
             case "Intervals":
-                model = IntervalPartition([Interval(interval.lower_bound, interval.upper_bound) for interval in vardim.partition])
+                partition = IntervalPartition([Interval(interval.lower_bound, interval.upper_bound) for interval in vardim.partition])
             case ptype: raise ValueError("unsupported partition type '%s'" % ptype)
 
     filtre_index_variable = kh.Variable()
     filtre_index_variable.name = "Filtre_{}".format(x)
     filtre_index_variable.type = "Categorical"
     filtre_index_variable.used = True
-    filtre_index_variable.rule = "IntervalId(IntervalBounds(%s), %s)" % (",".join(str(interval.upper) for interval in model if interval.upper is not None and interval.upper != +math.inf), x)
+    filtre_index_variable.rule = partition_to_rule_template(partition) % {"variable": x}
     logger.debug("(variable '%s')  Filter index variable rule: '%s'.", x, filtre_index_variable.rule)
     dct.add_variable(filtre_index_variable)
     
-    groups_by_interval = {}
-    for i, interval in enumerate(interval for interval in model if not interval.catches_missing):
-        logger.debug("(variable '%s', interval %s)  Training recoder...", x, interval)
+    groups_by_part = {}
+    for i, part in enumerate(part for part in partition if part):
+        partname = f"I{i + 1}"
+        logger.debug("(variable '%s', part %s)  Training recoder...", x, part)
         analysis_result_files = kh.train_recoder(
-            domain, dct_name, datatable_filename, y, analysis_result_filename_template.format(f"{interval.lower}_{interval.upper}"),
+            domain, dct_name, datatable_filename, y, analysis_result_filename_template % {"interval": partname},
             sample_percentage=100,
             selection_variable="Filtre_{}".format(x),
-            selection_value=f"I{i + 1}",
+            selection_value=partname,
             max_trees=0,
             max_pairs=0,
             max_constructed_variables=0,
             max_text_features=0,
             max_parts=maxtreatmentgroups or 0)
-        logger.debug("(variable '%s', interval %s)  Analysis result files: %s, %s.", x, interval, analysis_result_files[0], analysis_result_files[1])
-        logger.debug("(variable '%s', interval %s)  Done training.", x, interval)
+        logger.debug("(variable '%s', part %s)  Analysis result files: %s, %s.", x, part, analysis_result_files[0], analysis_result_files[1])
+        logger.debug("(variable '%s', part %s)  Done training.", x, part)
         
-        logger.debug("(variable '%s', interval %s)  Reading analysis result file...", x, interval)
+        logger.debug("(variable '%s', part %s)  Reading analysis result file...", x, part)
         train_results = kh.read_analysis_results_file(analysis_result_files[0])
-        logger.debug("(variable '%s', interval %s)  Done reading.", x, interval)
+        logger.debug("(variable '%s', part %s)  Done reading.", x, part)
 
-        logger.debug("(variable '%s', interval %s)  Analysis result refers to these variable names: {%s}",
-                     x, interval, ", ".join(f"'{varname}'" for varname in train_results.preparation_report.get_variable_names()))
+        logger.debug("(variable '%s', part %s)  Analysis result refers to these variable names: {%s}",
+                     x, part, ", ".join(f"'{varname}'" for varname in train_results.preparation_report.get_variable_names()))
 
         if not train_results.preparation_report.target_values:
-            logger.debug("(variable '%s', interval %s)  Empty preparation report.", x, interval)
+            logger.debug("(variable '%s', part %s)  Empty preparation report.", x, part)
         group_results = train_results.preparation_report.get_variable_statistics(t)
-        logger.debug("(variable '%s', interval %s)  Level of treatment '%s' is %f.", x, interval, t, group_results.level)
+        logger.debug("(variable '%s', part %s)  Level of treatment '%s' is %f.", x, part, t, group_results.level)
 
         if group_results.level == 0:  # ==> Put all treatments into the same group.
-            groups_by_interval[interval] = [list(map(str, all_t_values))]
+            groups_by_part[part] = [list(map(str, all_t_values))]
         else:
             treatment_groups = group_results.data_grid.dimensions[0].partition
-            logger.debug("(variable '%s', interval %s)  Groups before repairs: %s.", x, interval, [grp.to_dict() for grp in treatment_groups])
-            logger.debug("(variable '%s', interval %s)  Repairing groups...", x, interval)
-            groups_by_interval[interval] = repair_groups(treatment_groups, all_t_values)
-            logger.debug("(variable '%s', interval %s)  Done repairing.", x, interval)
-            logger.debug("(variable '%s', interval %s)  Groups after repairs: %s.", x, interval, groups_by_interval[interval])
+            logger.debug("(variable '%s', part %s)  Groups before repairs: %s.", x, part, [grp.to_dict() for grp in treatment_groups])
+            logger.debug("(variable '%s', part %s)  Repairing groups...", x, part)
+            groups_by_part[part] = repair_groups(treatment_groups, all_t_values)
+            logger.debug("(variable '%s', part %s)  Done repairing.", x, part)
+            logger.debug("(variable '%s', part %s)  Groups after repairs: %s.", x, part, groups_by_part[part])
 
     dct.remove_variable(filtre_index_variable.name)
         
-    return model, groups_by_interval, level
+    return partition, groups_by_part, level
+
+
+@singledispatch
+def partition_to_rule_template(partition) -> str:
+    """Format a partition as a Khiops rule string.
+    
+    Parameters
+    ----------
+    partition
+        A partition to render as Khiops rule string.
+    
+    Returns
+    -------
+    str
+        A %-template with a conversion specifier named 'variable' intended to be given the variable name.
+
+    Examples
+    --------
+    >>> partition_to_rule_template(IntervalPartition([Interval(1.2, 3.4), Interval(3.4, 5.6), Interval(5.6, 7.8)]))
+    'IntervalId(IntervalBounds(3.4, 5.6), %(variable)s)'
+    >>> partition_to_rule_template(ValGrpPartition([ValGrp(["a", "b"]), ValGrp(["c", "d", "e"]), ValGrp(["f"])], 1))
+    'GroupId(ValueGroups(ValueGroup("a", "b"), ValueGroup("c", "d", "e", *), ValueGroup("f")), %(variable)s)'
+    """
+    raise ValueError("unsupported partition type '%s'" % type(partition))
+
+
+@partition_to_rule_template.register
+def _(partition: IntervalPartition) -> str:
+    return "IntervalId(IntervalBounds(%s), %%(variable)s)" % ", ".join(str(interval.upper) for interval in partition if interval.upper is not None and interval.upper != +math.inf)
+
+
+@partition_to_rule_template.register
+def _(partition: ValGrpPartition) -> str:
+    return "GroupId(ValueGroups(%s), %%(variable)s)" % ", ".join(
+        "ValueGroup(%s)" % ", ".join(
+            ['"%s"' % val for val in group.values] + (["*"] if i == partition.defaultgroupindex else []))
+        for i, group in enumerate(partition))
 
 
 class modele_E_y_avec_rapprochement_MODL(BaseEstimator, TransformerMixin):
@@ -1002,3 +1041,8 @@ class S_Learner(BaseEstimator, TransformerMixin):
             if np.all(values >= 0):
                 indices[i] = 0 
         return indices
+
+
+if __name__ == "__main__":
+    import doctest
+    doctest.testmod()
