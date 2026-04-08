@@ -1,0 +1,49 @@
+# This workflow creates a zip package intended for experimenting.
+#
+# The archive will contain:
+# - a source dist of the Python package `kuplift`
+# - data files
+# - Jupyter notebooks
+# - a README file.
+
+name: Experimental package
+on:
+  push:
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  package:
+    name: Create zip package
+    runs-on: ubuntu-latest
+    env:
+      OUTPUT_ROOT: output_pkg
+    steps:
+      - uses: actions/checkout@v6
+
+      - run: |
+          pipx run build --sdist
+          SDIST=$(basename dist/*.tar.gz)
+          VERSION=$(basename --suffix=.tar.gz dist/*.tar.gz | cut -d'-' -f2)
+          mkdir $OUTPUT_ROOT
+          OUTPUT=kuplift_pour_test_v$VERSION
+          echo "OUTPUT=$OUTPUT" >> $GITHUB_ENV
+          FULL_OUTPUT_PATH=$OUTPUT_ROOT/$OUTPUT
+          mkdir $FULL_OUTPUT_PATH
+          cp dist/*.tar.gz $FULL_OUTPUT_PATH
+          cat << EOF > $FULL_OUTPUT_PATH/README.md
+          Version de kuplift à tester
+          ===========================
+
+          Installer (dans un venv ou non) avec \`pip install $SDIST[notebook]\`.
+          EOF
+          cp examples/*.ipynb $FULL_OUTPUT_PATH
+          cp data/* $FULL_OUTPUT_PATH
+        
+      - uses: actions/upload-artifact@v6
+        with:
+          name: ${{ env.OUTPUT }}
+          path: ${{ env.OUTPUT_ROOT }}
+          if-no-files-found: error
