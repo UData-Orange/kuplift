@@ -1,17 +1,8 @@
 Tasks To Do
 ===========
 
-In `kuplift.multi_treatment_univariate_encoding.MultiTreatmentUnivariateEncoding`
----------------------------------------------------------------------------------
-
-- [x] Fix categorical variables considered numerical when they are of numerical types.
-- [x] Fix filter variable rule with categorical variable.
-
-
-Elsewhere
----------
-
-### Decision Tree
+Decision Tree
+-------------
 
 - [ ] Refactor and modify decision tree algorithms to use either OptimizedUnivariateEncoding or MultiTreatmentUnivariateEncoding.
   The UnivariateEncoding class must be chosen automatically depending on the number of treatments in the dataset:
