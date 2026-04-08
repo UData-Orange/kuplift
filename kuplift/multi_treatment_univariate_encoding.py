@@ -11,7 +11,7 @@ The main class of this module is 'MultiTreatmentUnivariateEncoding'.
 """
 
 from pathlib import Path
-from helperclasses import ValGrp, ValGrpPartition, Interval, IntervalPartition, TargetTreatmentPair
+from .helperclasses import ValGrp, ValGrpPartition, Interval, IntervalPartition, TargetTreatmentPair
 from tempfile import TemporaryDirectory
 import logging
 from functools import singledispatch
@@ -131,9 +131,13 @@ class MultiTreatmentUnivariateEncoding:
     
 
     @property
-    def get_treatment_groups(self):
-        """Dict mapping variable names to dictionaries mapping parts to treatment groups."""
-        return self.treatment_groups
+    def get_treatment_groups(self, variable=None):
+        """Get the groups of treatments for one or all variables.
+        
+        If `variable` is not None, returns a dict mapping parts to treatment groups.
+        If `variable` is None, returns a dict mapping variable names to dictionaries mapping parts to treatment groups.
+        """
+        return self.treatment_groups if variable is None else self.treatment_groups[variable]
     
 
     def fit(self, data, treatment_col, target_col, *, maxpartnumber = None, maxtreatmentgroups = None, outputdir = None):
@@ -375,7 +379,7 @@ import pandas as pd
 import numpy as np
 from scipy.special import gammaln
 from khiops import core as kh
-from KWStat import *
+from .KWStat import *
 from sklearn.base import clone
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.base import BaseEstimator, TransformerMixin
@@ -1041,8 +1045,3 @@ class S_Learner(BaseEstimator, TransformerMixin):
             if np.all(values >= 0):
                 indices[i] = 0 
         return indices
-
-
-if __name__ == "__main__":
-    import doctest
-    doctest.testmod()
