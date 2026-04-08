@@ -523,10 +523,10 @@ def uplift_MODL_for_var(x, y, t, all_t_values, train_results, domain, dct, dct_n
             case ptype: raise ValueError("unsupported partition type '%s'" % ptype)
 
     filtre_index_variable = kh.Variable()
-    filtre_index_variable.name = "Filtre_{}".format(x)
+    filtre_index_variable.name = "Filtre_%s" % x
     filtre_index_variable.type = "Categorical"
     filtre_index_variable.used = True
-    filtre_index_variable.rule = partition_to_rule_template(partition) % {"variable": x}
+    filtre_index_variable.rule = str(partition_to_rule(partition, dct.get_variable(x)))
     logger.debug("(variable '%s')  Filter index variable rule: '%s'.", x, filtre_index_variable.rule)
     dct.add_variable(filtre_index_variable)
     
@@ -609,18 +609,20 @@ def repair_groups(groups, all_treatments):
 
 
 @singledispatch
-def partition_to_rule_template(partition) -> str:
+def partition_to_rule(partition, variable: kh.Variable) -> kh.Rule:
     """Format a partition as a Khiops rule string.
     
     Parameters
     ----------
     partition
-        A partition to render as Khiops rule string.
+        A partition to render as Khiops Rule.
+    variable: khiops.core.Variable
+        A variable used in the rule.
     
     Returns
     -------
-    str
-        A %-template with a conversion specifier named 'variable' intended to be given the variable name.
+    khiops.core.Rule
+        A rule.
 
     Examples
     --------
@@ -632,17 +634,22 @@ def partition_to_rule_template(partition) -> str:
     raise ValueError("unsupported partition type '%s'" % type(partition))
 
 
-@partition_to_rule_template.register
-def _(partition: IntervalPartition) -> str:
-    return "IntervalId(IntervalBounds(%s), %%(variable)s)" % ", ".join(str(interval.upper) for interval in partition if interval.upper is not None and interval.upper != +math.inf)
+@partition_to_rule.register
+def _(partition: IntervalPartition, variable: kh.Variable) -> kh.Rule:
+    return kh.Rule("IntervalId",
+                   kh.Rule("IntervalBounds",
+                           *(interval.upper for interval in partition if interval.upper is not None and interval.upper != +math.inf)),
+                   variable)
 
 
-@partition_to_rule_template.register
-def _(partition: ValGrpPartition) -> str:
-    return "GroupId(ValueGroups(%s), %%(variable)s)" % ", ".join(
-        "ValueGroup(%s)" % ", ".join(
-            ['"%s"' % val for val in group.values] + (["*"] if i == partition.defaultgroupindex else []))
-        for i, group in enumerate(partition))
+@partition_to_rule.register
+def _(partition: ValGrpPartition, variable: kh.Variable) -> kh.Rule:
+    return kh.Rule("GroupId",
+                   kh.Rule("ValueGroups",
+                           *(kh.Rule("ValueGroup",
+                                     *([str(val) for val in group.values] + ([" * "] if i == partition.defaultgroupindex else [])))
+                             for i, group in enumerate(partition))),
+                   variable)
 
 
 # class modele_E_y_avec_rapprochement_MODL(BaseEstimator, TransformerMixin):

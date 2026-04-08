@@ -29,6 +29,9 @@ class ValGrp:
     
     def __contains__(self, x):
         return x in self.values
+    
+    def __hash__(self):
+        return hash(tuple(self.values))
 
 
 class ValGrpPartition(Partition):
