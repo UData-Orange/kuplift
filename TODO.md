@@ -4,7 +4,8 @@ Tasks To Do
 Decision Tree
 -------------
 
-- [ ] Refactor and modify decision tree algorithms to use either OptimizedUnivariateEncoding or MultiTreatmentUnivariateEncoding.
+- [ ] Create a new decision tree algorithm based on the BayesianDecisionTree class but using either OptimizedUnivariateEncoding or MultiTreatmentUnivariateEncoding.
+  The new class must be named MultiTreatmentDecisionTree.
   The UnivariateEncoding class must be chosen automatically depending on the number of treatments in the dataset:
   - 2 treatments => OptimizedUnivariateEncoding
   - 3 treatments or more => MultiTreatmentUnivariateEncoding
