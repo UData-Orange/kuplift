@@ -460,7 +460,7 @@ def uplift_MODL(data, treatment_col, target_col, *, maxpartnumber, maxtreatmentg
     dct.get_variable(t).type = "Categorical"
     dct.get_variable(y).type = "Categorical"
     is_in_train_dataset_variable = kh.Variable()
-    is_in_train_dataset_variable.name = f"{y}_{t}"
+    is_in_train_dataset_variable.name = "Y_T"
     is_in_train_dataset_variable.type = "Categorical"
     is_in_train_dataset_variable.used = True
     is_in_train_dataset_variable.rule = f"""Concat({y},"_",{t})"""
@@ -471,7 +471,7 @@ def uplift_MODL(data, treatment_col, target_col, *, maxpartnumber, maxtreatmentg
         logger.debug("Done exporting.")
 
     logger.debug("Training recoder...")
-    analysis_result_files = kh.train_recoder(domain, dct_name, datatable_filename, f"{y}_{t}",
+    analysis_result_files = kh.train_recoder(domain, dct_name, datatable_filename, "Y_T",
         str(analysis_result_dirpath / "predictor_analysis_result.khj"),
         sample_percentage=100, max_trees=0, max_pairs=0, max_parts=maxpartnumber or 0)
     logger.debug("Analysis result files: %s, %s.", analysis_result_files[0], analysis_result_files[1])
