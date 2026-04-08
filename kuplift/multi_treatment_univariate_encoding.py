@@ -379,70 +379,36 @@ class MultiTreatmentUnivariateEncoding:
 
 import pandas as pd
 import numpy as np
-from scipy.special import gammaln
+# from scipy.special import gammaln
 from khiops import core as kh
 from .KWStat import *
-from sklearn.base import clone
-from sklearn.base import BaseEstimator, ClassifierMixin
-from sklearn.base import BaseEstimator, TransformerMixin
+# from sklearn.base import clone
+# from sklearn.base import BaseEstimator, ClassifierMixin
+# from sklearn.base import BaseEstimator, TransformerMixin
 import warnings
 
 
-class SingleClassPredictor(BaseEstimator, ClassifierMixin):
-    def fit(self, X, y=None):
-        self.unique_class_ = np.unique(y)[0]
-        self.classes_ = np.array([0, 1])  # Explicitly state classes for consistency
-        return self
+# class SingleClassPredictor(BaseEstimator, ClassifierMixin):
+#     def fit(self, X, y=None):
+#         self.unique_class_ = np.unique(y)[0]
+#         self.classes_ = np.array([0, 1])  # Explicitly state classes for consistency
+#         return self
 
 
-    def predict(self, X):
-        return np.full(X.shape[0], self.unique_class_)
+#     def predict(self, X):
+#         return np.full(X.shape[0], self.unique_class_)
 
 
-    def predict_proba(self, X):
-        probabilities = np.zeros((X.shape[0], 2)) 
+#     def predict_proba(self, X):
+#         probabilities = np.zeros((X.shape[0], 2)) 
         
-        # Determine the index of the unique class (0 or 1)
-        class_index = int(self.unique_class_) 
+#         # Determine the index of the unique class (0 or 1)
+#         class_index = int(self.unique_class_) 
         
-        # Set the probabilities for the unique class to 1.0
-        probabilities[:, class_index] = 1.0
+#         # Set the probabilities for the unique class to 1.0
+#         probabilities[:, class_index] = 1.0
         
-        return probabilities
-
-
-def repair_groups(groups, all_treatments):
-    resulting_groups = []
-    marked_elements = set()
-    
-    default_group_index_in_res = -1
-    default_group_values = set()
-
-    # 1. Analyze partition, find groups and default group.
-    for i, part in enumerate(groups):
-        current_group = list(part.values) 
-        resulting_groups.append(current_group)
-        marked_elements.update(current_group)
-
-        if part.is_default_part:
-            default_group_index_in_res = i
-            default_group_values.update(current_group)
-
-    # 2. Find unmarked elements.
-    unmarked_elements = set(str(t) for t in all_treatments).difference(marked_elements)
-
-    # 3. Merge unmarked elements into the default group, if any.
-    if unmarked_elements:
-        if default_group_index_in_res != -1:  # A default group has been found.
-            # Merge unmarked elements with existing values of the default group.
-            merged_group = default_group_values.union(unmarked_elements)
-            # Update result with correct index.
-            resulting_groups[default_group_index_in_res] = sorted(list(merged_group))
-        else:
-            # No default group found, set unmarked elements apart.
-            resulting_groups.append(sorted(list(unmarked_elements)))
-
-    return resulting_groups
+#         return probabilities
 
 
 def uplift_MODL(data, treatment_col, target_col, *, maxpartnumber, maxtreatmentgroups, outputdir):
@@ -602,6 +568,40 @@ def uplift_MODL_for_var(x, y, t, all_t_values, train_results, domain, dct, dct_n
     return partition, groups_by_part, level
 
 
+def repair_groups(groups, all_treatments):
+    resulting_groups = []
+    marked_elements = set()
+    
+    default_group_index_in_res = -1
+    default_group_values = set()
+
+    # 1. Analyze partition, find groups and default group.
+    for i, part in enumerate(groups):
+        current_group = list(part.values) 
+        resulting_groups.append(current_group)
+        marked_elements.update(current_group)
+
+        if part.is_default_part:
+            default_group_index_in_res = i
+            default_group_values.update(current_group)
+
+    # 2. Find unmarked elements.
+    unmarked_elements = set(str(t) for t in all_treatments).difference(marked_elements)
+
+    # 3. Merge unmarked elements into the default group, if any.
+    if unmarked_elements:
+        if default_group_index_in_res != -1:  # A default group has been found.
+            # Merge unmarked elements with existing values of the default group.
+            merged_group = default_group_values.union(unmarked_elements)
+            # Update result with correct index.
+            resulting_groups[default_group_index_in_res] = sorted(list(merged_group))
+        else:
+            # No default group found, set unmarked elements apart.
+            resulting_groups.append(sorted(list(unmarked_elements)))
+
+    return resulting_groups
+
+
 @singledispatch
 def partition_to_rule_template(partition) -> str:
     """Format a partition as a Khiops rule string.
@@ -639,411 +639,411 @@ def _(partition: ValGrpPartition) -> str:
         for i, group in enumerate(partition))
 
 
-class modele_E_y_avec_rapprochement_MODL(BaseEstimator, TransformerMixin):
-    def __init__(self, classifier):
-        self.classifier = classifier
+# class modele_E_y_avec_rapprochement_MODL(BaseEstimator, TransformerMixin):
+#     def __init__(self, classifier):
+#         self.classifier = classifier
     
-    def fit(self, X, nom_col_trait, nom_col_outcome, nom_col_X, groupements_par_intervalle, bornes_superieures):
-        self.classifiers_dict = {}
-        self.nom_col_trait = nom_col_trait
-        self.nom_col_outcome = nom_col_outcome
-        self.nom_col_X = nom_col_X
-        self.traitements = np.unique(X[self.nom_col_trait])
+#     def fit(self, X, nom_col_trait, nom_col_outcome, nom_col_X, groupements_par_intervalle, bornes_superieures):
+#         self.classifiers_dict = {}
+#         self.nom_col_trait = nom_col_trait
+#         self.nom_col_outcome = nom_col_outcome
+#         self.nom_col_X = nom_col_X
+#         self.traitements = np.unique(X[self.nom_col_trait])
         
-        # Convertir les bornes en float pour le calcul
-        bornes_superieures = [float(b) for b in bornes_superieures]
+#         # Convertir les bornes en float pour le calcul
+#         bornes_superieures = [float(b) for b in bornes_superieures]
         
-        # Créer une copie pour ne pas modifier le DataFrame original
-        X_combined = X.copy()
+#         # Créer une copie pour ne pas modifier le DataFrame original
+#         X_combined = X.copy()
         
-        # Liste pour stocker les DataFrames dupliqués
-        dfs_a_ajouter = []
+#         # Liste pour stocker les DataFrames dupliqués
+#         dfs_a_ajouter = []
         
-        # Parcourir chaque intervalle et ses règles de regroupement
-        for i, (interval_name, groupes) in enumerate(groupements_par_intervalle.items()):
-            # Définir les bornes de l'intervalle courant
-            borne_inf = bornes_superieures[i-1] if i > 0 else -np.inf
-            borne_sup = bornes_superieures[i]
+#         # Parcourir chaque intervalle et ses règles de regroupement
+#         for i, (interval_name, groupes) in enumerate(groupements_par_intervalle.items()):
+#             # Définir les bornes de l'intervalle courant
+#             borne_inf = bornes_superieures[i-1] if i > 0 else -np.inf
+#             borne_sup = bornes_superieures[i]
             
-            # Sélectionner les individus de cet intervalle
-            X_intervalle = X[(X[self.nom_col_X] >= borne_inf) & (X[self.nom_col_X] < borne_sup)]
+#             # Sélectionner les individus de cet intervalle
+#             X_intervalle = X[(X[self.nom_col_X] >= borne_inf) & (X[self.nom_col_X] < borne_sup)]
             
-            # Parcourir les groupes de traitements à dupliquer
-            for groupe in groupes:
-                # Gérer le cas du groupe avec 'tous les autres' (' * ')
-                if ' * ' in groupe:
-                    t_specifique = [t for t in groupe if t != ' * '][0]
-                    traitements_autres = [t for t in self.traitements if t not in groupe]
+#             # Parcourir les groupes de traitements à dupliquer
+#             for groupe in groupes:
+#                 # Gérer le cas du groupe avec 'tous les autres' (' * ')
+#                 if ' * ' in groupe:
+#                     t_specifique = [t for t in groupe if t != ' * '][0]
+#                     traitements_autres = [t for t in self.traitements if t not in groupe]
                     
-                    # Dupliquer les individus du traitement spécifique vers les autres
-                    for t_cible in traitements_autres:
-                        df_copie = X_intervalle[X_intervalle[self.nom_col_trait] == t_specifique].copy()
-                        df_copie[self.nom_col_trait] = t_cible
-                        dfs_a_ajouter.append(df_copie)
+#                     # Dupliquer les individus du traitement spécifique vers les autres
+#                     for t_cible in traitements_autres:
+#                         df_copie = X_intervalle[X_intervalle[self.nom_col_trait] == t_specifique].copy()
+#                         df_copie[self.nom_col_trait] = t_cible
+#                         dfs_a_ajouter.append(df_copie)
                     
-                    # Dupliquer les individus des autres traitements vers le traitement spécifique
-                    df_autres_traitements = X_intervalle[X_intervalle[self.nom_col_trait].isin(traitements_autres)].copy()
-                    df_autres_traitements[self.nom_col_trait] = t_specifique
-                    dfs_a_ajouter.append(df_autres_traitements)
-                else:
-                    # Gérer les groupes de taille > 1 sans ' * '
-                    for t_source in groupe:
-                        for t_cible in groupe:
-                            if t_source != t_cible:
-                                df_copie = X_intervalle[X_intervalle[self.nom_col_trait] == t_source].copy()
-                                df_copie[self.nom_col_trait] = t_cible
-                                dfs_a_ajouter.append(df_copie)
+#                     # Dupliquer les individus des autres traitements vers le traitement spécifique
+#                     df_autres_traitements = X_intervalle[X_intervalle[self.nom_col_trait].isin(traitements_autres)].copy()
+#                     df_autres_traitements[self.nom_col_trait] = t_specifique
+#                     dfs_a_ajouter.append(df_autres_traitements)
+#                 else:
+#                     # Gérer les groupes de taille > 1 sans ' * '
+#                     for t_source in groupe:
+#                         for t_cible in groupe:
+#                             if t_source != t_cible:
+#                                 df_copie = X_intervalle[X_intervalle[self.nom_col_trait] == t_source].copy()
+#                                 df_copie[self.nom_col_trait] = t_cible
+#                                 dfs_a_ajouter.append(df_copie)
         
-        # Concaténer le DataFrame original avec toutes les copies
-        if dfs_a_ajouter:
-            X_combined = pd.concat([X_combined] + dfs_a_ajouter, ignore_index=True)
+#         # Concaténer le DataFrame original avec toutes les copies
+#         if dfs_a_ajouter:
+#             X_combined = pd.concat([X_combined] + dfs_a_ajouter, ignore_index=True)
 
-        # La partie restante de la méthode fit est inchangée, elle utilise maintenant X_combined
-        self.traitements = np.unique(X_combined[self.nom_col_trait])
-        for traitement in self.traitements:
-            X_trait = X_combined[X_combined[self.nom_col_trait] == traitement]
-            X_train_trait = X_trait.drop(columns=[self.nom_col_outcome, self.nom_col_trait])
-            y_train_trait = X_trait[self.nom_col_outcome]
-            if y_train_trait.nunique() > 1:
-                classifier_clone = clone(self.classifier)
-                classifier_clone.fit(X_train_trait, y_train_trait)
-                self.classifiers_dict[traitement] = classifier_clone
-            else:
-                single_class_predictor = SingleClassPredictor()
-                single_class_predictor.fit(X_train_trait, y_train_trait)
-                self.classifiers_dict[traitement] = single_class_predictor
-                print(f"Avertissement : Le classifieur pour le traitement {traitement} a été remplacé par un prédicteur de classe unique.")
+#         # La partie restante de la méthode fit est inchangée, elle utilise maintenant X_combined
+#         self.traitements = np.unique(X_combined[self.nom_col_trait])
+#         for traitement in self.traitements:
+#             X_trait = X_combined[X_combined[self.nom_col_trait] == traitement]
+#             X_train_trait = X_trait.drop(columns=[self.nom_col_outcome, self.nom_col_trait])
+#             y_train_trait = X_trait[self.nom_col_outcome]
+#             if y_train_trait.nunique() > 1:
+#                 classifier_clone = clone(self.classifier)
+#                 classifier_clone.fit(X_train_trait, y_train_trait)
+#                 self.classifiers_dict[traitement] = classifier_clone
+#             else:
+#                 single_class_predictor = SingleClassPredictor()
+#                 single_class_predictor.fit(X_train_trait, y_train_trait)
+#                 self.classifiers_dict[traitement] = single_class_predictor
+#                 print(f"Avertissement : Le classifieur pour le traitement {traitement} a été remplacé par un prédicteur de classe unique.")
                 
-        return self
+#         return self
 
-    def predict_e_y(self, X):
-        X_test=X.copy()
-        self.X_test_list = []
-        for value in self.traitements:
-            X_test_copy = X_test.copy()
-            X_test_copy[self.nom_col_trait] = value
-            X_test_copy = X_test_copy.drop(columns=[self.nom_col_trait])
-            self.X_test_list.append(1)   
-        probabilities_0 = self.classifiers_dict[self.traitements[0]].predict_proba(X_test_copy)[:, 1]
-        probabilities_1 = self.classifiers_dict[self.traitements[1]].predict_proba(X_test_copy)[:, 1]
-        uplift_values=[]
-        for i in range(len(probabilities_0)):
-            uplift_values.append([probabilities_0[i]])
-            uplift_values.append([probabilities_1[i]])
-        i = 2
-        all_probabilities = []
-        for i in range(len(self.classifiers_dict)):
-            probabilities = self.classifiers_dict[self.traitements[i]].predict_proba(X_test_copy)[:, 1]
-            all_probabilities.append(probabilities)
+#     def predict_e_y(self, X):
+#         X_test=X.copy()
+#         self.X_test_list = []
+#         for value in self.traitements:
+#             X_test_copy = X_test.copy()
+#             X_test_copy[self.nom_col_trait] = value
+#             X_test_copy = X_test_copy.drop(columns=[self.nom_col_trait])
+#             self.X_test_list.append(1)   
+#         probabilities_0 = self.classifiers_dict[self.traitements[0]].predict_proba(X_test_copy)[:, 1]
+#         probabilities_1 = self.classifiers_dict[self.traitements[1]].predict_proba(X_test_copy)[:, 1]
+#         uplift_values=[]
+#         for i in range(len(probabilities_0)):
+#             uplift_values.append([probabilities_0[i]])
+#             uplift_values.append([probabilities_1[i]])
+#         i = 2
+#         all_probabilities = []
+#         for i in range(len(self.classifiers_dict)):
+#             probabilities = self.classifiers_dict[self.traitements[i]].predict_proba(X_test_copy)[:, 1]
+#             all_probabilities.append(probabilities)
         
-        return all_probabilities
+#         return all_probabilities
 
-class SingleClassPredictor(BaseEstimator, ClassifierMixin):
-    def fit(self, X, y=None):
-        self.unique_class_ = np.unique(y)[0]
-        self.classes_ = np.array([0, 1])  # Explicitly state classes for consistency
-        return self
+# class SingleClassPredictor(BaseEstimator, ClassifierMixin):
+#     def fit(self, X, y=None):
+#         self.unique_class_ = np.unique(y)[0]
+#         self.classes_ = np.array([0, 1])  # Explicitly state classes for consistency
+#         return self
 
-    def predict(self, X):
-        return np.full(X.shape[0], self.unique_class_)
+#     def predict(self, X):
+#         return np.full(X.shape[0], self.unique_class_)
 
-    def predict_proba(self, X):
-        probabilities = np.zeros((X.shape[0], 2)) 
+#     def predict_proba(self, X):
+#         probabilities = np.zeros((X.shape[0], 2)) 
         
-        # Determine the index of the unique class (0 or 1)
-        class_index = int(self.unique_class_) 
+#         # Determine the index of the unique class (0 or 1)
+#         class_index = int(self.unique_class_) 
         
-        # Set the probabilities for the unique class to 1.0
-        probabilities[:, class_index] = 1.0
+#         # Set the probabilities for the unique class to 1.0
+#         probabilities[:, class_index] = 1.0
         
-        return probabilities
+#         return probabilities
 
 
-def calculer_probas_groupees(df, groupements_par_intervalle, bornes_superieures_str):
+# def calculer_probas_groupees(df, groupements_par_intervalle, bornes_superieures_str):
     
-    global_mean_y = df['Y'].mean()
+#     global_mean_y = df['Y'].mean()
 
-    # Cas spécial : aucun groupement ni intervalle fourni
-    if not groupements_par_intervalle and not bornes_superieures_str:
-        resultats_plats = []
-        interval_label = "[-inf, +inf)" # Un seul intervalle global
-        traitements_uniques = sorted(df['T'].unique())
-        # Calculer la proba pour chaque traitement séparément
-        for t in traitements_uniques:
-            df_traitement = df[df['T'] == t]
-            if df_traitement.empty:
-                probabilite = np.nan
-            else:
-                probabilite = df_traitement['Y'].mean()
+#     # Cas spécial : aucun groupement ni intervalle fourni
+#     if not groupements_par_intervalle and not bornes_superieures_str:
+#         resultats_plats = []
+#         interval_label = "[-inf, +inf)" # Un seul intervalle global
+#         traitements_uniques = sorted(df['T'].unique())
+#         # Calculer la proba pour chaque traitement séparément
+#         for t in traitements_uniques:
+#             df_traitement = df[df['T'] == t]
+#             if df_traitement.empty:
+#                 probabilite = np.nan
+#             else:
+#                 probabilite = df_traitement['Y'].mean()
             
-            resultats_plats.append({
-                'Intervalle': interval_label,
-                'Traitement': t,
-                'Probabilite_Y1': probabilite
-            })
+#             resultats_plats.append({
+#                 'Intervalle': interval_label,
+#                 'Traitement': t,
+#                 'Probabilite_Y1': probabilite
+#             })
         
-        df_resultat_long = pd.DataFrame(resultats_plats)
+#         df_resultat_long = pd.DataFrame(resultats_plats)
         
-        # Pivoter
-        df_pivot = df_resultat_long.pivot_table(
-            index='Traitement', 
-            columns='Intervalle', 
-            values='Probabilite_Y1'
-        )
+#         # Pivoter
+#         df_pivot = df_resultat_long.pivot_table(
+#             index='Traitement', 
+#             columns='Intervalle', 
+#             values='Probabilite_Y1'
+#         )
         
-        # Reindexer pour inclure tous les traitements attendus
-        traitements_attendus = range(df['T'].min(), df['T'].max() + 1)
-        df_pivot = df_pivot.reindex(traitements_attendus)
-        df_pivot = df_pivot.fillna(global_mean_y)
-        return df_pivot
+#         # Reindexer pour inclure tous les traitements attendus
+#         traitements_attendus = range(df['T'].min(), df['T'].max() + 1)
+#         df_pivot = df_pivot.reindex(traitements_attendus)
+#         df_pivot = df_pivot.fillna(global_mean_y)
+#         return df_pivot
     
-    # --- Logique originale ---
+#     # --- Logique originale ---
     
-    bornes_superieures = [float(b) for b in bornes_superieures_str]
+#     bornes_superieures = [float(b) for b in bornes_superieures_str]
     
-    resultats_plats = []
-    borne_inf_filter = -np.inf 
+#     resultats_plats = []
+#     borne_inf_filter = -np.inf 
     
-    for i, borne_sup in enumerate(bornes_superieures):
-        interval_name = f"I{i+1}" 
+#     for i, borne_sup in enumerate(bornes_superieures):
+#         interval_name = f"I{i+1}" 
         
-        if interval_name not in groupements_par_intervalle:
-            borne_inf_filter = borne_sup 
-            continue
+#         if interval_name not in groupements_par_intervalle:
+#             borne_inf_filter = borne_sup 
+#             continue
             
-        borne_inf_label = 0.0 if i == 0 else bornes_superieures[i-1]
-        interval_label = f"[{borne_inf_label}, {borne_sup})" 
+#         borne_inf_label = 0.0 if i == 0 else bornes_superieures[i-1]
+#         interval_label = f"[{borne_inf_label}, {borne_sup})" 
             
-        df_intervalle = df[(df['X'] >= borne_inf_filter) & (df['X'] < borne_sup)]
+#         df_intervalle = df[(df['X'] >= borne_inf_filter) & (df['X'] < borne_sup)]
         
-        groupes_str_list = groupements_par_intervalle[interval_name]
-        for groupe_str in groupes_str_list:
+#         groupes_str_list = groupements_par_intervalle[interval_name]
+#         for groupe_str in groupes_str_list:
             
-            groupe_int = [int(float(t)) for t in groupe_str]
+#             groupe_int = [int(float(t)) for t in groupe_str]
             
-            df_groupe = df_intervalle[df_intervalle['T'].isin(groupe_int)]
+#             df_groupe = df_intervalle[df_intervalle['T'].isin(groupe_int)]
             
-            if df_groupe.empty:
-                probabilite = np.nan
-            else:
-                probabilite = df_groupe['Y'].mean()
+#             if df_groupe.empty:
+#                 probabilite = np.nan
+#             else:
+#                 probabilite = df_groupe['Y'].mean()
             
-            for t_str in groupe_str:
-                resultats_plats.append({
-                    'Intervalle': interval_label,
-                    'Traitement': int(t_str), 
-                    'Probabilite_Y1': probabilite
-                })
+#             for t_str in groupe_str:
+#                 resultats_plats.append({
+#                     'Intervalle': interval_label,
+#                     'Traitement': int(t_str), 
+#                     'Probabilite_Y1': probabilite
+#                 })
 
-        borne_inf_filter = borne_sup 
+#         borne_inf_filter = borne_sup 
         
-    df_resultat_long = pd.DataFrame(resultats_plats)
+#     df_resultat_long = pd.DataFrame(resultats_plats)
     
-    df_resultat_long = df_resultat_long.drop_duplicates(subset=['Intervalle', 'Traitement'])
+#     df_resultat_long = df_resultat_long.drop_duplicates(subset=['Intervalle', 'Traitement'])
     
-    df_pivot = df_resultat_long.pivot_table(
-        index='Traitement', 
-        columns='Intervalle', 
-        values='Probabilite_Y1'
-    )
+#     df_pivot = df_resultat_long.pivot_table(
+#         index='Traitement', 
+#         columns='Intervalle', 
+#         values='Probabilite_Y1'
+#     )
     
-    traitements_attendus = sorted(df['T'].unique())
-    df_pivot = df_pivot.reindex(traitements_attendus)
-    df_pivot = df_pivot.fillna(global_mean_y)
-    return df_pivot
+#     traitements_attendus = sorted(df['T'].unique())
+#     df_pivot = df_pivot.reindex(traitements_attendus)
+#     df_pivot = df_pivot.fillna(global_mean_y)
+#     return df_pivot
 
-def predict_probas_from_pivot(X_test, df_probas_pivot):
-    labels = df_probas_pivot.columns
+# def predict_probas_from_pivot(X_test, df_probas_pivot):
+#     labels = df_probas_pivot.columns
     
-    try:
-        bins = [float(labels[0].split(', ')[0].strip('['))]
-        bins.extend([float(col.split(', ')[1].strip(')')) for col in labels])
-        bins[0] = -np.inf
-        bins[-1] = np.inf
-    except Exception as e:
-        raise e
+#     try:
+#         bins = [float(labels[0].split(', ')[0].strip('['))]
+#         bins.extend([float(col.split(', ')[1].strip(')')) for col in labels])
+#         bins[0] = -np.inf
+#         bins[-1] = np.inf
+#     except Exception as e:
+#         raise e
 
-    X_test_copy = X_test.copy()
+#     X_test_copy = X_test.copy()
     
-    X_test_copy['Intervalle'] = pd.cut(
-        X_test_copy['X'], 
-        bins=bins, 
-        labels=labels, 
-        right=False, 
-        include_lowest=True
-    )
+#     X_test_copy['Intervalle'] = pd.cut(
+#         X_test_copy['X'], 
+#         bins=bins, 
+#         labels=labels, 
+#         right=False, 
+#         include_lowest=True
+#     )
     
-    df_lookup = df_probas_pivot.T.reset_index()
+#     df_lookup = df_probas_pivot.T.reset_index()
     
-    X_test_with_probas = X_test_copy.merge(
-        df_lookup, 
-        on='Intervalle', 
-        how='left'
-    )
+#     X_test_with_probas = X_test_copy.merge(
+#         df_lookup, 
+#         on='Intervalle', 
+#         how='left'
+#     )
     
-    traitement_cols = sorted(df_probas_pivot.index)
-    output_list_of_arrays = []
+#     traitement_cols = sorted(df_probas_pivot.index)
+#     output_list_of_arrays = []
     
-    for t in traitement_cols:
-        arr = X_test_with_probas[t].values.astype(np.float32)
-        output_list_of_arrays.append(arr)
+#     for t in traitement_cols:
+#         arr = X_test_with_probas[t].values.astype(np.float32)
+#         output_list_of_arrays.append(arr)
         
-    return output_list_of_arrays
+#     return output_list_of_arrays
 
-def calculate_rmse(true_values, predictions):
-    return np.sqrt(np.mean((true_values - predictions) ** 2))
+# def calculate_rmse(true_values, predictions):
+#     return np.sqrt(np.mean((true_values - predictions) ** 2))
 
-def critere_modl(df, col_X, col_T, col_Y, intervalles, regroupements_traitements):
-    """
-    Calcule la valeur de l'expression mathématique complète.
+# def critere_modl(df, col_X, col_T, col_Y, intervalles, regroupements_traitements):
+#     """
+#     Calcule la valeur de l'expression mathématique complète.
 
-    Args:
-        df (pd.DataFrame): Le dataset.
-        col_X (str): Le nom de la colonne X (variable continue).
-        col_T (str): Le nom de la colonne T (traitements).
-        col_Y (str): Le nom de la colonne Y (variable cible).
-        intervalles (list): Liste des intervalles, e.g., [[0, 0.1], [0.1, 0.2]].
-        regroupements_traitements (list): Liste des regroupements de traitements par intervalle. Exemple : [[[0,2],[3,1]], [[0,3],[2,1]]]
+#     Args:
+#         df (pd.DataFrame): Le dataset.
+#         col_X (str): Le nom de la colonne X (variable continue).
+#         col_T (str): Le nom de la colonne T (traitements).
+#         col_Y (str): Le nom de la colonne Y (variable cible).
+#         intervalles (list): Liste des intervalles, e.g., [[0, 0.1], [0.1, 0.2]].
+#         regroupements_traitements (list): Liste des regroupements de traitements par intervalle. Exemple : [[[0,2],[3,1]], [[0,3],[2,1]]]
 
-    Returns:
-        float: Le résultat de l'expression.
-    """
+#     Returns:
+#         float: Le résultat de l'expression.
+#     """
     
-    N = len(df)
-    I = len(intervalles)
-    T = df[col_T].nunique()
-    J = df[col_Y].nunique()
+#     N = len(df)
+#     I = len(intervalles)
+#     T = df[col_T].nunique()
+#     J = df[col_Y].nunique()
     
-    total_somme = 0.0
+#     total_somme = 0.0
 
-    # Terme 1: log(N) OK
-    total_somme += np.log(N)
+#     # Terme 1: log(N) OK
+#     total_somme += np.log(N)
 
-    # Terme 2: log(C(N+I-1, I-1)) OK
-    # Utilisation de gammaln(n+1) = log(n!)
-    total_somme += gammaln(N + I) - gammaln(I) - gammaln(N + 1)
+#     # Terme 2: log(C(N+I-1, I-1)) OK
+#     # Utilisation de gammaln(n+1) = log(n!)
+#     total_somme += gammaln(N + I) - gammaln(I) - gammaln(N + 1)
 
-    # Terme 3: I * log(T) OK
-    #total_somme += 20 * I * np.log(T)
-    total_somme += I * np.log(T)
+#     # Terme 3: I * log(T) OK
+#     #total_somme += 20 * I * np.log(T)
+#     total_somme += I * np.log(T)
 
-    # Terme 4: Somme des log(Beta(T, G_i)) OK
-    # G_i est le nombre de groupes dans l'intervalle i.
+#     # Terme 4: Somme des log(Beta(T, G_i)) OK
+#     # G_i est le nombre de groupes dans l'intervalle i.
 
-    for i in range(I):
-        if i < len(regroupements_traitements):
-            G_i = len(regroupements_traitements[i])
-            total_somme += KWStat.LnBell(T, G_i)
+#     for i in range(I):
+#         if i < len(regroupements_traitements):
+#             G_i = len(regroupements_traitements[i])
+#             total_somme += KWStat.LnBell(T, G_i)
 
-    # Terme 5: Double sommation OK
-    for i in range(I):
-        if i < len(regroupements_traitements):
-            # Obtention des groupes de traitements pour l'intervalle i
-            groupes_traitements_0 = regroupements_traitements[i]
-            groupes_traitements = [[int(element) for element in sous_liste] for sous_liste in groupes_traitements_0]
-            # Filtrage des données pour l'intervalle i
-            df_i = df[(df[col_X] >= intervalles[i][0]) & (df[col_X] < intervalles[i][1])].copy()
-            for groupe_g in groupes_traitements:
-                # Filtrage des données pour le groupe de traitements g
-                df_ig = df_i[df_i[col_T].isin(groupe_g)].copy()
-                N_ig = len(df_ig)
+#     # Terme 5: Double sommation OK
+#     for i in range(I):
+#         if i < len(regroupements_traitements):
+#             # Obtention des groupes de traitements pour l'intervalle i
+#             groupes_traitements_0 = regroupements_traitements[i]
+#             groupes_traitements = [[int(element) for element in sous_liste] for sous_liste in groupes_traitements_0]
+#             # Filtrage des données pour l'intervalle i
+#             df_i = df[(df[col_X] >= intervalles[i][0]) & (df[col_X] < intervalles[i][1])].copy()
+#             for groupe_g in groupes_traitements:
+#                 # Filtrage des données pour le groupe de traitements g
+#                 df_ig = df_i[df_i[col_T].isin(groupe_g)].copy()
+#                 N_ig = len(df_ig)
                 
-                # Terme A: log(C(N_ig + J - 1, J - 1))
-                terme_A = gammaln(N_ig + J) - gammaln(J) - gammaln(N_ig + 1)
+#                 # Terme A: log(C(N_ig + J - 1, J - 1))
+#                 terme_A = gammaln(N_ig + J) - gammaln(J) - gammaln(N_ig + 1)
                 
-                # Terme B: log(N_ig!)
-                terme_B = gammaln(N_ig + 1)
+#                 # Terme B: log(N_ig!)
+#                 terme_B = gammaln(N_ig + 1)
                 
-                # Terme C: Somme des -log(N_igj!)
-                terme_C = 0.0
-                for y_val in df_ig[col_Y].unique():
-                    N_igj = len(df_ig[df_ig[col_Y] == y_val])
-                    terme_C += -gammaln(N_igj + 1)
+#                 # Terme C: Somme des -log(N_igj!)
+#                 terme_C = 0.0
+#                 for y_val in df_ig[col_Y].unique():
+#                     N_igj = len(df_ig[df_ig[col_Y] == y_val])
+#                     terme_C += -gammaln(N_igj + 1)
 
-                total_somme += terme_A + terme_B + terme_C
+#                 total_somme += terme_A + terme_B + terme_C
 
-    return total_somme
+#     return total_somme
 
-def dict_to_ordered_list(data_dict):
-  sorted_items = sorted(data_dict.items(), key=lambda item: int(item[0][1:]))
+# def dict_to_ordered_list(data_dict):
+#   sorted_items = sorted(data_dict.items(), key=lambda item: int(item[0][1:]))
   
-  ordered_list = [value for key, value in sorted_items]
+#   ordered_list = [value for key, value in sorted_items]
   
-  return ordered_list
+#   return ordered_list
 
-def applique_MODL(X, nom_col_trait, nom_col_outcome, nom_col_X, groupements_par_intervalle, bornes_superieures):
-    bornes_superieures = [float(b) for b in bornes_superieures]
+# def applique_MODL(X, nom_col_trait, nom_col_outcome, nom_col_X, groupements_par_intervalle, bornes_superieures):
+#     bornes_superieures = [float(b) for b in bornes_superieures]
     
-    X_combined = X.copy()
-    dfs_a_ajouter = []
+#     X_combined = X.copy()
+#     dfs_a_ajouter = []
     
-    for i, (interval_name, groupes) in enumerate(groupements_par_intervalle.items()):
-        borne_inf = bornes_superieures[i-1] if i > 0 else -np.inf
-        borne_sup = bornes_superieures[i]
+#     for i, (interval_name, groupes) in enumerate(groupements_par_intervalle.items()):
+#         borne_inf = bornes_superieures[i-1] if i > 0 else -np.inf
+#         borne_sup = bornes_superieures[i]
         
-        X_intervalle = X[(X[nom_col_X] >= borne_inf) & (X[nom_col_X] < borne_sup)]
+#         X_intervalle = X[(X[nom_col_X] >= borne_inf) & (X[nom_col_X] < borne_sup)]
         
-        for groupe in groupes:
-            for t_source in groupe:
-                for t_cible in groupe:
-                    if t_source != t_cible:
-                        df_copie = X_intervalle[X_intervalle[nom_col_trait] == int(t_source)].copy()
-                        df_copie[nom_col_trait] = t_cible
-                        dfs_a_ajouter.append(df_copie)
-    if dfs_a_ajouter:
-        X_combined = pd.concat([X_combined] + dfs_a_ajouter, ignore_index=True)
+#         for groupe in groupes:
+#             for t_source in groupe:
+#                 for t_cible in groupe:
+#                     if t_source != t_cible:
+#                         df_copie = X_intervalle[X_intervalle[nom_col_trait] == int(t_source)].copy()
+#                         df_copie[nom_col_trait] = t_cible
+#                         dfs_a_ajouter.append(df_copie)
+#     if dfs_a_ajouter:
+#         X_combined = pd.concat([X_combined] + dfs_a_ajouter, ignore_index=True)
     
-    return X_combined
+#     return X_combined
 
-class S_Learner(BaseEstimator, TransformerMixin):
-    def __init__(self, classifier):
-        self.classifier = classifier
+# class S_Learner(BaseEstimator, TransformerMixin):
+#     def __init__(self, classifier):
+#         self.classifier = classifier
         
-    def fit(self, X_train, y_train,nom_col_trait):
-        self.classifier.fit(X_train, y_train)
-        self.nom_col_trait=nom_col_trait
-        self.traitements = np.unique(X_train[nom_col_trait])
-        return self
+#     def fit(self, X_train, y_train,nom_col_trait):
+#         self.classifier.fit(X_train, y_train)
+#         self.nom_col_trait=nom_col_trait
+#         self.traitements = np.unique(X_train[nom_col_trait])
+#         return self
         
-    def predict_uplift(self, X):
-        X_test=X.copy()
-        self.X_test_list = []
-        for value in self.traitements:
-            X_test_copy = X_test.copy()
-            X_test_copy[self.nom_col_trait] = value
-            self.X_test_list.append(X_test_copy)
+#     def predict_uplift(self, X):
+#         X_test=X.copy()
+#         self.X_test_list = []
+#         for value in self.traitements:
+#             X_test_copy = X_test.copy()
+#             X_test_copy[self.nom_col_trait] = value
+#             self.X_test_list.append(X_test_copy)
 
-        probabilities_0 = self.classifier.predict_proba(self.X_test_list[0])[:, 1]
-        probabilities_1 = self.classifier.predict_proba(self.X_test_list[1])[:, 1]
-        uplift_values=[]
-        for i in range(len(probabilities_0)):
-            uplift_values.append([probabilities_1[i] - probabilities_0[i]])
-        for X_test in self.X_test_list[2:]:
-            probabilities = self.classifier.predict_proba(X_test)[:, 1]
-            uplift = probabilities - probabilities_0
-            for i in range(len(uplift_values)):
-                l=[]
-                ll=[]
-                for j in uplift_values[i]:
-                    ll.append(j)
-                ll.append(uplift[i])
-                uplift_values[i] = ll
-        #return np.array(self.X_test_list)
-        uplift_values = np.array(uplift_values)
-        return uplift_values
+#         probabilities_0 = self.classifier.predict_proba(self.X_test_list[0])[:, 1]
+#         probabilities_1 = self.classifier.predict_proba(self.X_test_list[1])[:, 1]
+#         uplift_values=[]
+#         for i in range(len(probabilities_0)):
+#             uplift_values.append([probabilities_1[i] - probabilities_0[i]])
+#         for X_test in self.X_test_list[2:]:
+#             probabilities = self.classifier.predict_proba(X_test)[:, 1]
+#             uplift = probabilities - probabilities_0
+#             for i in range(len(uplift_values)):
+#                 l=[]
+#                 ll=[]
+#                 for j in uplift_values[i]:
+#                     ll.append(j)
+#                 ll.append(uplift[i])
+#                 uplift_values[i] = ll
+#         #return np.array(self.X_test_list)
+#         uplift_values = np.array(uplift_values)
+#         return uplift_values
     
-    def predict_policy(self, X):
-        uplift_values = self.predict_uplift(X)
-        indices = np.argmax(uplift_values, axis=1) + 1
-        for i, values in enumerate(uplift_values):
-            if np.all(values <= 0):
-                indices[i] = 0 
-        return indices
+#     def predict_policy(self, X):
+#         uplift_values = self.predict_uplift(X)
+#         indices = np.argmax(uplift_values, axis=1) + 1
+#         for i, values in enumerate(uplift_values):
+#             if np.all(values <= 0):
+#                 indices[i] = 0 
+#         return indices
 
-    def predict_worst_policy(self, X):
-        uplift_values = self.predict_uplift(X)
-        indices = np.argmin(uplift_values, axis=1) + 1
-        for i, values in enumerate(uplift_values):
-            if np.all(values >= 0):
-                indices[i] = 0 
-        return indices
+#     def predict_worst_policy(self, X):
+#         uplift_values = self.predict_uplift(X)
+#         indices = np.argmin(uplift_values, axis=1) + 1
+#         for i, values in enumerate(uplift_values):
+#             if np.all(values >= 0):
+#                 indices[i] = 0 
+#         return indices
