@@ -416,6 +416,10 @@ def uplift_MODL(data, treatment_col, target_col, *, maxpartnumber, maxtreatmentg
     logger.info("Computing uplift with %d lines of data, %d variables, treatment column '%s' and target column '%s'...",
                  len(data), len(xs), t, y)
     all_treatments = np.sort(treatment_col.unique())
+
+    categorical_vars = {var for var in data if data.dtypes[var] == object}
+    logger.debug("Numerical variables: {%s}.", ", ".join("'%s'" % v for v in sorted(set(data.columns) - categorical_vars)))
+    logger.debug("Categorical variables: {%s}.", ", ".join("'%s'" % v for v in sorted(categorical_vars)))
     
     if outputdir is None:
         tmpdir = TemporaryDirectory()
@@ -451,6 +455,8 @@ def uplift_MODL(data, treatment_col, target_col, *, maxpartnumber, maxtreatmentg
     logger.debug("Done reading.")
 
     dct = domain.get_dictionary(dct_name)
+    for var in categorical_vars:
+        dct.get_variable(var).type = "Categorical"
     dct.get_variable(t).type = "Categorical"
     dct.get_variable(y).type = "Categorical"
     is_in_train_dataset_variable = kh.Variable()
