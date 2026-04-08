@@ -43,10 +43,6 @@ class MultiTreatmentUnivariateEncoding:
 
     target_col: Series
         The target column from the dataset.
-
-    treatment_groups: dict mapping str to dict mapping ValGrp or Interval to int
-        The keys are the variable names. The values are themselves dictionaries, which keys are ValGrp
-        or Interval and which values are numbers.
     """
 
     def __init__(self):
@@ -128,16 +124,6 @@ class MultiTreatmentUnivariateEncoding:
         All (target, treatment) pairs.
         """
         return [TargetTreatmentPair(target, treatment) for target in self.target_modalities for treatment in self.treatment_modalities]
-    
-
-    @property
-    def get_treatment_groups(self, variable=None):
-        """Get the groups of treatments for one or all variables.
-        
-        If `variable` is not None, returns a dict mapping parts to treatment groups.
-        If `variable` is None, returns a dict mapping variable names to dictionaries mapping parts to treatment groups.
-        """
-        return self.treatment_groups if variable is None else self.treatment_groups[variable]
     
 
     def fit(self, data, treatment_col, target_col, *, maxpartnumber = None, maxtreatmentgroups = None, outputdir = None):
@@ -263,6 +249,22 @@ class MultiTreatmentUnivariateEncoding:
             The partition corresponding to a single variable of the model.
         """
         return self.model[variable]
+    
+
+    def get_treatment_groups(self, variable=None):
+        """Get the groups of treatments for one or all variables.
+
+        Parameters
+        ----------
+        variable
+            If set to None, get groups of all variables, otherwise get groups of specified variable.
+
+        Returns
+        -------
+        If `variable` is not None, returns a dict mapping parts to treatment groups.
+        If `variable` is None, returns a dict mapping variable names to dictionaries mapping parts to treatment groups.
+        """
+        return self.treatment_groups if variable is None else self.treatment_groups[variable]
     
 
     def get_target_frequencies(self, variable):
