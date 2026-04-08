@@ -2,11 +2,10 @@
 # This software is distributed under the MIT License, the text of which is available
 # at https://spdx.org/licenses/MIT.html or see the "LICENSE" file for more details.
 
-from math import log
-from contextlib import contextmanager
-from pathlib import Path
-import os
-import tempfile
+from math import log, inf
+from functools import singledispatch
+from khiops import core as kh
+from .helperclasses import IntervalPartition, ValGrpPartition
 
 _log_fact_table = []
 
@@ -209,3 +208,40 @@ def preprocess_data(data, treatment_col="segment", y_col="visit"):
             encoded_i += 1
     data[treatment_col] = data[treatment_col].astype(str)
     return data
+
+
+@singledispatch
+def partition_to_rule(partition, variable: kh.Variable) -> kh.Rule:
+    """Format a partition as a Khiops rule string.
+    
+    Parameters
+    ----------
+    partition
+        A partition to render as Khiops Rule.
+    variable: khiops.core.Variable
+        A variable used in the rule.
+    
+    Returns
+    -------
+    khiops.core.Rule
+        A rule.
+    """
+    raise ValueError("unsupported partition type '%s'" % type(partition))
+
+
+@partition_to_rule.register
+def _(partition: IntervalPartition, variable: kh.Variable) -> kh.Rule:
+    return kh.Rule("IntervalId",
+                   kh.Rule("IntervalBounds",
+                           *(interval.upper for interval in partition if interval.upper is not None and interval.upper != +inf)),
+                   variable)
+
+
+@partition_to_rule.register
+def _(partition: ValGrpPartition, variable: kh.Variable) -> kh.Rule:
+    return kh.Rule("GroupId",
+                   kh.Rule("ValueGroups",
+                           *(kh.Rule("ValueGroup",
+                                     *([str(val) for val in group.values] + ([" * "] if i == partition.defaultgroupindex else [])))
+                             for i, group in enumerate(partition))),
+                   variable)

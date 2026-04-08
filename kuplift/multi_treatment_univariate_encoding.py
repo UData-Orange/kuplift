@@ -12,9 +12,9 @@ The main class of this module is 'MultiTreatmentUnivariateEncoding'.
 
 from pathlib import Path
 from .helperclasses import ValGrp, ValGrpPartition, Interval, IntervalPartition, TargetTreatmentPair
+from .helperfunctions import partition_to_rule
 from tempfile import TemporaryDirectory
 import logging
-from functools import singledispatch
 
 logger = logging.getLogger(__name__)
 
@@ -606,50 +606,6 @@ def repair_groups(groups, all_treatments):
             resulting_groups.append(sorted(list(unmarked_elements)))
 
     return resulting_groups
-
-
-@singledispatch
-def partition_to_rule(partition, variable: kh.Variable) -> kh.Rule:
-    """Format a partition as a Khiops rule string.
-    
-    Parameters
-    ----------
-    partition
-        A partition to render as Khiops Rule.
-    variable: khiops.core.Variable
-        A variable used in the rule.
-    
-    Returns
-    -------
-    khiops.core.Rule
-        A rule.
-
-    Examples
-    --------
-    >>> partition_to_rule_template(IntervalPartition([Interval(1.2, 3.4), Interval(3.4, 5.6), Interval(5.6, 7.8)]))
-    'IntervalId(IntervalBounds(3.4, 5.6), %(variable)s)'
-    >>> partition_to_rule_template(ValGrpPartition([ValGrp(["a", "b"]), ValGrp(["c", "d", "e"]), ValGrp(["f"])], 1))
-    'GroupId(ValueGroups(ValueGroup("a", "b"), ValueGroup("c", "d", "e", *), ValueGroup("f")), %(variable)s)'
-    """
-    raise ValueError("unsupported partition type '%s'" % type(partition))
-
-
-@partition_to_rule.register
-def _(partition: IntervalPartition, variable: kh.Variable) -> kh.Rule:
-    return kh.Rule("IntervalId",
-                   kh.Rule("IntervalBounds",
-                           *(interval.upper for interval in partition if interval.upper is not None and interval.upper != +math.inf)),
-                   variable)
-
-
-@partition_to_rule.register
-def _(partition: ValGrpPartition, variable: kh.Variable) -> kh.Rule:
-    return kh.Rule("GroupId",
-                   kh.Rule("ValueGroups",
-                           *(kh.Rule("ValueGroup",
-                                     *([str(val) for val in group.values] + ([" * "] if i == partition.defaultgroupindex else [])))
-                             for i, group in enumerate(partition))),
-                   variable)
 
 
 # class modele_E_y_avec_rapprochement_MODL(BaseEstimator, TransformerMixin):
