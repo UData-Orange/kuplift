@@ -1,11 +1,17 @@
 Tasks To Do
 ===========
 
+Multi-treatment univariate encoding
+-----------------------------------
+
+- [ ] Allow grouping by treatments in `get_target_probabilities` and `get_uplift`
+
+
 Decision Tree
 -------------
 
 - [ ] Create a new decision tree algorithm based on the BayesianDecisionTree class but using either OptimizedUnivariateEncoding or MultiTreatmentUnivariateEncoding.
-  The new class must be named MultiTreatmentDecisionTree.
+  The new class must be named `MultiTreatmentDecisionTree`.
   The UnivariateEncoding class must be chosen automatically depending on the number of treatments in the dataset:
   - 2 treatments => OptimizedUnivariateEncoding
   - 3 treatments or more => MultiTreatmentUnivariateEncoding
