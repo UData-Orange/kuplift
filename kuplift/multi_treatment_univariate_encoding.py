@@ -11,7 +11,7 @@ The main class of this module is 'MultiTreatmentUnivariateEncoding'.
 """
 
 from pathlib import Path
-from .helperclasses import ValGrp, ValGrpPartition, Interval, IntervalPartition, TargetTreatmentPair
+from .helperclasses import ValGrp, ValGrpPartition, Interval, IntervalPartition, TargetTreatmentPair, TargetTreatmentGroupPair
 from .helperfunctions import partition_to_rule
 from tempfile import TemporaryDirectory
 import logging
@@ -302,6 +302,39 @@ class MultiTreatmentUnivariateEncoding:
                 }
             }
         )
+
+
+    def get_target_frequencies_of_treatment_groups(self, variable):
+        """Get the frequencies for each (target, treatment group) pair, for each part in the variable's partition.
+        
+        The frequencies are computed for a single variable.
+        
+        Parameters
+        ----------
+        variable: str
+            The variable name.
+
+        Returns
+        -------
+        dict[Part, pd.Series]
+            The frequencies as a dict mapping parts to Series which index represents target-treatmentgroup pairs and which values are the frequencies.
+        """
+        varcol = self.variable_cols[variable]
+        partition = self.get_partition(variable)
+        return {
+            part: pd.Series(
+                {
+                    TargetTreatmentGroupPair(target, treatmentgrp): len(
+                        varcol[
+                            (self.treatment_col.isin(treatmentgrp)) & (self.target_col == target) & varcol.map(lambda elem: partition.transform_elem(elem) == i)
+                        ]
+                    )
+                    for target in self.target_modalities
+                    for treatmentgrp in self.treatment_groups[variable][part]
+                }
+            )
+            for i, part in enumerate(partition)
+        }
     
 
     def get_target_probabilities(self, variable):
@@ -482,7 +515,7 @@ def uplift_MODL(data, treatment_col, target_col, *, maxpartnumber, maxtreatmentg
     logger.debug("Done reading.")
 
     model = {}
-    groups_by_interval_by_variable = {}
+    groups_by_part_by_variable = {}
     levels = {}
     # Disable all input variables since we will create a filter variable for each one in turn
     # and it is that filter variable that will be enabled.
@@ -495,13 +528,13 @@ def uplift_MODL(data, treatment_col, target_col, *, maxpartnumber, maxtreatmentg
         if varmodel is not None:
             model[x] = varmodel
         if groups_by_interval_for_variable is not None:
-            groups_by_interval_by_variable[x] = groups_by_interval_for_variable
+            groups_by_part_by_variable[x] = groups_by_interval_for_variable
         levels[x] = level
         logger.info("(variable '%s')  Done computing uplift.", x)
         
     logger.info("Done computing uplift.")
         
-    return model, groups_by_interval_by_variable, sorted((var_level_pair for var_level_pair in levels.items()), key=lambda namelevel: (-namelevel[1], namelevel[0]))
+    return model, groups_by_part_by_variable, sorted((var_level_pair for var_level_pair in levels.items()), key=lambda namelevel: (-namelevel[1], namelevel[0]))
 
 
 def uplift_MODL_for_var(x, y, t, all_t_values, train_results, domain, dct, dct_name, datatable_filename, analysis_result_filename_template, maxtreatmentgroups):
@@ -560,7 +593,7 @@ def uplift_MODL_for_var(x, y, t, all_t_values, train_results, domain, dct, dct_n
         logger.debug("(variable '%s', part %s)  Level of treatment '%s' is %f.", x, part, t, group_results.level)
 
         if group_results.level == 0:  # ==> Put all treatments into the same group.
-            groups_by_part[part] = [list(map(str, all_t_values))]
+            groups_by_part[part] = [tuple(map(str, all_t_values))]
         else:
             treatment_groups = group_results.data_grid.dimensions[0].partition
             logger.debug("(variable '%s', part %s)  Groups before repairs: %s.", x, part, [grp.to_dict() for grp in treatment_groups])
@@ -583,7 +616,7 @@ def repair_groups(groups, all_treatments):
 
     # 1. Analyze partition, find groups and default group.
     for i, part in enumerate(groups):
-        current_group = list(part.values) 
+        current_group = tuple(part.values) 
         resulting_groups.append(current_group)
         marked_elements.update(current_group)
 
@@ -600,12 +633,12 @@ def repair_groups(groups, all_treatments):
             # Merge unmarked elements with existing values of the default group.
             merged_group = default_group_values.union(unmarked_elements)
             # Update result with correct index.
-            resulting_groups[default_group_index_in_res] = sorted(list(merged_group))
+            resulting_groups[default_group_index_in_res] = sorted(tuple(merged_group))
         else:
             # No default group found, set unmarked elements apart.
-            resulting_groups.append(sorted(list(unmarked_elements)))
+            resulting_groups.append(sorted(tuple(unmarked_elements)))
 
-    return resulting_groups
+    return tuple(resulting_groups)
 
 
 # class modele_E_y_avec_rapprochement_MODL(BaseEstimator, TransformerMixin):

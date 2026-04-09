@@ -17,8 +17,12 @@ class Partition(ABC):
         return self.parts == other.parts
     
 
+class Part:
+    pass
+    
+
 @dataclass(frozen=True)
-class ValGrp:
+class ValGrp(Part):
     values: list
 
     def __repr__(self):
@@ -81,7 +85,7 @@ Value group partition
 
 
 @dataclass(frozen=True)
-class Interval:
+class Interval(Part):
     lower: Optional[float] = None
     upper: Optional[float] = None
         
@@ -168,4 +172,22 @@ class TargetTreatmentPair:
         return hash((self.target, self.treatment))
     
     def __str__(self):
-        return f"({self.target}|{self.treatment})"
+        return "(%s|%s)" % (self.target, self.treatment)
+    
+
+@dataclass
+class TargetTreatmentGroupPair:
+    """Target-treatmentgroup pair.
+    
+    Used to identify both a target and a treatment group.
+    This class only exists for the purpose of formatting.
+    """
+
+    target: object
+    treatment_group: tuple[object]
+
+    def __hash__(self):
+        return hash((self.target, self.treatment_group))
+    
+    def __str__(self):
+        return "(%s|%s)" % (self.target, ",".join(self.treatment_group))
