@@ -12,9 +12,10 @@ The main class of this module is 'MultiTreatmentUnivariateEncoding'.
 
 from pathlib import Path
 from .helperclasses import ValGrp, ValGrpPartition, Interval, IntervalPartition, TargetTreatmentPair, TargetTreatmentGroupPair
-from .helperfunctions import partition_to_rule
+from .helperfunctions import partition_to_rule, random_khvarname
 from tempfile import TemporaryDirectory
 import logging
+import pandas as pd
 
 logger = logging.getLogger(__name__)
 
@@ -461,17 +462,50 @@ class MultiTreatmentUnivariateEncoding:
             raise ValueError("treatment %r not in known treatments {%s}" % (reftreatment, ", ".join(f"'{t}'" for t in self.treatment_modalities)))
         if reftarget not in self.target_modalities:
             raise ValueError("target %r not in known targets {%s}" % (reftarget, ", ".join(f"'{y}'" for y in self.target_modalities)))
-        probs = self.get_target_probabilities(variable)
-        refttpair = TargetTreatmentPair(reftarget, reftreatment)
-        refprobs = probs[["Part", refttpair]]
-        tgrp_probs = self.get_target_probabilities_of_treatment_groups(variable)
         return {
             part: pd.Series({
-                ttgrppair: tgrp_probs[part][TargetTreatmentGroupPair(reftarget, ttgrppair.treatment_group)] - next(iter(refprobs[refprobs["Part"] == part][refttpair]))
+                ttgrppair: partprobs[TargetTreatmentGroupPair(reftarget, ttgrppair.treatment_group)] - partprobs[next(ttg for ttg in partprobs.index if ttg.target == reftarget and reftreatment in ttg.treatment_group)]
                 for ttgrppair in partprobs.index
             })
-            for part, partprobs in tgrp_probs.items()
+            for part, partprobs in self.get_target_probabilities_of_treatment_groups(variable).items()
         }
+    
+
+def dig_analysis_report(report, j, t, jt):
+    xs = report.get_variable_names()
+    xs.remove(j)
+    xs.remove(t)
+    for x in xs:
+        stats = report.get_variable_statistics(x)
+        if stats.level == 0:
+            continue
+        datagrid = stats.data_grid
+        dims = datagrid.dimensions
+        xdim = jtdim = None
+        for dim in dims:
+            if dim.variable == x:
+                xdim = dim
+            elif dim.variable == jt:
+                jtdim = dim
+        if xdim is None or jtdim is None:
+            raise RuntimeError("did not find the expected dimensions in data grid from Khiops analysis result")
+        xtype = xdim.type  # "Numerical" of "Categorical" as of Khiops 11.0.0.
+        xpartitiontype = xdim.partition_type  # "Intervals", "Values" or "Value groups" as of Khiops 11.0.0.
+        xparts = xdim.partition
+        xdefaultgrpidx = None
+        if xpartitiontype == "Value groups":
+            xdefaultgrpidx = next(ipart for ipart, part in enumerate(xparts) if part.is_default_part)
+        if jtdim.type != "Categorical" or jtdim.partition_type != "Values":
+            raise RuntimeError("unexpected J_T type or partition type")
+        jtparts = [part.value for part in jtdim.partition]
+        xfreqs = datagrid.part_target_frequencies
+
+        print("VARIABLE %r" % x)
+        print(f"  {x=}  {j=}  {t=}  {jt=}")
+        print(f"  {xtype=}  {xpartitiontype}  {xdefaultgrpidx}")
+        print("  jtparts=%r" % (jtparts,))
+        print("  xfreqs=%r" % (xfreqs,))
+    exit(3)
 
 
 #############################################################################
@@ -480,7 +514,6 @@ class MultiTreatmentUnivariateEncoding:
 # much more work is needed.
 
 
-import pandas as pd
 import numpy as np
 # from scipy.special import gammaln
 from khiops import core as kh
@@ -515,9 +548,9 @@ import warnings
 
 
 def uplift_MODL(data, treatment_col, target_col, *, maxpartnumber, maxtreatmentgroups, outputdir):
-    t, y, xs = treatment_col.name, target_col.name, data.columns
+    t, j = treatment_col.name, target_col.name
     logger.info("Computing uplift with %d lines of data, %d variables, treatment column %r and target column %r...",
-                 len(data), len(xs), t, y)
+                 len(data), len(data.columns), t, j)
     all_treatments = np.sort(treatment_col.unique())
 
     categorical_vars = {var for var in data if data.dtypes[var] == object}
@@ -558,15 +591,16 @@ def uplift_MODL(data, treatment_col, target_col, *, maxpartnumber, maxtreatmentg
     logger.debug("Done reading.")
 
     dct = domain.get_dictionary(dct_name)
+    jt = random_khvarname(dct, "j_t---")
     for var in categorical_vars:
         dct.get_variable(var).type = "Categorical"
     dct.get_variable(t).type = "Categorical"
-    dct.get_variable(y).type = "Categorical"
+    dct.get_variable(j).type = "Categorical"
     is_in_train_dataset_variable = kh.Variable()
-    is_in_train_dataset_variable.name = "Y_T"
+    is_in_train_dataset_variable.name = jt
     is_in_train_dataset_variable.type = "Categorical"
     is_in_train_dataset_variable.used = True
-    is_in_train_dataset_variable.rule = f"""Concat({y},"_",{t})"""
+    is_in_train_dataset_variable.rule = f"""Concat({j},"_",{t})"""
     dct.add_variable(is_in_train_dataset_variable)
     if outputdir is not None:
         logger.debug("Exporting dictionary to file...")
@@ -574,7 +608,7 @@ def uplift_MODL(data, treatment_col, target_col, *, maxpartnumber, maxtreatmentg
         logger.debug("Done exporting.")
 
     logger.debug("Training recoder...")
-    analysis_result_files = kh.train_recoder(domain, dct_name, datatable_filename, "Y_T",
+    analysis_result_files = kh.train_recoder(domain, dct_name, datatable_filename, jt,
         str(analysis_result_dirpath / "predictor_analysis_result.khj"),
         sample_percentage=100, max_trees=0, max_pairs=0, max_parts=maxpartnumber or 0)
     logger.debug("Analysis result files: %s, %s.", analysis_result_files[0], analysis_result_files[1])
@@ -583,6 +617,16 @@ def uplift_MODL(data, treatment_col, target_col, *, maxpartnumber, maxtreatmentg
     logger.debug("Reading analysis result file...")
     train_results = kh.read_analysis_results_file(analysis_result_files[0])
     logger.debug("Done reading.")
+
+    # Build Nijt tables for all input variables.
+    # 'N': number of samples/observations.
+    # 'i': part (interval or value group).
+    # 'j': target/outcome.
+    # 't': treatment.
+    nijt_by_var = {}
+    report = train_results.preparation_report
+    dig_analysis_report(report, j, t, jt)
+
 
     model = {}
     groups_by_part_by_variable = {}
@@ -594,7 +638,7 @@ def uplift_MODL(data, treatment_col, target_col, *, maxpartnumber, maxtreatmentg
     for x in xs:
         logger.info("(variable %r)  Computing uplift...", x)
         varmodel, groups_by_interval_for_variable, level = uplift_MODL_for_var(
-            x, y, t, all_treatments, train_results, domain, dct, dct_name, datatable_filename, str(analysis_result_dirpath) + f"/{x}_%(interval)s_analysis_result.khj", maxtreatmentgroups)
+            x, j, t, all_treatments, train_results, domain, dct, dct_name, datatable_filename, str(analysis_result_dirpath) + f"/{x}_%(interval)s_analysis_result.khj", maxtreatmentgroups)
         if varmodel is not None:
             model[x] = varmodel
         if groups_by_interval_for_variable is not None:
