@@ -378,6 +378,31 @@ class MultiTreatmentUnivariateEncoding:
         )
     
 
+    def get_target_probabilities_of_treatment_groups(self, variable):
+        """Get the probabilities P(target|treatment group) for each (target, treatment group) pair.
+        
+        The probabilities are computed for a single variable.
+        
+        Parameters
+        ----------
+        variable: str
+            The variable name.
+
+        Returns
+        -------
+        dict[Part, pd.Series]
+            The probabilities as a dict mapping parts to Series which index represents target-treatmentgroup pairs and which values are the probabilities.
+        """
+        freqs = self.get_target_frequencies_of_treatment_groups(variable)
+        return {
+            part: pd.Series({
+                ttgrppair: partfreqs[ttgrppair] / partfreqs[partfreqs.index.map(lambda i: i.treatment_group == ttgrppair.treatment_group)].sum()
+                for ttgrppair in partfreqs.index
+            })
+            for part, partfreqs in freqs.items()
+        }
+    
+
     def get_uplift(self, reftarget, reftreatment, variable):
         """Get the uplift for a single variable.
 
@@ -412,6 +437,41 @@ class MultiTreatmentUnivariateEncoding:
             f"Uplift {reftarget} {treatment}": probs[TargetTreatmentPair(reftarget, treatment)] - refprobs
             for treatment in self.treatment_modalities if treatment != reftreatment
         }))
+    
+
+    def get_uplift_of_treatment_groups(self, reftarget, reftreatment, variable):
+        """Get the uplift for a single variable.
+
+        See explanations of the computations in the 'Returns' section below.
+        
+        Parameters
+        ----------
+        reftarget
+            The reference target.
+        reftreatment
+            The reference treatment to which all the other treatments are compared.
+        variable: str
+            The name of the variable.
+
+        dict[Part, pd.Series]
+            The probabilities as a dict mapping parts to Series which index represents target-treatmentgroup pairs and
+            which values are the differences P(reftarget|treatment group) - P(reftarget|reftreatment).
+        """
+        if reftreatment not in self.treatment_modalities:
+            raise ValueError("treatment %r not in known treatments {%s}" % (reftreatment, ", ".join(f"'{t}'" for t in self.treatment_modalities)))
+        if reftarget not in self.target_modalities:
+            raise ValueError("target %r not in known targets {%s}" % (reftarget, ", ".join(f"'{y}'" for y in self.target_modalities)))
+        probs = self.get_target_probabilities(variable)
+        refttpair = TargetTreatmentPair(reftarget, reftreatment)
+        refprobs = probs[["Part", refttpair]]
+        tgrp_probs = self.get_target_probabilities_of_treatment_groups(variable)
+        return {
+            part: pd.Series({
+                ttgrppair: tgrp_probs[part][TargetTreatmentGroupPair(reftarget, ttgrppair.treatment_group)] - next(iter(refprobs[refprobs["Part"] == part][refttpair]))
+                for ttgrppair in partprobs.index
+            })
+            for part, partprobs in tgrp_probs.items()
+        }
 
 
 #############################################################################
