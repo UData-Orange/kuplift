@@ -403,9 +403,9 @@ class MultiTreatmentUnivariateEncoding:
                   treatment compared to the reference treatment.
         """
         if reftreatment not in self.treatment_modalities:
-            raise ValueError("treatment '%s' not in known treatments {%s}" % (reftreatment, ", ".join(f"'{t}'" for t in self.treatment_modalities)))
+            raise ValueError("treatment %r not in known treatments {%s}" % (reftreatment, ", ".join(f"'{t}'" for t in self.treatment_modalities)))
         if reftarget not in self.target_modalities:
-            raise ValueError("target '%s' not in known targets {%s}" % (reftarget, ", ".join(f"'{y}'" for y in self.target_modalities)))
+            raise ValueError("target %r not in known targets {%s}" % (reftarget, ", ".join(f"'{y}'" for y in self.target_modalities)))
         probs = self.get_target_probabilities(variable)
         refprobs = probs[TargetTreatmentPair(reftarget, reftreatment)]
         return probs["Part"].to_frame().join(pd.DataFrame({
@@ -456,20 +456,20 @@ import warnings
 
 def uplift_MODL(data, treatment_col, target_col, *, maxpartnumber, maxtreatmentgroups, outputdir):
     t, y, xs = treatment_col.name, target_col.name, data.columns
-    logger.info("Computing uplift with %d lines of data, %d variables, treatment column '%s' and target column '%s'...",
+    logger.info("Computing uplift with %d lines of data, %d variables, treatment column %r and target column %r...",
                  len(data), len(xs), t, y)
     all_treatments = np.sort(treatment_col.unique())
 
     categorical_vars = {var for var in data if data.dtypes[var] == object}
-    logger.debug("Numerical variables: {%s}.", ", ".join("'%s'" % v for v in sorted(set(data.columns) - categorical_vars)))
-    logger.debug("Categorical variables: {%s}.", ", ".join("'%s'" % v for v in sorted(categorical_vars)))
+    logger.debug("Numerical variables: {%s}.", ", ".join("%r" % v for v in sorted(set(data.columns) - categorical_vars)))
+    logger.debug("Categorical variables: {%s}.", ", ".join("%r" % v for v in sorted(categorical_vars)))
     
     if outputdir is None:
         tmpdir = TemporaryDirectory()
         dirpath = Path(tmpdir.name)
     else:
         dirpath = Path(outputdir)
-    logger.debug("Temporary file output will be in '%s'.", dirpath)
+    logger.debug("Temporary file output will be in %r.", dirpath)
     
     datatable_path = dirpath / "data.csv"
     logger.debug("Data file name: %s.", datatable_path)
@@ -532,7 +532,7 @@ def uplift_MODL(data, treatment_col, target_col, *, maxpartnumber, maxtreatmentg
     for x in xs:
         dct.get_variable(x).used = False
     for x in xs:
-        logger.info("(variable '%s')  Computing uplift...", x)
+        logger.info("(variable %r)  Computing uplift...", x)
         varmodel, groups_by_interval_for_variable, level = uplift_MODL_for_var(
             x, y, t, all_treatments, train_results, domain, dct, dct_name, datatable_filename, str(analysis_result_dirpath) + f"/{x}_%(interval)s_analysis_result.khj", maxtreatmentgroups)
         if varmodel is not None:
@@ -540,7 +540,7 @@ def uplift_MODL(data, treatment_col, target_col, *, maxpartnumber, maxtreatmentg
         if groups_by_interval_for_variable is not None:
             groups_by_part_by_variable[x] = groups_by_interval_for_variable
         levels[x] = level
-        logger.info("(variable '%s')  Done computing uplift.", x)
+        logger.info("(variable %r)  Done computing uplift.", x)
         
     logger.info("Done computing uplift.")
         
@@ -548,35 +548,35 @@ def uplift_MODL(data, treatment_col, target_col, *, maxpartnumber, maxtreatmentg
 
 
 def uplift_MODL_for_var(x, y, t, all_t_values, train_results, domain, dct, dct_name, datatable_filename, analysis_result_filename_template, maxtreatmentgroups):
-    logger.debug("(variable '%s')  Analysis result file name template: %s.", x, analysis_result_filename_template)
+    logger.debug("(variable %r)  Analysis result file name template: %s.", x, analysis_result_filename_template)
     pair_results = train_results.preparation_report.get_variable_statistics(x)
     level = pair_results.level
-    logger.debug("(variable '%s')  Level is %f.", x, level)
+    logger.debug("(variable %r)  Level is %f.", x, level)
 
     if level == 0:
         return None, None, 0.0
     else:
         vardim = pair_results.data_grid.dimensions[0]
-        logger.debug("(variable '%s')  Partition type is '%s'.", x, vardim.partition_type)
+        logger.debug("(variable %r)  Partition type is %r.", x, vardim.partition_type)
         match vardim.partition_type:
             case "Value groups":
                 partition = ValGrpPartition([ValGrp(valgrp.values) for valgrp in vardim.partition], next(i for i, valgrp in enumerate(vardim.partition) if valgrp.is_default_part))
             case "Intervals":
                 partition = IntervalPartition([Interval(interval.lower_bound, interval.upper_bound) for interval in vardim.partition])
-            case ptype: raise ValueError("unsupported partition type '%s'" % ptype)
+            case ptype: raise ValueError("unsupported partition type %r" % ptype)
 
     filtre_index_variable = kh.Variable()
     filtre_index_variable.name = "Filtre_%s" % x
     filtre_index_variable.type = "Categorical"
     filtre_index_variable.used = True
     filtre_index_variable.rule = str(partition_to_rule(partition, dct.get_variable(x)))
-    logger.debug("(variable '%s')  Filter index variable rule: '%s'.", x, filtre_index_variable.rule)
+    logger.debug("(variable %r)  Filter index variable rule: %r.", x, filtre_index_variable.rule)
     dct.add_variable(filtre_index_variable)
     
     groups_by_part = {}
-    for i, part in enumerate(part for part in partition if part):
+    for i, part in enumerate(partition):
         partname = f"I{i + 1}"
-        logger.debug("(variable '%s', part %s)  Training recoder...", x, part)
+        logger.debug("(variable %r, part %s)  Training recoder...", x, part)
         analysis_result_files = kh.train_recoder(
             domain, dct_name, datatable_filename, y, analysis_result_filename_template % {"interval": partname},
             sample_percentage=100,
@@ -587,30 +587,30 @@ def uplift_MODL_for_var(x, y, t, all_t_values, train_results, domain, dct, dct_n
             max_constructed_variables=0,
             max_text_features=0,
             max_parts=maxtreatmentgroups or 0)
-        logger.debug("(variable '%s', part %s)  Analysis result files: %s, %s.", x, part, analysis_result_files[0], analysis_result_files[1])
-        logger.debug("(variable '%s', part %s)  Done training.", x, part)
+        logger.debug("(variable %r, part %s)  Analysis result files: %s, %s.", x, part, analysis_result_files[0], analysis_result_files[1])
+        logger.debug("(variable %r, part %s)  Done training.", x, part)
         
-        logger.debug("(variable '%s', part %s)  Reading analysis result file...", x, part)
+        logger.debug("(variable %r, part %s)  Reading analysis result file...", x, part)
         train_results = kh.read_analysis_results_file(analysis_result_files[0])
-        logger.debug("(variable '%s', part %s)  Done reading.", x, part)
+        logger.debug("(variable %r, part %s)  Done reading.", x, part)
 
-        logger.debug("(variable '%s', part %s)  Analysis result refers to these variable names: {%s}",
+        logger.debug("(variable %r, part %s)  Analysis result refers to these variable names: {%s}",
                      x, part, ", ".join(f"'{varname}'" for varname in train_results.preparation_report.get_variable_names()))
 
         if not train_results.preparation_report.target_values:
-            logger.debug("(variable '%s', part %s)  Empty preparation report.", x, part)
+            logger.debug("(variable %r, part %s)  Empty preparation report.", x, part)
         group_results = train_results.preparation_report.get_variable_statistics(t)
-        logger.debug("(variable '%s', part %s)  Level of treatment '%s' is %f.", x, part, t, group_results.level)
+        logger.debug("(variable %r, part %s)  Level of treatment %r is %f.", x, part, t, group_results.level)
 
         if group_results.level == 0:  # ==> Put all treatments into the same group.
             groups_by_part[part] = [tuple(map(str, all_t_values))]
         else:
             treatment_groups = group_results.data_grid.dimensions[0].partition
-            logger.debug("(variable '%s', part %s)  Groups before repairs: %s.", x, part, [grp.to_dict() for grp in treatment_groups])
-            logger.debug("(variable '%s', part %s)  Repairing groups...", x, part)
+            logger.debug("(variable %r, part %s)  Groups before repairs: %s.", x, part, [grp.to_dict() for grp in treatment_groups])
+            logger.debug("(variable %r, part %s)  Repairing groups...", x, part)
             groups_by_part[part] = repair_groups(treatment_groups, all_t_values)
-            logger.debug("(variable '%s', part %s)  Done repairing.", x, part)
-            logger.debug("(variable '%s', part %s)  Groups after repairs: %s.", x, part, groups_by_part[part])
+            logger.debug("(variable %r, part %s)  Done repairing.", x, part)
+            logger.debug("(variable %r, part %s)  Groups after repairs: %s.", x, part, groups_by_part[part])
 
     dct.remove_variable(filtre_index_variable.name)
         
