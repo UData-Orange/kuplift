@@ -43,6 +43,16 @@ class MultiTreatmentUnivariateEncoding:
 
     target_col: Series
         The target column from the dataset.
+
+    treatment_groups: 
+        A dict mapping variable names to dictionaries mapping parts to treatment groups.
+        For instance:
+            {
+                "var1": { Interval(-inf, 0.2): ( ("T0", "T1), ("T2", "T3", "T4)       ),
+                          Interval( 0.2, inf): ( ("T5", "T6"), ("T7", "T8")           ) }
+                "var2": { ValGrp(["A", "B"]) : ( ("T0", "T1", "T2")                   ),
+                          ValGrp(["C", "D"]) : ( ("T3", "T4", "T5", "T6", "T7", "T8") ) }
+            }
     """
 
     def __init__(self):
