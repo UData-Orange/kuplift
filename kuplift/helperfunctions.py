@@ -4,6 +4,9 @@
 
 from math import log, inf
 from functools import singledispatch
+from itertools import count
+import string
+import random
 from khiops import core as kh
 from .helperclasses import IntervalPartition, ValGrpPartition
 
@@ -245,3 +248,16 @@ def _(partition: ValGrpPartition, variable: kh.Variable) -> kh.Rule:
                                      *([str(val) for val in group.values] + ([" * "] if i == partition.defaultgroupindex else [])))
                              for i, group in enumerate(partition))),
                    variable)
+
+
+def random_name(charset=string.ascii_letters + string.digits, length=16, *, prefix="", suffix="", maxtries=1000, check=None):
+    for i in count(1):
+        name = "{}{}{}".format(prefix, "".join(random.choices(charset, k=length)), suffix)
+        if check(name):
+            return name
+        if i == maxtries:
+            raise RuntimeError("failed to find a 'check'-passing name after {} attempt(s)".format(i))
+        
+
+def random_khvarname(dictionary: kh.Dictionary, prefix=""):
+    return random_name(prefix=prefix, check=lambda name: dictionary.get_variable(name) is None)
