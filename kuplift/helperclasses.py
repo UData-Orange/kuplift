@@ -121,12 +121,11 @@ class IntervalPartition(Partition):
         if not intervals:
             raise ValueError("there must be at least one interval")
         if intervals[0].catches_missing:
-            if len(intervals) >= 1:
-                intervals[1] = Interval(-math.inf, intervals[1].upper)
-                intervals[-1] = Interval(intervals[-1].lower, +math.inf)
-        else:
-            intervals[0] = Interval(-math.inf, intervals[0].upper)
-            intervals[-1] = Interval(intervals[-1].lower, +math.inf)
+            if len(intervals) == 1:
+                raise ValueError("there must be at least one \"non-MISSING\" interval")
+            intervals = intervals[1:]
+        intervals[0] = Interval(-math.inf, intervals[0].upper)
+        intervals[-1] = Interval(intervals[-1].lower, +math.inf)
         self.intervals = intervals
 
     @property
