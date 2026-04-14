@@ -100,7 +100,7 @@ class Interval(Part):
         return "[]" if self.catches_missing else f"[{self.lower}, {self.upper}["
     
     def __contains__(self, x):
-        return not self.catches_missing and (self.lower <= x < self.upper)
+        return not self.catches_missing and (self.lower < x <= self.upper)
     
     def __bool__(self):
         return not self.catches_missing
