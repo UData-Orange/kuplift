@@ -15,6 +15,8 @@ from .helperclasses import ValGrp, ValGrpPartition, Interval, IntervalPartition,
 from .helperfunctions import partition_to_rule, random_khvarname
 from tempfile import TemporaryDirectory
 import logging
+from itertools import chain
+from dataclasses import dataclass
 import pandas as pd
 
 logger = logging.getLogger(__name__)
@@ -471,40 +473,92 @@ class MultiTreatmentUnivariateEncoding:
         }
     
 
-def dig_analysis_report(report, j, t, jt):
-    xs = report.get_variable_names()
-    xs.remove(j)
-    xs.remove(t)
-    for x in xs:
+@dataclass(frozen=True)
+class DimensionConstraint:
+    type: str | None
+    partition_type: str | None
+    
+
+    def validate(self, dimension):
+        if self.type is not None:
+            if dimension.type != self.type:
+                raise RuntimeError("type {!r} of variable {!r} does not match expected type {!r}".format(
+                    dimension.type, dimension.variable, self.type))
+        if self.partition_type is not None:
+            if dimension.partition_type != self.partition_type:
+                raise RuntimeError("partition type {!r} of variable {!r} does not match expected partition type {!r}".format(
+                    dimension.partition_type, dimension.variable, self.partition_type))
+
+
+def find_dimensions_as_dict(varnames, dimensions, constraints={}):
+    result_dims = {var: None for var in varnames}
+    varstofind = set(varnames)
+    for dim in dimensions:
+        if not varstofind:
+            break
+        for var in varstofind.copy():
+            if dim.variable == var:
+                if (varconstraint := constraints.get(var)) is not None:
+                    if not isinstance(varconstraint, DimensionConstraint):
+                        varconstraint = DimensionConstraint(*varconstraint)
+                    varconstraint.validate(dim)
+                result_dims[var] = dim
+                varstofind.remove(var)
+    if varstofind:
+        raise RuntimeError("did not find the expected dimensions: {!r}".format(varstofind))
+    return result_dims
+
+
+def find_dimensions(varnames, dimensions, constraints=()):
+    found_dims = find_dimensions_as_dict(varnames, dimensions, dict(zip(varnames, constraints)))
+    return tuple(found_dims[var] for var in varnames)
+
+
+def find_dimension(varname, dimensions, constraint=None):
+    return find_dimensions((varname,), dimensions, (constraint,))[0]
+
+
+def extract_stats_from_analysis_report(report, t, j, jt):
+    tdim = find_dimension(t, report.get_variable_statistics(t).data_grid.dimensions, DimensionConstraint("Categorical", "Value groups"))
+    jdim = find_dimension(j, report.get_variable_statistics(j).data_grid.dimensions, DimensionConstraint("Categorical", "Value groups"))
+    ts = list(chain.from_iterable([tpart.values for tpart in tdim.partition]))
+    nxijt = {}
+    for var in report.get_variable_names():
+        if var in [t, j]:
+            continue  # Skip treatment and target variables.
+        x = var
+        nxijt[x] = None
         stats = report.get_variable_statistics(x)
         if stats.level == 0:
-            continue
-        datagrid = stats.data_grid
-        dims = datagrid.dimensions
-        xdim = jtdim = None
-        for dim in dims:
-            if dim.variable == x:
-                xdim = dim
-            elif dim.variable == jt:
-                jtdim = dim
-        if xdim is None or jtdim is None:
-            raise RuntimeError("did not find the expected dimensions in data grid from Khiops analysis result")
-        xtype = xdim.type  # "Numerical" of "Categorical" as of Khiops 11.0.0.
-        xpartitiontype = xdim.partition_type  # "Intervals", "Values" or "Value groups" as of Khiops 11.0.0.
-        xparts = xdim.partition
-        xdefaultgrpidx = None
-        if xpartitiontype == "Value groups":
-            xdefaultgrpidx = next(ipart for ipart, part in enumerate(xparts) if part.is_default_part)
-        if jtdim.type != "Categorical" or jtdim.partition_type != "Values":
-            raise RuntimeError("unexpected J_T type or partition type")
-        jtparts = [part.value for part in jtdim.partition]
-        xfreqs = datagrid.part_target_frequencies
+            continue  # ==> 'None' for this variable.
+        xdim, jtdim = find_dimensions((x, jt), stats.data_grid.dimensions, (None, DimensionConstraint("Categorical", "Values")))
+        if xdim.partition_type == "Value groups":
+            xdefaultgrpidx = next(ipart for ipart, part in enumerate(xdim.partition) if part.is_default_part)
+        else:
+            xdefaultgrpidx = None
+        jts = [part.value for part in jtdim.partition]
+        xfreqs = stats.data_grid.part_target_frequencies
+        nxijt[x] = pd.DataFrame(
+            index=xdim.partition,
+            data={
+                jt: [1 for xpart in xdim.partition]
+                for jt in jts
+            }
+        )
 
-        print("VARIABLE %r" % x)
-        print(f"  {x=}  {j=}  {t=}  {jt=}")
-        print(f"  {xtype=}  {xpartitiontype}  {xdefaultgrpidx}")
-        print("  jtparts=%r" % (jtparts,))
-        print("  xfreqs=%r" % (xfreqs,))
+        ################### INTERVAL: 'is_left_open', 'is_missing', 'is_right_open', 'lower_bound', 'upper_bound'
+        ################### VALUE GROUP: 'is_default_part', 'values'
+
+        print()
+        print(f"{ts=}")
+        print(f"{x=}  {j=}  {t=}  {jt=}")
+        print(f"{xdim.type=}  {xdim.partition_type=}  {xdefaultgrpidx=}")
+        # print(f"{xdim.partition=}")
+        print(f"{jts=}")
+        print(f"{xfreqs=}")
+        # print(f"{jdim.partition=}")
+        print("nxijt[x]=")
+        print(nxijt[x])
     exit(3)
 
 
@@ -591,7 +645,7 @@ def uplift_MODL(data, treatment_col, target_col, *, maxpartnumber, maxtreatmentg
     logger.debug("Done reading.")
 
     dct = domain.get_dictionary(dct_name)
-    jt = random_khvarname(dct, "j_t---")
+    jt = random_khvarname(dct, "j|t---")
     for var in categorical_vars:
         dct.get_variable(var).type = "Categorical"
     dct.get_variable(t).type = "Categorical"
@@ -600,7 +654,7 @@ def uplift_MODL(data, treatment_col, target_col, *, maxpartnumber, maxtreatmentg
     is_in_train_dataset_variable.name = jt
     is_in_train_dataset_variable.type = "Categorical"
     is_in_train_dataset_variable.used = True
-    is_in_train_dataset_variable.rule = f"""Concat({j},"_",{t})"""
+    is_in_train_dataset_variable.rule = f"""Concat({j},"|",{t})"""
     dct.add_variable(is_in_train_dataset_variable)
     if outputdir is not None:
         logger.debug("Exporting dictionary to file...")
@@ -625,7 +679,7 @@ def uplift_MODL(data, treatment_col, target_col, *, maxpartnumber, maxtreatmentg
     # 't': treatment.
     nijt_by_var = {}
     report = train_results.preparation_report
-    dig_analysis_report(report, j, t, jt)
+    extract_stats_from_analysis_report(report, t, j, jt)
 
 
     model = {}
@@ -669,8 +723,9 @@ def uplift_MODL_for_var(x, y, t, all_t_values, train_results, domain, dct, dct_n
                 partition = IntervalPartition([Interval(interval.lower_bound, interval.upper_bound) for interval in vardim.partition])
             case ptype: raise ValueError("unsupported partition type %r" % ptype)
 
+    filtervarname = random_khvarname(dct, f"Filter_{x}---")
     filtre_index_variable = kh.Variable()
-    filtre_index_variable.name = "Filtre_%s" % x
+    filtre_index_variable.name = filtervarname
     filtre_index_variable.type = "Categorical"
     filtre_index_variable.used = True
     filtre_index_variable.rule = str(partition_to_rule(partition, dct.get_variable(x)))
@@ -684,7 +739,7 @@ def uplift_MODL_for_var(x, y, t, all_t_values, train_results, domain, dct, dct_n
         analysis_result_files = kh.train_recoder(
             domain, dct_name, datatable_filename, y, analysis_result_filename_template % {"interval": partname},
             sample_percentage=100,
-            selection_variable="Filtre_{}".format(x),
+            selection_variable=filtervarname,
             selection_value=partname,
             max_trees=0,
             max_pairs=0,
