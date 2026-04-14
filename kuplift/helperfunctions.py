@@ -3,11 +3,10 @@
 # at https://spdx.org/licenses/MIT.html or see the "LICENSE" file for more details.
 
 from math import log, inf
-from functools import singledispatch
 from itertools import count
 import string
 import random
-from khiops import core as kh
+import khiops.core
 from .helperclasses import IntervalPartition, ValGrpPartition
 
 _log_fact_table = []
@@ -213,8 +212,7 @@ def preprocess_data(data, treatment_col="segment", y_col="visit"):
     return data
 
 
-@singledispatch
-def partition_to_rule(partition, variable: kh.Variable) -> kh.Rule:
+def partition_to_rule(partition: list[khiops.core.PartInterval | khiops.core.PartValueGroup], variable: khiops.core.Variable) -> khiops.core.Rule:
     """Format a partition as a Khiops rule string.
     
     Parameters
@@ -229,25 +227,31 @@ def partition_to_rule(partition, variable: kh.Variable) -> kh.Rule:
     khiops.core.Rule
         A rule.
     """
-    raise ValueError("unsupported partition type '%s'" % type(partition))
-
-
-@partition_to_rule.register
-def _(partition: IntervalPartition, variable: kh.Variable) -> kh.Rule:
-    return kh.Rule("IntervalId",
-                   kh.Rule("IntervalBounds",
-                           *(interval.upper for interval in partition if interval.upper is not None and interval.upper != +inf)),
-                   variable)
-
-
-@partition_to_rule.register
-def _(partition: ValGrpPartition, variable: kh.Variable) -> kh.Rule:
-    return kh.Rule("GroupId",
-                   kh.Rule("ValueGroups",
-                           *(kh.Rule("ValueGroup",
-                                     *([str(val) for val in group.values] + ([" * "] if i == partition.defaultgroupindex else [])))
-                             for i, group in enumerate(partition))),
-                   variable)
+    if not partition:
+        raise ValueError("the partition must contain at least one part")
+    match partition[0].part_type:
+        case "Interval":
+            return khiops.core.Rule(
+                "IntervalId",
+                khiops.core.Rule(
+                    "IntervalBounds",
+                    *(interval.upper_bound for interval in partition if not interval.is_missing and not interval.is_right_open)
+                ),
+                variable
+            )
+        case "Value Group":
+            return khiops.core.Rule(
+                "GroupId",
+                khiops.core.Rule(
+                    "ValueGroups",
+                    *(
+                        khiops.core.Rule("ValueGroup", *(group.values + ([" * "] if group.is_default_part else [])))
+                        for group in partition
+                    )
+                ),
+                variable)
+        case unsupported_part_type:
+            raise ValueError("unsupported part type {!r}".format(unsupported_part_type))
 
 
 def random_name(charset=string.ascii_letters + string.digits, length=16, *, prefix="", suffix="", maxtries=1000, check=None):
@@ -259,5 +263,5 @@ def random_name(charset=string.ascii_letters + string.digits, length=16, *, pref
             raise RuntimeError("failed to find a 'check'-passing name after {} attempt(s)".format(i))
         
 
-def random_khvarname(dictionary: kh.Dictionary, prefix=""):
+def random_khvarname(dictionary: khiops.core.Dictionary, prefix=""):
     return random_name(prefix=prefix, check=lambda name: dictionary.get_variable(name) is None)

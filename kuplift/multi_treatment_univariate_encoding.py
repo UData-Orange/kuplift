@@ -11,13 +11,15 @@ The main class of this module is 'MultiTreatmentUnivariateEncoding'.
 """
 
 from pathlib import Path
-from .helperclasses import ValGrp, ValGrpPartition, Interval, IntervalPartition, TargetTreatmentPair, TargetTreatmentGroupPair
 from .helperfunctions import partition_to_rule, random_khvarname
 from tempfile import TemporaryDirectory
 import logging
 from itertools import chain
 from dataclasses import dataclass
-import pandas as pd
+import collections.abc
+import typing
+import khiops.core.analysis_results
+import pandas
 
 logger = logging.getLogger(__name__)
 
@@ -30,13 +32,6 @@ class MultiTreatmentUnivariateEncoding:
     
     Attributes
     ----------
-    model: dict mapping str to ValGrpPartition or IntervalPartition
-        It describes the partitioning of values of informative variables into groups or intervals.
-        It maps the informative variable names to value partitions.
-
-    levels: list of (str, float) pairs
-        (variable-name, variable-level) pairs in decreasing level order.
-
     variable_cols: DataFrame
         The data columns of all variables.
         This means all the data from the dataset but the treatment and target columns.
@@ -46,6 +41,9 @@ class MultiTreatmentUnivariateEncoding:
 
     target_col: Series
         The target column from the dataset.
+
+    stats: Stats
+        Statistics.
 
     treatment_groups: 
         A dict mapping variable names to dictionaries mapping parts to treatment groups.
@@ -59,11 +57,10 @@ class MultiTreatmentUnivariateEncoding:
     """
 
     def __init__(self):
-        self.model: dict[str, ValGrpPartition | IntervalPartition] = {}
-        self.levels: list[tuple[str, float]] = []
         self.variable_cols = None
         self.treatment_col = None
         self.target_col = None
+        self.stats = None
         self.treatment_groups = None
 
 
@@ -73,7 +70,7 @@ class MultiTreatmentUnivariateEncoding:
         
         The names of the variables.
         """
-        return self.variable_cols.columns.to_list()
+        return self.stats.xnames
     
 
     @property
@@ -82,7 +79,7 @@ class MultiTreatmentUnivariateEncoding:
         
         The names of the informative variables.
         """
-        return [v for v in self.input_variables if v in self.model]
+        return self.stats.informative_xnames
     
 
     @property
@@ -91,7 +88,7 @@ class MultiTreatmentUnivariateEncoding:
         
         The names of the non-informative variables.
         """
-        return [v for v in self.input_variables if v not in self.model]
+        return self.stats.noninformative_xnames
     
 
     @property
@@ -118,7 +115,7 @@ class MultiTreatmentUnivariateEncoding:
         
         All the different treatments from the dataset.
         """
-        return list(self.treatment_col.unique())
+        return self.stats.ts
     
 
     @property
@@ -127,7 +124,7 @@ class MultiTreatmentUnivariateEncoding:
         
         All the different targets from the dataset.
         """
-        return list(self.target_col.unique())
+        return self.stats.js
     
 
     @property
@@ -136,7 +133,7 @@ class MultiTreatmentUnivariateEncoding:
         
         All (target, treatment) pairs.
         """
-        return [TargetTreatmentPair(target, treatment) for target in self.target_modalities for treatment in self.treatment_modalities]
+        return self.stats.jts
     
 
     def fit(self, data, treatment_col, target_col, *, maxpartnumber = None, maxtreatmentgroups = None, outputdir = None):
@@ -144,13 +141,13 @@ class MultiTreatmentUnivariateEncoding:
 
         Parameters
         ----------
-        data: pd.DataFrame
+        data: pandas.DataFrame
             Dataframe containing feature variables. Categorical
             variables should have the object dtype, otherwise they
             are processed as numerical variables.
-        treatment_col: pd.Series
+        treatment_col: pandas.Series
             Treatment column.
-        target_col: pd.Series
+        target_col: pandas.Series
             Outcome column.
         maxpartnumber: int, default=None
             The maximal number of intervals or groups. None means default to the 'khiops' program default.
@@ -161,15 +158,10 @@ class MultiTreatmentUnivariateEncoding:
             to the default behaviour which is to have khiops write its files into a temporary directory that
             is deleted when the work is done.
         """
-        model, treatment_groups, levels = uplift_MODL(data, treatment_col, target_col, maxpartnumber=maxpartnumber, maxtreatmentgroups=maxtreatmentgroups, outputdir=outputdir)
-
-        # Only write to the instance's attributes if all the above succeeded.
-        self.model = model
-        self.levels = levels
+        self.stats, self.treatment_groups = uplift_MODL(data, treatment_col, target_col, maxpartnumber=maxpartnumber, maxtreatmentgroups=maxtreatmentgroups, outputdir=outputdir)
         self.variable_cols = data
         self.treatment_col = treatment_col
         self.target_col = target_col
-        self.treatment_groups = treatment_groups
 
 
     def transform(self, data):
@@ -177,12 +169,12 @@ class MultiTreatmentUnivariateEncoding:
 
         Parameters
         ----------
-        data: pd.DataFrame
+        data: pandas.DataFrame
             Dataframe containing feature variables.
 
         Returns
         -------
-        pd.DataFrame
+        pandas.DataFrame
             Pandas Dataframe that contains encoded data.
         """
         data = data[list(self.model.keys())]  # Keep only informative variables
@@ -195,13 +187,13 @@ class MultiTreatmentUnivariateEncoding:
 
         Parameters
         ----------
-        data: pd.DataFrame
+        data: pandas.DataFrame
             Dataframe containing feature variables. Categorical
             variables should have the object dtype, otherwise they
             are processed as numerical variables.
-        treatment_col: pd.Series
+        treatment_col: pandas.Series
             Treatment column.
-        target_col: pd.Series
+        target_col: pandas.Series
             Outcome column.
         maxpartnumber: int, default=None
             The maximal number of intervals or groups. None means default to the 'khiops' program default.
@@ -214,7 +206,7 @@ class MultiTreatmentUnivariateEncoding:
 
         Returns
         -------
-        pd.Dataframe
+        pandas.Dataframe
             Pandas Dataframe that contains encoded data.
         """
         self.fit(data, treatment_col, target_col, maxpartnumber=maxpartnumber, maxtreatmentgroups=maxtreatmentgroups, outputdir=outputdir)
@@ -292,14 +284,14 @@ class MultiTreatmentUnivariateEncoding:
 
         Returns
         -------
-        pd.DataFrame
+        pandas.DataFrame
             The frequencies as a Dataframe containing:
                 - A column named 'Part' listing all the parts of the variable.
                 - One column per (target, treatment) pair.
         """
         varcol = self.variable_cols[variable]
         partition = self.get_partition(variable)
-        return pd.DataFrame(
+        return pandas.DataFrame(
             {
                 **{"Part": partition},
                 **{
@@ -329,13 +321,13 @@ class MultiTreatmentUnivariateEncoding:
 
         Returns
         -------
-        dict[Part, pd.Series]
+        dict[Part, pandas.Series]
             The frequencies as a dict mapping parts to Series which index represents target-treatmentgroup pairs and which values are the frequencies.
         """
         varcol = self.variable_cols[variable]
         partition = self.get_partition(variable)
         return {
-            part: pd.Series(
+            part: pandas.Series(
                 {
                     TargetTreatmentGroupPair(target, treatmentgrp): len(
                         varcol[
@@ -362,14 +354,14 @@ class MultiTreatmentUnivariateEncoding:
 
         Returns
         -------
-        pd.DataFrame
+        pandas.DataFrame
             The probabilities as a Dataframe containing:
                 - A column named 'Part' listing all the parts of the variable.
                 - One column per (target, treatment) pair.
         """
         freqs = self.get_target_frequencies(variable)
         return freqs["Part"].to_frame().join(
-            pd.DataFrame({
+            pandas.DataFrame({
                 ttpair: [
                     freqs[ttpair][freqs["Part"] == part].sum() / freqs[
                         [TargetTreatmentPair(target, ttpair.treatment) for target in self.target_modalities]
@@ -393,12 +385,12 @@ class MultiTreatmentUnivariateEncoding:
 
         Returns
         -------
-        dict[Part, pd.Series]
+        dict[Part, pandas.Series]
             The probabilities as a dict mapping parts to Series which index represents target-treatmentgroup pairs and which values are the probabilities.
         """
         freqs = self.get_target_frequencies_of_treatment_groups(variable)
         return {
-            part: pd.Series({
+            part: pandas.Series({
                 ttgrppair: partfreqs[ttgrppair] / partfreqs[partfreqs.index.map(lambda i: i.treatment_group == ttgrppair.treatment_group)].sum()
                 for ttgrppair in partfreqs.index
             })
@@ -422,7 +414,7 @@ class MultiTreatmentUnivariateEncoding:
 
         Returns
         -------
-        pd.DataFrame
+        pandas.DataFrame
             A Dataframe containing:
                 - A column named 'Part' listing all the parts of the variable.
                 - One column per treatment other than the reference treatment.
@@ -436,7 +428,7 @@ class MultiTreatmentUnivariateEncoding:
             raise ValueError("target %r not in known targets {%s}" % (reftarget, ", ".join(f"'{y}'" for y in self.target_modalities)))
         probs = self.get_target_probabilities(variable)
         refprobs = probs[TargetTreatmentPair(reftarget, reftreatment)]
-        return probs["Part"].to_frame().join(pd.DataFrame({
+        return probs["Part"].to_frame().join(pandas.DataFrame({
             f"Uplift {reftarget} {treatment}": probs[TargetTreatmentPair(reftarget, treatment)] - refprobs
             for treatment in self.treatment_modalities if treatment != reftreatment
         }))
@@ -456,7 +448,7 @@ class MultiTreatmentUnivariateEncoding:
         variable: str
             The name of the variable.
 
-        dict[Part, pd.Series]
+        dict[Part, pandas.Series]
             The probabilities as a dict mapping parts to Series which index represents target-treatmentgroup pairs and
             which values are the differences P(reftarget|treatment group) - P(reftarget|reftreatment).
         """
@@ -465,7 +457,7 @@ class MultiTreatmentUnivariateEncoding:
         if reftarget not in self.target_modalities:
             raise ValueError("target %r not in known targets {%s}" % (reftarget, ", ".join(f"'{y}'" for y in self.target_modalities)))
         return {
-            part: pd.Series({
+            part: pandas.Series({
                 ttgrppair: partprobs[TargetTreatmentGroupPair(reftarget, ttgrppair.treatment_group)] - partprobs[next(ttg for ttg in partprobs.index if ttg.target == reftarget and reftreatment in ttg.treatment_group)]
                 for ttgrppair in partprobs.index
             })
@@ -477,9 +469,7 @@ class MultiTreatmentUnivariateEncoding:
 class DimensionConstraint:
     type: str | None
     partition_type: str | None
-    
-
-    def validate(self, dimension):
+    def validate(self, dimension: khiops.core.analysis_results.DataGridDimension):
         if self.type is not None:
             if dimension.type != self.type:
                 raise RuntimeError("type {!r} of variable {!r} does not match expected type {!r}".format(
@@ -490,15 +480,32 @@ class DimensionConstraint:
                     dimension.partition_type, dimension.variable, self.partition_type))
 
 
-def find_dimensions_as_dict(varnames, dimensions, constraints={}):
-    result_dims = {var: None for var in varnames}
-    varstofind = set(varnames)
+def find_dimensions(variables: typing.Collection[str] | typing.Mapping[str, DimensionConstraint], dimensions: typing.Iterable[khiops.core.analysis_results.DataGridDimension]):
+    """Find specific dimensions in a dimension list.
+
+    Parameters
+    ----------
+    variables: mapping or non-mapping collection
+        If it is a non-mapping collection, it contains the names of the variables.
+        If it is a mapping collection, it maps the names of the variables to dimension constraints.
+        The dimension contraint may be `None` to indicate that there is no constraint attached to a variable.
+
+    dimensions: iterable of `khiops.core.analysis_results.DataGridDimension` items
+        The dimensions.
+
+    Returns
+    -------
+    dict
+        A dictionary mapping the names of the variables to the dimensions found.
+    """
+    result_dims = {}
+    varstofind = set(variables)
     for dim in dimensions:
         if not varstofind:
             break
         for var in varstofind.copy():
             if dim.variable == var:
-                if (varconstraint := constraints.get(var)) is not None:
+                if isinstance(variables, collections.abc.Mapping) and (varconstraint := variables.get(var)) is not None:
                     if not isinstance(varconstraint, DimensionConstraint):
                         varconstraint = DimensionConstraint(*varconstraint)
                     varconstraint.validate(dim)
@@ -509,57 +516,118 @@ def find_dimensions_as_dict(varnames, dimensions, constraints={}):
     return result_dims
 
 
-def find_dimensions(varnames, dimensions, constraints=()):
-    found_dims = find_dimensions_as_dict(varnames, dimensions, dict(zip(varnames, constraints)))
-    return tuple(found_dims[var] for var in varnames)
+@dataclass(frozen=True)
+class VarStats:
+    """Statistics for a variable, extracted from a Khiops analysis report.
+    
+    Attributes
+    ----------
+    is_informative: bool
+        `true` if the variable is informative, `false` otherwise.
+
+    level: float
+        The level. Zero for a non-informative variable.
+
+    parts: list
+        The list of parts. Empty for a non-informative variable.
+
+    nijt: pandas DataFrame or None
+        `None` for a non-informative variable.
+        Otherwise, a DataFrame that is the N_ijt table of the variable, where:
+            N: number of observations;
+            i: part (interval for a numerical variable or value group for a categorical variable);
+            j: target (outcome);
+            t: treatment.
+        One DataFrame column contains the number of observations for one part (one "i").
+        One DataFrame row contains the numbers of observations for one target-treatment pair (one "(j, t)" pair).
+    """
+    is_informative: bool
+    level: float
+    parts: list
+    nijt: pandas.DataFrame | None
 
 
-def find_dimension(varname, dimensions, constraint=None):
-    return find_dimensions((varname,), dimensions, (constraint,))[0]
+@dataclass(frozen=True)
+class Stats:
+    """Statistics extracted from a Khiops analysis report.
+    
+    Attributes
+    ----------
+    js: list
+        The list of targets.
+
+    ts: list of str
+        The list of treatments.
+
+    jts: list of str
+        The list of target-treatment pairs.
+
+    xnames: list of str
+        The list of input variables.
+
+    informative_xnames: list
+        The list of informative input variables.
+
+    noninformative_xnames: list
+        The list of non-informative input variables.
+
+    inputvarstats: dict mapping str to VarStats
+        A dictionary mapping the names of the input variables to the statistics of these variables.
+    """
+    js: list
+    ts: list
+    jts: list
+    xnames: list[str]
+    informative_xnames: list[str]
+    noninformative_xnames: list[str]
+    inputvarstats: dict[str, VarStats]
 
 
-def extract_stats_from_analysis_report(report, t, j, jt):
-    tdim = find_dimension(t, report.get_variable_statistics(t).data_grid.dimensions, DimensionConstraint("Categorical", "Value groups"))
-    jdim = find_dimension(j, report.get_variable_statistics(j).data_grid.dimensions, DimensionConstraint("Categorical", "Value groups"))
-    ts = list(chain.from_iterable([tpart.values for tpart in tdim.partition]))
-    nxijt = {}
-    for var in report.get_variable_names():
-        if var in [t, j]:
+def stats_from_analysis_report(report: khiops.core.analysis_results.PreparationReport, j: str, t: str, jt: str):
+    """Extract stats from a Khiops analysis report.
+
+    Parameters
+    ----------
+    report: khiops.core.analysis_results.PreparationReport
+        The analysis report.
+    j: str
+        The name of the target variable.
+    t: str
+        The name of the treatment variable.
+    jt: str
+        The name of the variable that concatenates the target and the treatment together.
+
+    Returns
+    -------
+    Stats
+        The statistics.
+    """
+    jdim = find_dimensions({j: DimensionConstraint("Categorical", "Value groups")}, report.get_variable_statistics(j).data_grid.dimensions)
+    js = list(chain.from_iterable(jpart.values for jpart in jdim.partition))
+    tdim, jtdim = find_dimensions(
+        {t: DimensionConstraint("Categorical", "Value groups"), jt: DimensionConstraint("Categorical", "Values")},
+        report.get_variable_statistics(t).data_grid.dimensions)
+    ts = list(chain.from_iterable(tpart.values for tpart in tdim.partition))
+    jts = [part.value for part in jtdim.partition]
+    xnames, informative_xnames, noninformative_xnames = [], [], []
+    inputvarstats = {}
+    for varname in report.get_variable_names():
+        if varname in [t, j]:
             continue  # Skip treatment and target variables.
-        x = var
-        nxijt[x] = None
-        stats = report.get_variable_statistics(x)
-        if stats.level == 0:
-            continue  # ==> 'None' for this variable.
-        xdim, jtdim = find_dimensions((x, jt), stats.data_grid.dimensions, (None, DimensionConstraint("Categorical", "Values")))
-        if xdim.partition_type == "Value groups":
-            xdefaultgrpidx = next(ipart for ipart, part in enumerate(xdim.partition) if part.is_default_part)
-        else:
-            xdefaultgrpidx = None
-        jts = [part.value for part in jtdim.partition]
+        xname = varname
+        xnames.append(xname)
+        stats = report.get_variable_statistics(xname)
+        is_not_informative = stats.level == 0
+        if is_not_informative:
+            inputvarstats[xname] = VarStats(False, stats.level, [], None)
+            noninformative_xnames.append(xname)
+            continue
+        informative_xnames.append(xname)
+        xdim = find_dimensions([xname], stats.data_grid.dimensions)
+        is_ = xdim.partition
         xfreqs = stats.data_grid.part_target_frequencies
-        nxijt[x] = pd.DataFrame(
-            index=xdim.partition,
-            data={
-                jt: [1 for xpart in xdim.partition]
-                for jt in jts
-            }
-        )
-
-        ################### INTERVAL: 'is_left_open', 'is_missing', 'is_right_open', 'lower_bound', 'upper_bound'
-        ################### VALUE GROUP: 'is_default_part', 'values'
-
-        print()
-        print(f"{ts=}")
-        print(f"{x=}  {j=}  {t=}  {jt=}")
-        print(f"{xdim.type=}  {xdim.partition_type=}  {xdefaultgrpidx=}")
-        # print(f"{xdim.partition=}")
-        print(f"{jts=}")
-        print(f"{xfreqs=}")
-        # print(f"{jdim.partition=}")
-        print("nxijt[x]=")
-        print(nxijt[x])
-    exit(3)
+        inputvarstats[xname] = VarStats(True, stats.level, is_, pandas.DataFrame(index=jts, data={i: xfreqs[iindex] for iindex, i in enumerate(is_)}))
+    return Stats(js, ts, jts, xnames, informative_xnames, noninformative_xnames, inputvarstats)
 
 
 #############################################################################
@@ -603,9 +671,9 @@ import warnings
 
 def uplift_MODL(data, treatment_col, target_col, *, maxpartnumber, maxtreatmentgroups, outputdir):
     t, j = treatment_col.name, target_col.name
+    
     logger.info("Computing uplift with %d lines of data, %d variables, treatment column %r and target column %r...",
                  len(data), len(data.columns), t, j)
-    all_treatments = np.sort(treatment_col.unique())
 
     categorical_vars = {var for var in data if data.dtypes[var] == object}
     logger.debug("Numerical variables: {%s}.", ", ".join("%r" % v for v in sorted(set(data.columns) - categorical_vars)))
@@ -616,20 +684,21 @@ def uplift_MODL(data, treatment_col, target_col, *, maxpartnumber, maxtreatmentg
         dirpath = Path(tmpdir.name)
     else:
         dirpath = Path(outputdir)
-    logger.debug("Temporary file output will be in %r.", dirpath)
     
     datatable_path = dirpath / "data.csv"
-    logger.debug("Data file name: %s.", datatable_path)
     datatable_filename = str(datatable_path)
     dct_filepath = dirpath / "dictionary.kdic"
-    logger.debug("Dictionary file name: %s.", dct_filepath)
     analysis_result_dirpath = dirpath / "analyse_uplift"
-    logger.debug("Analysis result path: %s.", analysis_result_dirpath)
     dct_name = "upliftMT"
+    logger.debug("File output will be in %r.", dirpath)
+    logger.debug("Data file name: %s.", datatable_path)
+    logger.debug("Dictionary file name: %s.", dct_filepath)
+    logger.debug("Analysis result path: %s.", analysis_result_dirpath)
 
     logger.debug("Writing to data file...")
     data.join([treatment_col, target_col]).to_csv(datatable_path, index=False)
     logger.debug("Done writing.")
+
     logger.debug("Building dictionary from data...")
     with warnings.catch_warnings():
         warnings.filterwarnings(
@@ -640,6 +709,7 @@ def uplift_MODL(data, treatment_col, target_col, *, maxpartnumber, maxtreatmentg
         kh.build_dictionary_from_data_table(
             datatable_filename, dct_name, str(dct_filepath))
     logger.debug("Done building dictionary.")
+
     logger.debug("Reading from dictionary file...")
     domain = kh.read_dictionary_file(str(dct_filepath))
     logger.debug("Done reading.")
@@ -665,75 +735,53 @@ def uplift_MODL(data, treatment_col, target_col, *, maxpartnumber, maxtreatmentg
     analysis_result_files = kh.train_recoder(domain, dct_name, datatable_filename, jt,
         str(analysis_result_dirpath / "predictor_analysis_result.khj"),
         sample_percentage=100, max_trees=0, max_pairs=0, max_parts=maxpartnumber or 0)
-    logger.debug("Analysis result files: %s, %s.", analysis_result_files[0], analysis_result_files[1])
     logger.debug("Done training.")
+    logger.debug("Analysis result files: %s, %s.", analysis_result_files[0], analysis_result_files[1])
 
     logger.debug("Reading analysis result file...")
     train_results = kh.read_analysis_results_file(analysis_result_files[0])
     logger.debug("Done reading.")
 
-    # Build Nijt tables for all input variables.
-    # 'N': number of samples/observations.
-    # 'i': part (interval or value group).
-    # 'j': target/outcome.
-    # 't': treatment.
-    nijt_by_var = {}
-    report = train_results.preparation_report
-    extract_stats_from_analysis_report(report, t, j, jt)
+    stats = stats_from_analysis_report(train_results.preparation_report, j, t, jt)
 
-
-    model = {}
     groups_by_part_by_variable = {}
-    levels = {}
     # Disable all input variables since we will create a filter variable for each one in turn
     # and it is that filter variable that will be enabled.
-    for x in xs:
+    for x in stats.xs:
         dct.get_variable(x).used = False
-    for x in xs:
+    for x in stats.xs:
         logger.info("(variable %r)  Computing uplift...", x)
-        varmodel, groups_by_interval_for_variable, level = uplift_MODL_for_var(
-            x, j, t, all_treatments, train_results, domain, dct, dct_name, datatable_filename, str(analysis_result_dirpath) + f"/{x}_%(interval)s_analysis_result.khj", maxtreatmentgroups)
-        if varmodel is not None:
-            model[x] = varmodel
+        groups_by_interval_for_variable = uplift_MODL_for_var(
+            x, j, t, stats, domain, dct, dct_name, datatable_filename, str(analysis_result_dirpath) + f"/{x}_%(interval)s_analysis_result.khj", maxtreatmentgroups)
         if groups_by_interval_for_variable is not None:
             groups_by_part_by_variable[x] = groups_by_interval_for_variable
-        levels[x] = level
         logger.info("(variable %r)  Done computing uplift.", x)
         
     logger.info("Done computing uplift.")
         
-    return model, groups_by_part_by_variable, sorted((var_level_pair for var_level_pair in levels.items()), key=lambda namelevel: (-namelevel[1], namelevel[0]))
+    return stats, groups_by_part_by_variable
 
 
-def uplift_MODL_for_var(x, y, t, all_t_values, train_results, domain, dct, dct_name, datatable_filename, analysis_result_filename_template, maxtreatmentgroups):
+def uplift_MODL_for_var(x, y, t, stats: Stats, domain, dct, dct_name, datatable_filename, analysis_result_filename_template, maxtreatmentgroups):
+    xstats = stats.inputvarstats[x]
+
     logger.debug("(variable %r)  Analysis result file name template: %s.", x, analysis_result_filename_template)
-    pair_results = train_results.preparation_report.get_variable_statistics(x)
-    level = pair_results.level
-    logger.debug("(variable %r)  Level is %f.", x, level)
+    logger.debug("(variable %r)  Level is %f.", x, xstats.level)
 
-    if level == 0:
+    if not xstats.is_informative:
         return None, None, 0.0
-    else:
-        vardim = pair_results.data_grid.dimensions[0]
-        logger.debug("(variable %r)  Partition type is %r.", x, vardim.partition_type)
-        match vardim.partition_type:
-            case "Value groups":
-                partition = ValGrpPartition([ValGrp(valgrp.values) for valgrp in vardim.partition], next(i for i, valgrp in enumerate(vardim.partition) if valgrp.is_default_part))
-            case "Intervals":
-                partition = IntervalPartition([Interval(interval.lower_bound, interval.upper_bound) for interval in vardim.partition])
-            case ptype: raise ValueError("unsupported partition type %r" % ptype)
 
     filtervarname = random_khvarname(dct, f"Filter_{x}---")
     filtre_index_variable = kh.Variable()
     filtre_index_variable.name = filtervarname
     filtre_index_variable.type = "Categorical"
     filtre_index_variable.used = True
-    filtre_index_variable.rule = str(partition_to_rule(partition, dct.get_variable(x)))
+    filtre_index_variable.rule = str(partition_to_rule(xstats.parts, dct.get_variable(x)))
     logger.debug("(variable %r)  Filter index variable rule: %r.", x, filtre_index_variable.rule)
     dct.add_variable(filtre_index_variable)
     
     groups_by_part = {}
-    for i, part in enumerate(partition):
+    for i, part in enumerate(xstats.parts):
         partname = f"I{i + 1}"
         logger.debug("(variable %r, part %s)  Training recoder...", x, part)
         analysis_result_files = kh.train_recoder(
@@ -762,18 +810,18 @@ def uplift_MODL_for_var(x, y, t, all_t_values, train_results, domain, dct, dct_n
         logger.debug("(variable %r, part %s)  Level of treatment %r is %f.", x, part, t, group_results.level)
 
         if group_results.level == 0:  # ==> Put all treatments into the same group.
-            groups_by_part[part] = [tuple(map(str, all_t_values))]
+            groups_by_part[part] = [tuple(map(str, stats.ts))]
         else:
             treatment_groups = group_results.data_grid.dimensions[0].partition
             logger.debug("(variable %r, part %s)  Groups before repairs: %s.", x, part, [grp.to_dict() for grp in treatment_groups])
             logger.debug("(variable %r, part %s)  Repairing groups...", x, part)
-            groups_by_part[part] = repair_groups(treatment_groups, all_t_values)
+            groups_by_part[part] = repair_groups(treatment_groups, stats.ts)
             logger.debug("(variable %r, part %s)  Done repairing.", x, part)
             logger.debug("(variable %r, part %s)  Groups after repairs: %s.", x, part, groups_by_part[part])
 
     dct.remove_variable(filtre_index_variable.name)
         
-    return partition, groups_by_part, level
+    return groups_by_part
 
 
 def repair_groups(groups, all_treatments):
@@ -867,7 +915,7 @@ def repair_groups(groups, all_treatments):
         
 #         # Concaténer le DataFrame original avec toutes les copies
 #         if dfs_a_ajouter:
-#             X_combined = pd.concat([X_combined] + dfs_a_ajouter, ignore_index=True)
+#             X_combined = pandas.concat([X_combined] + dfs_a_ajouter, ignore_index=True)
 
 #         # La partie restante de la méthode fit est inchangée, elle utilise maintenant X_combined
 #         self.traitements = np.unique(X_combined[self.nom_col_trait])
@@ -953,7 +1001,7 @@ def repair_groups(groups, all_treatments):
 #                 'Probabilite_Y1': probabilite
 #             })
         
-#         df_resultat_long = pd.DataFrame(resultats_plats)
+#         df_resultat_long = pandas.DataFrame(resultats_plats)
         
 #         # Pivoter
 #         df_pivot = df_resultat_long.pivot_table(
@@ -1008,7 +1056,7 @@ def repair_groups(groups, all_treatments):
 
 #         borne_inf_filter = borne_sup 
         
-#     df_resultat_long = pd.DataFrame(resultats_plats)
+#     df_resultat_long = pandas.DataFrame(resultats_plats)
     
 #     df_resultat_long = df_resultat_long.drop_duplicates(subset=['Intervalle', 'Traitement'])
     
@@ -1036,7 +1084,7 @@ def repair_groups(groups, all_treatments):
 
 #     X_test_copy = X_test.copy()
     
-#     X_test_copy['Intervalle'] = pd.cut(
+#     X_test_copy['Intervalle'] = pandas.cut(
 #         X_test_copy['X'], 
 #         bins=bins, 
 #         labels=labels, 
@@ -1069,7 +1117,7 @@ def repair_groups(groups, all_treatments):
 #     Calcule la valeur de l'expression mathématique complète.
 
 #     Args:
-#         df (pd.DataFrame): Le dataset.
+#         df (pandas.DataFrame): Le dataset.
 #         col_X (str): Le nom de la colonne X (variable continue).
 #         col_T (str): Le nom de la colonne T (traitements).
 #         col_Y (str): Le nom de la colonne Y (variable cible).
@@ -1162,7 +1210,7 @@ def repair_groups(groups, all_treatments):
 #                         df_copie[nom_col_trait] = t_cible
 #                         dfs_a_ajouter.append(df_copie)
 #     if dfs_a_ajouter:
-#         X_combined = pd.concat([X_combined] + dfs_a_ajouter, ignore_index=True)
+#         X_combined = pandas.concat([X_combined] + dfs_a_ajouter, ignore_index=True)
     
 #     return X_combined
 
