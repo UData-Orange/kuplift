@@ -481,8 +481,7 @@ class MultiTreatmentUnivariateEncoding:
         pandas.DataFrame
             The frequency table for the variable.
         """
-        varcol = self.variable_cols[variable]
-        partition = self.get_partition(variable)
+        return self.stats.xstats[variable].varstats.nijt
 
 
     def get_target_frequencies_of_treatment_groups(self, variable):
