@@ -229,7 +229,7 @@ def partition_to_rule(partition: list[khiops.core.PartInterval | khiops.core.Par
     """
     if not partition:
         raise ValueError("the partition must contain at least one part")
-    match partition[0].part_type:
+    match partition[0].part_type():
         case "Interval":
             return khiops.core.Rule(
                 "IntervalId",
@@ -239,7 +239,7 @@ def partition_to_rule(partition: list[khiops.core.PartInterval | khiops.core.Par
                 ),
                 variable
             )
-        case "Value Group":
+        case "Value group":
             return khiops.core.Rule(
                 "GroupId",
                 khiops.core.Rule(
@@ -263,5 +263,5 @@ def random_name(charset=string.ascii_letters + string.digits, length=16, *, pref
             raise RuntimeError("failed to find a 'check'-passing name after {} attempt(s)".format(i))
         
 
-def random_khvarname(dictionary: khiops.core.Dictionary, prefix=""):
+def random_varname(dictionary: khiops.core.Dictionary, prefix=""):
     return random_name(prefix=prefix, check=lambda name: dictionary.get_variable(name) is None)

@@ -11,15 +11,20 @@ The main class of this module is 'MultiTreatmentUnivariateEncoding'.
 """
 
 from pathlib import Path
-from .helperfunctions import partition_to_rule, random_khvarname
+from .helperfunctions import partition_to_rule, random_varname
 from tempfile import TemporaryDirectory
 import logging
 from itertools import chain
+from functools import cached_property
 from dataclasses import dataclass
 import collections.abc
 import typing
-import khiops.core.analysis_results
+import warnings
+from operator import itemgetter
+import khiops.core
+import numpy
 import pandas
+import pandas.core.dtypes.base
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +48,7 @@ class MultiTreatmentUnivariateEncoding:
         The target column from the dataset.
 
     stats: Stats
-        Statistics.
+        Statistics produced by Khiops.
 
     treatment_groups: 
         A dict mapping variable names to dictionaries mapping parts to treatment groups.
@@ -65,78 +70,54 @@ class MultiTreatmentUnivariateEncoding:
 
 
     @property
-    def input_variables(self):
-        """list of str
-        
-        The names of the variables.
-        """
+    def input_variables(self) -> list[str]:
+        """The names of the variables."""
         return self.stats.xnames
     
 
     @property
-    def informative_input_variables(self):
-        """list of str
-        
-        The names of the informative variables.
-        """
+    def informative_input_variables(self) -> list[str]:
+        """The names of the informative variables."""
         return self.stats.informative_xnames
     
 
     @property
-    def noninformative_input_variables(self):
-        """list of str
-        
-        The names of the non-informative variables.
-        """
+    def noninformative_input_variables(self) -> list[str]:
+        """The names of the non-informative variables."""
         return self.stats.noninformative_xnames
     
 
     @property
-    def treatment_name(self):
-        """str
-        
-        The name of the treatment column.
-        """
+    def treatment_name(self) -> str:
+        """The name of the treatment column."""
         return self.treatment_col.name
     
 
     @property
-    def target_name(self):
-        """str
-        
-        The name of the target column.
-        """
+    def target_name(self) -> str:
+        """The name of the target column."""
         return self.target_col.name
     
 
     @property
-    def treatment_modalities(self):
-        """list
-        
-        All the different treatments from the dataset.
-        """
+    def treatment_modalities(self) -> list:
+        """All the different treatments from the dataset."""
         return self.stats.ts
     
 
     @property
-    def target_modalities(self):
-        """list
-        
-        All the different targets from the dataset.
-        """
+    def target_modalities(self) -> list:
+        """All the different targets from the dataset."""
         return self.stats.js
     
 
     @property
-    def target_treatment_pairs(self):
-        """list of TargetTreatmentPair
-        
-        All (target, treatment) pairs.
-        """
+    def target_treatment_pairs(self) -> list[str]:
+        """All (target, treatment) pairs as a list of "target|treatment"-formatted strings."""
         return self.stats.jts
     
 
-    def fit(self, data, treatment_col, target_col, *, maxpartnumber = None, maxtreatmentgroups = None, outputdir = None):
+    def fit(self, data, treatment_col, target_col, maxparts = None, maxtreatmentgroups = None, *, outputdir = None):
         """Learn a discretisation model using Khiops.
 
         Parameters
@@ -158,10 +139,35 @@ class MultiTreatmentUnivariateEncoding:
             to the default behaviour which is to have khiops write its files into a temporary directory that
             is deleted when the work is done.
         """
-        self.stats, self.treatment_groups = uplift_MODL(data, treatment_col, target_col, maxpartnumber=maxpartnumber, maxtreatmentgroups=maxtreatmentgroups, outputdir=outputdir)
+        is_outputdir_persistent = outputdir is not None
+        if is_outputdir_persistent:
+            dirpath = Path(outputdir)
+        else:
+            tmpdir = TemporaryDirectory()
+            dirpath = Path(tmpdir.name)
+        fileoutput = FileOutput(dirpath, is_outputdir_persistent)
+        logger.info("%s", fileoutput)
+        
+        dataset = pandas.DataFrame(data).join([treatment_col, target_col])
+        datasetinfo = DatasetInfo(target_col.name, treatment_col.name, vartypes_by_name_from_dataframe(data), len(dataset))
+
+        stats, upliftdict = compute_stats(dataset, datasetinfo, fileoutput, maxparts)
+
+        # Disable all input variables since we will create a filter variable for each one in turn
+        # and it is that filter variable that will be enabled.
+        for xname in stats.inputvarstats:
+            upliftdict.dict.get_variable(xname).used = False
+
+        treatment_groups = {}
+        for xname, xstats in stats.inputvarstats.items():
+            if xstats.is_informative:
+                treatment_groups[xname] = group_treatments_for_variable(xname, datasetinfo, stats, upliftdict, fileoutput, maxtreatmentgroups)
+
         self.variable_cols = data
         self.treatment_col = treatment_col
         self.target_col = target_col
+        self.stats = stats
+        self.treatment_groups = treatment_groups
 
 
     def transform(self, data):
@@ -516,6 +522,59 @@ def find_dimensions(variables: typing.Collection[str] | typing.Mapping[str, Dime
     return result_dims
 
 
+VarType = typing.Literal["Numerical", "Categorical"]
+
+
+def dtype_to_vartype(dtype: numpy.dtype | pandas.core.dtypes.base.ExtensionDtype) -> VarType:
+    if dtype in [numpy.dtypes.StrDType | numpy.dtypes.StringDType | numpy.dtypes.ObjectDType]:
+        return "Categorical"
+    if isinstance(dtype, (pandas.StringDtype, pandas.CategoricalDtype)):
+        return "Categorical"
+    return "Numerical"
+
+
+def vartypes_by_name_from_dataframe(data: pandas.DataFrame) -> dict[str, VarType]:
+    """Get variable names and types.
+    
+    Parameters
+    ----------
+    data: pandas.DataFrame
+        The dataframe in which one column contains the data for one variable.
+
+    Returns
+    -------
+    dict mapping str to VarType
+        A dictionary mapping the variable names to the variable types.
+        The order of the variables is the same in the dictionary keys as in the dataframe columns.
+    """
+    return {name: dtype_to_vartype(dtype) for name, dtype in zip(data.columns, data.dtypes)}
+
+
+@dataclass(frozen=True)
+class DatasetInfo:
+    """Basic information of a dataset.
+    
+    Attributes
+    ----------
+    jname: str
+        The name of the target/outcome variable.
+    tname: str
+        The name of the treatment variable.
+    xs: dict mapping str to VarType
+        Dictionary mapping variable names to variable types.
+    size: int
+        The number of observations.
+    """
+    jname: str
+    tname: str
+    xs: dict[str, VarType]
+    size: int
+
+    @property
+    def categorical_xs(self) -> list[str]:
+        return [varname for varname, vartype in self.xs.items() if vartype == "Categorical"]
+
+
 @dataclass(frozen=True)
 class VarStats:
     """Statistics for a variable, extracted from a Khiops analysis report.
@@ -583,17 +642,72 @@ class Stats:
     inputvarstats: dict[str, VarStats]
 
 
-def stats_from_analysis_report(report: khiops.core.analysis_results.PreparationReport, j: str, t: str, jt: str):
+@dataclass(frozen=True)
+class UpliftDictionary:
+    """Khiops dictionary with extra information.
+    
+    Attributes
+    ----------
+    domain: khiops.core.DictionaryDomain
+        The domain to which the dictionary belongs.
+    dict: khiops.core.Dictionary
+        The Khiops dictionary.
+    jtname: str
+        The name of the created target|treatment calculated variable.
+    """
+    domain: khiops.core.DictionaryDomain
+    dict: khiops.core.Dictionary
+    jtname: str
+
+
+@dataclass(frozen=True)
+class FileOutput:
+    outputdir: Path
+    is_persistent: bool
+    @cached_property
+    def datasetfile(self) -> Path:
+        return self.outputdir / "dataset.csv"
+    @cached_property
+    def dictfile(self) -> Path:
+        return self.outputdir / "dictionary.kdic"
+    @cached_property
+    def analysisresultdir(self) -> Path:
+        return self.outputdir / "analysis_result"
+    @cached_property
+    def predictor_analysisresultfile(self) -> Path:
+        return self.analysisresultdir / "predictor_analysis_result.khj"
+    def xi_analysisresultfile(self, xname: str, iname: str) -> Path:
+        return self.analysisresultdir / "{xname}_{iname}_analysis_result.khj".format(xname=xname, iname=iname)
+    @cached_property
+    def is_temporary(self) -> bool:
+        return not self.is_persistent
+    def __str__(self) -> str:
+        xname = "x_example"
+        iname = "I_example"
+        fileoutputtype = "Persistent" if self.is_persistent else "Temporary"
+        return "{type} file output: outputdir={outdir}, datasetfile={dsf}, dictfile={dctf}, "\
+            "analysisresultdir={ard}, predictor_analysisresultfile={parf}, xi_analysisresultfile({x!r}, {i!r})={xiarf}".format(
+                type=fileoutputtype,
+                outdir=self.outputdir,
+                dsf=self.datasetfile,
+                dctf=self.dictfile,
+                ard=self.analysisresultdir,
+                parf=self.predictor_analysisresultfile,
+                x=xname,
+                i=iname,
+                xiarf=self.xi_analysisresultfile(xname, iname)
+            )
+
+
+def stats_from_analysis_report(report: khiops.core.PreparationReport, datasetinfo: DatasetInfo, jtname: str):
     """Extract stats from a Khiops analysis report.
 
     Parameters
     ----------
-    report: khiops.core.analysis_results.PreparationReport
+    report: khiops.core.PreparationReport
         The analysis report.
-    j: str
-        The name of the target variable.
-    t: str
-        The name of the treatment variable.
+    datasetinfo: DatasetInfo
+        Information about the dataset.
     jt: str
         The name of the variable that concatenates the target and the treatment together.
 
@@ -602,17 +716,19 @@ def stats_from_analysis_report(report: khiops.core.analysis_results.PreparationR
     Stats
         The statistics.
     """
-    jdim = find_dimensions({j: DimensionConstraint("Categorical", "Value groups")}, report.get_variable_statistics(j).data_grid.dimensions)
+    jname = datasetinfo.jname
+    jdim = find_dimensions({jname: DimensionConstraint("Categorical", "Value groups")}, report.get_variable_statistics(jname).data_grid.dimensions)[jname]
     js = list(chain.from_iterable(jpart.values for jpart in jdim.partition))
-    tdim, jtdim = find_dimensions(
-        {t: DimensionConstraint("Categorical", "Value groups"), jt: DimensionConstraint("Categorical", "Values")},
-        report.get_variable_statistics(t).data_grid.dimensions)
+    tname = datasetinfo.tname
+    tdim, jtdim = itemgetter(tname, jtname)(find_dimensions(
+        {tname: DimensionConstraint("Categorical", "Value groups"), jtname: DimensionConstraint("Categorical", "Values")},
+        report.get_variable_statistics(tname).data_grid.dimensions))
     ts = list(chain.from_iterable(tpart.values for tpart in tdim.partition))
     jts = [part.value for part in jtdim.partition]
     xnames, informative_xnames, noninformative_xnames = [], [], []
     inputvarstats = {}
     for varname in report.get_variable_names():
-        if varname in [t, j]:
+        if varname in [tname, jname]:
             continue  # Skip treatment and target variables.
         xname = varname
         xnames.append(xname)
@@ -623,208 +739,112 @@ def stats_from_analysis_report(report: khiops.core.analysis_results.PreparationR
             noninformative_xnames.append(xname)
             continue
         informative_xnames.append(xname)
-        xdim = find_dimensions([xname], stats.data_grid.dimensions)
+        xdim = find_dimensions([xname], stats.data_grid.dimensions)[xname]
         is_ = xdim.partition
         xfreqs = stats.data_grid.part_target_frequencies
         inputvarstats[xname] = VarStats(True, stats.level, is_, pandas.DataFrame(index=jts, data={i: xfreqs[iindex] for iindex, i in enumerate(is_)}))
     return Stats(js, ts, jts, xnames, informative_xnames, noninformative_xnames, inputvarstats)
 
 
-#############################################################################
-# Computation classes and functions from this point till the end of the file.
-# This has been copied-pasted here and 10~15 dead lines have been removed but
-# much more work is needed.
-
-
-import numpy as np
-# from scipy.special import gammaln
-from khiops import core as kh
-from .KWStat import *
-# from sklearn.base import clone
-# from sklearn.base import BaseEstimator, ClassifierMixin
-# from sklearn.base import BaseEstimator, TransformerMixin
-import warnings
-
-
-# class SingleClassPredictor(BaseEstimator, ClassifierMixin):
-#     def fit(self, X, y=None):
-#         self.unique_class_ = np.unique(y)[0]
-#         self.classes_ = np.array([0, 1])  # Explicitly state classes for consistency
-#         return self
-
-
-#     def predict(self, X):
-#         return np.full(X.shape[0], self.unique_class_)
-
-
-#     def predict_proba(self, X):
-#         probabilities = np.zeros((X.shape[0], 2)) 
-        
-#         # Determine the index of the unique class (0 or 1)
-#         class_index = int(self.unique_class_) 
-        
-#         # Set the probabilities for the unique class to 1.0
-#         probabilities[:, class_index] = 1.0
-        
-#         return probabilities
-
-
-def uplift_MODL(data, treatment_col, target_col, *, maxpartnumber, maxtreatmentgroups, outputdir):
-    t, j = treatment_col.name, target_col.name
+def compute_stats(dataset: pandas.DataFrame, datasetinfo: DatasetInfo, fileoutput: FileOutput, maxparts: int | None = None) -> tuple[Stats, UpliftDictionary]:
+    logger.info("Computing stats with %r...", datasetinfo)
     
-    logger.info("Computing uplift with %d lines of data, %d variables, treatment column %r and target column %r...",
-                 len(data), len(data.columns), t, j)
-
-    categorical_vars = {var for var in data if data.dtypes[var] == object}
-    logger.debug("Numerical variables: {%s}.", ", ".join("%r" % v for v in sorted(set(data.columns) - categorical_vars)))
-    logger.debug("Categorical variables: {%s}.", ", ".join("%r" % v for v in sorted(categorical_vars)))
-    
-    if outputdir is None:
-        tmpdir = TemporaryDirectory()
-        dirpath = Path(tmpdir.name)
-    else:
-        dirpath = Path(outputdir)
-    
-    datatable_path = dirpath / "data.csv"
-    datatable_filename = str(datatable_path)
-    dct_filepath = dirpath / "dictionary.kdic"
-    analysis_result_dirpath = dirpath / "analyse_uplift"
-    dct_name = "upliftMT"
-    logger.debug("File output will be in %r.", dirpath)
-    logger.debug("Data file name: %s.", datatable_path)
-    logger.debug("Dictionary file name: %s.", dct_filepath)
-    logger.debug("Analysis result path: %s.", analysis_result_dirpath)
-
     logger.debug("Writing to data file...")
-    data.join([treatment_col, target_col]).to_csv(datatable_path, index=False)
+    dataset.to_csv(fileoutput.datasetfile, index=False)
     logger.debug("Done writing.")
 
-    logger.debug("Building dictionary from data...")
-    with warnings.catch_warnings():
-        warnings.filterwarnings(
-            "ignore",
-            r"""^Sample datasets location does not exist \([^)]*/khiops_data/samples\)\.\s+"""
-            r"""Execute the kh-download-datasets script or the khiops\.tools\.download_datasets function to download them\.$""",
-            UserWarning, f"^{kh.internals.runner.__name__}$")
-        kh.build_dictionary_from_data_table(
-            datatable_filename, dct_name, str(dct_filepath))
-    logger.debug("Done building dictionary.")
-
-    logger.debug("Reading from dictionary file...")
-    domain = kh.read_dictionary_file(str(dct_filepath))
-    logger.debug("Done reading.")
-
-    dct = domain.get_dictionary(dct_name)
-    jt = random_khvarname(dct, "j|t---")
-    for var in categorical_vars:
-        dct.get_variable(var).type = "Categorical"
-    dct.get_variable(t).type = "Categorical"
-    dct.get_variable(j).type = "Categorical"
-    is_in_train_dataset_variable = kh.Variable()
-    is_in_train_dataset_variable.name = jt
-    is_in_train_dataset_variable.type = "Categorical"
-    is_in_train_dataset_variable.used = True
-    is_in_train_dataset_variable.rule = f"""Concat({j},"|",{t})"""
-    dct.add_variable(is_in_train_dataset_variable)
-    if outputdir is not None:
-        logger.debug("Exporting dictionary to file...")
-        domain.export_khiops_dictionary_file(str(dirpath / "dictionary.kdic"))
-        logger.debug("Done exporting.")
+    upliftdict = build_khiops_dict_from_dataset_file(fileoutput.dictfile, fileoutput.datasetfile, datasetinfo)
 
     logger.debug("Training recoder...")
-    analysis_result_files = kh.train_recoder(domain, dct_name, datatable_filename, jt,
-        str(analysis_result_dirpath / "predictor_analysis_result.khj"),
-        sample_percentage=100, max_trees=0, max_pairs=0, max_parts=maxpartnumber or 0)
+    analysis_result_files = khiops.core.train_recoder(
+        upliftdict.domain, upliftdict.dict.name, str(fileoutput.datasetfile), upliftdict.jtname, str(fileoutput.predictor_analysisresultfile),
+        sample_percentage=100, max_trees=0, max_pairs=0, max_parts=maxparts or 0)
     logger.debug("Done training.")
     logger.debug("Analysis result files: %s, %s.", analysis_result_files[0], analysis_result_files[1])
 
     logger.debug("Reading analysis result file...")
-    train_results = kh.read_analysis_results_file(analysis_result_files[0])
+    train_results = khiops.core.read_analysis_results_file(analysis_result_files[0])
     logger.debug("Done reading.")
 
-    stats = stats_from_analysis_report(train_results.preparation_report, j, t, jt)
+    stats = stats_from_analysis_report(train_results.preparation_report, datasetinfo, upliftdict.jtname)
 
-    groups_by_part_by_variable = {}
-    # Disable all input variables since we will create a filter variable for each one in turn
-    # and it is that filter variable that will be enabled.
-    for x in stats.xs:
-        dct.get_variable(x).used = False
-    for x in stats.xs:
-        logger.info("(variable %r)  Computing uplift...", x)
-        groups_by_interval_for_variable = uplift_MODL_for_var(
-            x, j, t, stats, domain, dct, dct_name, datatable_filename, str(analysis_result_dirpath) + f"/{x}_%(interval)s_analysis_result.khj", maxtreatmentgroups)
-        if groups_by_interval_for_variable is not None:
-            groups_by_part_by_variable[x] = groups_by_interval_for_variable
-        logger.info("(variable %r)  Done computing uplift.", x)
-        
-    logger.info("Done computing uplift.")
-        
-    return stats, groups_by_part_by_variable
+    logger.info("Done computing stats.")
+
+    return stats, upliftdict
 
 
-def uplift_MODL_for_var(x, y, t, stats: Stats, domain, dct, dct_name, datatable_filename, analysis_result_filename_template, maxtreatmentgroups):
-    xstats = stats.inputvarstats[x]
-
-    logger.debug("(variable %r)  Analysis result file name template: %s.", x, analysis_result_filename_template)
-    logger.debug("(variable %r)  Level is %f.", x, xstats.level)
-
-    if not xstats.is_informative:
-        return None, None, 0.0
-
-    filtervarname = random_khvarname(dct, f"Filter_{x}---")
-    filtre_index_variable = kh.Variable()
-    filtre_index_variable.name = filtervarname
-    filtre_index_variable.type = "Categorical"
-    filtre_index_variable.used = True
-    filtre_index_variable.rule = str(partition_to_rule(xstats.parts, dct.get_variable(x)))
-    logger.debug("(variable %r)  Filter index variable rule: %r.", x, filtre_index_variable.rule)
-    dct.add_variable(filtre_index_variable)
+def group_treatments_for_variable(variable: str, datasetinfo: DatasetInfo, stats: Stats, upliftdict: UpliftDictionary, fileoutput: FileOutput, maxtreatmentgroups: int | None = None) -> tuple[tuple[str]]:
+    """Create groups of treatments for a variable.
     
+    Create groups of treatments so that all treatments in each group give similar outcomes given the same values of the specified variable.
+
+    Parameters
+    ----------
+    variable: str
+        The variable on which treatment grouping will be based.
+    datasetinfo: DatasetInfo
+        Information about the dataset.
+    stats: Stats
+        The statistics computed with `compute_stats`.
+    upliftdict: UpliftDictionary
+        The dictionary created with `compute_stats`.
+    fileoutput: FileOutput
+        Paths to output files.
+    maxtreatmentgroups: int or `None`
+        Maximal number of treatment groups, with `None` indicating the default of Khiops.
+
+    Returns
+    -------
+    tuple of tuple of str
+        A tuple of groups which are tuples of treatments.
+    """
+    xname = variable
+    logger.info("(variable %r)  Grouping treatments...", xname)
+
+    xstats = stats.inputvarstats[xname]
+    selectionvarname = add_selectionvar_to_khiops_dict(upliftdict.dict, xname, xstats.parts)
     groups_by_part = {}
-    for i, part in enumerate(xstats.parts):
-        partname = f"I{i + 1}"
-        logger.debug("(variable %r, part %s)  Training recoder...", x, part)
-        analysis_result_files = kh.train_recoder(
-            domain, dct_name, datatable_filename, y, analysis_result_filename_template % {"interval": partname},
-            sample_percentage=100,
-            selection_variable=filtervarname,
-            selection_value=partname,
-            max_trees=0,
-            max_pairs=0,
-            max_constructed_variables=0,
-            max_text_features=0,
-            max_parts=maxtreatmentgroups or 0)
-        logger.debug("(variable %r, part %s)  Analysis result files: %s, %s.", x, part, analysis_result_files[0], analysis_result_files[1])
-        logger.debug("(variable %r, part %s)  Done training.", x, part)
-        
-        logger.debug("(variable %r, part %s)  Reading analysis result file...", x, part)
-        train_results = kh.read_analysis_results_file(analysis_result_files[0])
-        logger.debug("(variable %r, part %s)  Done reading.", x, part)
+    for partindex, part in enumerate(xstats.parts):
+        partname = f"I{partindex + 1}"
+        logger.debug("(variable %r, part %s)  Training recoder...", xname, part)
+        analysis_result_files = khiops.core.train_recoder(
+            upliftdict.domain, upliftdict.dict.name, str(fileoutput.datasetfile), datasetinfo.jname, str(fileoutput.xi_analysisresultfile(xname, partname)),
+            sample_percentage=100, selection_variable=selectionvarname, selection_value=partname,
+            max_trees=0, max_pairs=0, max_constructed_variables=0, max_text_features=0, max_parts=maxtreatmentgroups or 0)
+        logger.debug("(variable %r, part %s)  Done training.", xname, part)
+        logger.debug("(variable %r, part %s)  Analysis result files: %s, %s.", xname, part, analysis_result_files[0], analysis_result_files[1])
 
-        logger.debug("(variable %r, part %s)  Analysis result refers to these variable names: {%s}",
-                     x, part, ", ".join(f"'{varname}'" for varname in train_results.preparation_report.get_variable_names()))
-
+        logger.debug("(variable %r, part %s)  Reading analysis result file...", xname, part)
+        train_results = khiops.core.read_analysis_results_file(analysis_result_files[0])
+        logger.debug("(variable %r, part %s)  Done reading.", xname, part)
+        logger.debug(
+            "(variable %r, part %s)  Analysis result refers to these variable names: {%s}",
+            xname, part, ", ".join(f"'{varname}'" for varname in train_results.preparation_report.get_variable_names()))
+    
         if not train_results.preparation_report.target_values:
-            logger.debug("(variable %r, part %s)  Empty preparation report.", x, part)
-        group_results = train_results.preparation_report.get_variable_statistics(t)
-        logger.debug("(variable %r, part %s)  Level of treatment %r is %f.", x, part, t, group_results.level)
-
+            logger.debug("(variable %r, part %s)  Empty preparation report.", xname, part)
+        group_results = train_results.preparation_report.get_variable_statistics(datasetinfo.tname)
+        logger.debug("(variable %r, part %s)  Level of treatment %r is %f.", xname, part, datasetinfo.tname, group_results.level)
+    
         if group_results.level == 0:  # ==> Put all treatments into the same group.
-            groups_by_part[part] = [tuple(map(str, stats.ts))]
+            groups_by_part[part] = (tuple(stats.ts),)
         else:
             treatment_groups = group_results.data_grid.dimensions[0].partition
-            logger.debug("(variable %r, part %s)  Groups before repairs: %s.", x, part, [grp.to_dict() for grp in treatment_groups])
-            logger.debug("(variable %r, part %s)  Repairing groups...", x, part)
+            logger.debug("(variable %r, part %s)  Groups before repairs: %s.", xname, part, [grp.to_dict() for grp in treatment_groups])
+            logger.debug("(variable %r, part %s)  Repairing groups...", xname, part)
             groups_by_part[part] = repair_groups(treatment_groups, stats.ts)
-            logger.debug("(variable %r, part %s)  Done repairing.", x, part)
-            logger.debug("(variable %r, part %s)  Groups after repairs: %s.", x, part, groups_by_part[part])
+            logger.debug("(variable %r, part %s)  Done repairing.", xname, part)
+            logger.debug("(variable %r, part %s)  Groups after repairs: %s.", xname, part, groups_by_part[part])
+    
+    upliftdict.dict.remove_variable(selectionvarname)
 
-    dct.remove_variable(filtre_index_variable.name)
-        
+    logger.info("(variable %r)  Done grouping treatments.", xname)
+    
     return groups_by_part
 
 
 def repair_groups(groups, all_treatments):
+    """Complete groups with the default values."""
     resulting_groups = []
     marked_elements = set()
     
@@ -858,411 +878,78 @@ def repair_groups(groups, all_treatments):
     return tuple(resulting_groups)
 
 
-# class modele_E_y_avec_rapprochement_MODL(BaseEstimator, TransformerMixin):
-#     def __init__(self, classifier):
-#         self.classifier = classifier
+def build_khiops_dict_from_dataset_file(dictfilepath: Path | str, datasetfilepath: Path | str, datasetinfo: DatasetInfo) -> UpliftDictionary:
+    """Build a Khiops dictionary from a dataset file.
     
-#     def fit(self, X, nom_col_trait, nom_col_outcome, nom_col_X, groupements_par_intervalle, bornes_superieures):
-#         self.classifiers_dict = {}
-#         self.nom_col_trait = nom_col_trait
-#         self.nom_col_outcome = nom_col_outcome
-#         self.nom_col_X = nom_col_X
-#         self.traitements = np.unique(X[self.nom_col_trait])
-        
-#         # Convertir les bornes en float pour le calcul
-#         bornes_superieures = [float(b) for b in bornes_superieures]
-        
-#         # Créer une copie pour ne pas modifier le DataFrame original
-#         X_combined = X.copy()
-        
-#         # Liste pour stocker les DataFrames dupliqués
-#         dfs_a_ajouter = []
-        
-#         # Parcourir chaque intervalle et ses règles de regroupement
-#         for i, (interval_name, groupes) in enumerate(groupements_par_intervalle.items()):
-#             # Définir les bornes de l'intervalle courant
-#             borne_inf = bornes_superieures[i-1] if i > 0 else -np.inf
-#             borne_sup = bornes_superieures[i]
-            
-#             # Sélectionner les individus de cet intervalle
-#             X_intervalle = X[(X[self.nom_col_X] >= borne_inf) & (X[self.nom_col_X] < borne_sup)]
-            
-#             # Parcourir les groupes de traitements à dupliquer
-#             for groupe in groupes:
-#                 # Gérer le cas du groupe avec 'tous les autres' (' * ')
-#                 if ' * ' in groupe:
-#                     t_specifique = [t for t in groupe if t != ' * '][0]
-#                     traitements_autres = [t for t in self.traitements if t not in groupe]
-                    
-#                     # Dupliquer les individus du traitement spécifique vers les autres
-#                     for t_cible in traitements_autres:
-#                         df_copie = X_intervalle[X_intervalle[self.nom_col_trait] == t_specifique].copy()
-#                         df_copie[self.nom_col_trait] = t_cible
-#                         dfs_a_ajouter.append(df_copie)
-                    
-#                     # Dupliquer les individus des autres traitements vers le traitement spécifique
-#                     df_autres_traitements = X_intervalle[X_intervalle[self.nom_col_trait].isin(traitements_autres)].copy()
-#                     df_autres_traitements[self.nom_col_trait] = t_specifique
-#                     dfs_a_ajouter.append(df_autres_traitements)
-#                 else:
-#                     # Gérer les groupes de taille > 1 sans ' * '
-#                     for t_source in groupe:
-#                         for t_cible in groupe:
-#                             if t_source != t_cible:
-#                                 df_copie = X_intervalle[X_intervalle[self.nom_col_trait] == t_source].copy()
-#                                 df_copie[self.nom_col_trait] = t_cible
-#                                 dfs_a_ajouter.append(df_copie)
-        
-#         # Concaténer le DataFrame original avec toutes les copies
-#         if dfs_a_ajouter:
-#             X_combined = pandas.concat([X_combined] + dfs_a_ajouter, ignore_index=True)
+    1. Read a dataset file.
+    2. Create a dictionary file from the dataset.
+    3. Read the dictionary file. This actually returns a dictionary domain.
+    4. Get the dictionary from the dictionary domain.
 
-#         # La partie restante de la méthode fit est inchangée, elle utilise maintenant X_combined
-#         self.traitements = np.unique(X_combined[self.nom_col_trait])
-#         for traitement in self.traitements:
-#             X_trait = X_combined[X_combined[self.nom_col_trait] == traitement]
-#             X_train_trait = X_trait.drop(columns=[self.nom_col_outcome, self.nom_col_trait])
-#             y_train_trait = X_trait[self.nom_col_outcome]
-#             if y_train_trait.nunique() > 1:
-#                 classifier_clone = clone(self.classifier)
-#                 classifier_clone.fit(X_train_trait, y_train_trait)
-#                 self.classifiers_dict[traitement] = classifier_clone
-#             else:
-#                 single_class_predictor = SingleClassPredictor()
-#                 single_class_predictor.fit(X_train_trait, y_train_trait)
-#                 self.classifiers_dict[traitement] = single_class_predictor
-#                 print(f"Avertissement : Le classifieur pour le traitement {traitement} a été remplacé par un prédicteur de classe unique.")
-                
-#         return self
+    Parameters
+    ----------
+    dictfilepath: Path-like
+        The path to the dictionary file to be created since we cannot build a dictionary in-memory.
+        Also sometimes we want to inspect this file.
+    datasetfilepath: Path-like
+        The path to the dataset file.
 
-#     def predict_e_y(self, X):
-#         X_test=X.copy()
-#         self.X_test_list = []
-#         for value in self.traitements:
-#             X_test_copy = X_test.copy()
-#             X_test_copy[self.nom_col_trait] = value
-#             X_test_copy = X_test_copy.drop(columns=[self.nom_col_trait])
-#             self.X_test_list.append(1)   
-#         probabilities_0 = self.classifiers_dict[self.traitements[0]].predict_proba(X_test_copy)[:, 1]
-#         probabilities_1 = self.classifiers_dict[self.traitements[1]].predict_proba(X_test_copy)[:, 1]
-#         uplift_values=[]
-#         for i in range(len(probabilities_0)):
-#             uplift_values.append([probabilities_0[i]])
-#             uplift_values.append([probabilities_1[i]])
-#         i = 2
-#         all_probabilities = []
-#         for i in range(len(self.classifiers_dict)):
-#             probabilities = self.classifiers_dict[self.traitements[i]].predict_proba(X_test_copy)[:, 1]
-#             all_probabilities.append(probabilities)
-        
-#         return all_probabilities
-
-# class SingleClassPredictor(BaseEstimator, ClassifierMixin):
-#     def fit(self, X, y=None):
-#         self.unique_class_ = np.unique(y)[0]
-#         self.classes_ = np.array([0, 1])  # Explicitly state classes for consistency
-#         return self
-
-#     def predict(self, X):
-#         return np.full(X.shape[0], self.unique_class_)
-
-#     def predict_proba(self, X):
-#         probabilities = np.zeros((X.shape[0], 2)) 
-        
-#         # Determine the index of the unique class (0 or 1)
-#         class_index = int(self.unique_class_) 
-        
-#         # Set the probabilities for the unique class to 1.0
-#         probabilities[:, class_index] = 1.0
-        
-#         return probabilities
+    Returns
+    -------
+    UpliftDictionary
+        A dictionary built from the dataset file.
+    """
+    logger.debug("Creating dictionary file from dataset file...")
+    DICTNAME = "dictionary"
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            r"""^Sample datasets location does not exist \([^)]*/khiops_data/samples\)\.\s+"""
+            r"""Execute the kh-download-datasets script or the khiops\.tools\.download_datasets function to download them\.$""",
+            UserWarning, f"^{khiops.core.internals.runner.__name__}$")
+        khiops.core.build_dictionary_from_data_table(str(datasetfilepath), DICTNAME, str(dictfilepath))
+    logger.debug("Done creating dictionary file.")
+    logger.debug("Reading from dictionary file...")
+    domain = khiops.core.read_dictionary_file(str(dictfilepath))
+    logger.debug("Done reading.")
+    dictionary = domain.get_dictionary(DICTNAME)
+    fix_vartypes_in_khiops_dict(dictionary, datasetinfo)
+    jtname = add_jtvar_to_khiops_dict(dictionary, datasetinfo)
+    return UpliftDictionary(domain, dictionary, jtname)
 
 
-# def calculer_probas_groupees(df, groupements_par_intervalle, bornes_superieures_str):
-    
-#     global_mean_y = df['Y'].mean()
+def fix_vartypes_in_khiops_dict(dictionary: khiops.core.Dictionary, datasetinfo: DatasetInfo) -> None:
+    """Set the types of categorical variables, treatment variable and target variable to "Categorical"."""
+    logger.debug("Fixing variable types in Khiops dictionary...")
+    for var in datasetinfo.categorical_xs:
+        dictionary.get_variable(var).type = "Categorical"
+    dictionary.get_variable(datasetinfo.tname).type = "Categorical"
+    dictionary.get_variable(datasetinfo.jname).type = "Categorical"
+    logger.debug("Done fixing variable types.")
 
-#     # Cas spécial : aucun groupement ni intervalle fourni
-#     if not groupements_par_intervalle and not bornes_superieures_str:
-#         resultats_plats = []
-#         interval_label = "[-inf, +inf)" # Un seul intervalle global
-#         traitements_uniques = sorted(df['T'].unique())
-#         # Calculer la proba pour chaque traitement séparément
-#         for t in traitements_uniques:
-#             df_traitement = df[df['T'] == t]
-#             if df_traitement.empty:
-#                 probabilite = np.nan
-#             else:
-#                 probabilite = df_traitement['Y'].mean()
-            
-#             resultats_plats.append({
-#                 'Intervalle': interval_label,
-#                 'Traitement': t,
-#                 'Probabilite_Y1': probabilite
-#             })
-        
-#         df_resultat_long = pandas.DataFrame(resultats_plats)
-        
-#         # Pivoter
-#         df_pivot = df_resultat_long.pivot_table(
-#             index='Traitement', 
-#             columns='Intervalle', 
-#             values='Probabilite_Y1'
-#         )
-        
-#         # Reindexer pour inclure tous les traitements attendus
-#         traitements_attendus = range(df['T'].min(), df['T'].max() + 1)
-#         df_pivot = df_pivot.reindex(traitements_attendus)
-#         df_pivot = df_pivot.fillna(global_mean_y)
-#         return df_pivot
-    
-#     # --- Logique originale ---
-    
-#     bornes_superieures = [float(b) for b in bornes_superieures_str]
-    
-#     resultats_plats = []
-#     borne_inf_filter = -np.inf 
-    
-#     for i, borne_sup in enumerate(bornes_superieures):
-#         interval_name = f"I{i+1}" 
-        
-#         if interval_name not in groupements_par_intervalle:
-#             borne_inf_filter = borne_sup 
-#             continue
-            
-#         borne_inf_label = 0.0 if i == 0 else bornes_superieures[i-1]
-#         interval_label = f"[{borne_inf_label}, {borne_sup})" 
-            
-#         df_intervalle = df[(df['X'] >= borne_inf_filter) & (df['X'] < borne_sup)]
-        
-#         groupes_str_list = groupements_par_intervalle[interval_name]
-#         for groupe_str in groupes_str_list:
-            
-#             groupe_int = [int(float(t)) for t in groupe_str]
-            
-#             df_groupe = df_intervalle[df_intervalle['T'].isin(groupe_int)]
-            
-#             if df_groupe.empty:
-#                 probabilite = np.nan
-#             else:
-#                 probabilite = df_groupe['Y'].mean()
-            
-#             for t_str in groupe_str:
-#                 resultats_plats.append({
-#                     'Intervalle': interval_label,
-#                     'Traitement': int(t_str), 
-#                     'Probabilite_Y1': probabilite
-#                 })
 
-#         borne_inf_filter = borne_sup 
-        
-#     df_resultat_long = pandas.DataFrame(resultats_plats)
-    
-#     df_resultat_long = df_resultat_long.drop_duplicates(subset=['Intervalle', 'Traitement'])
-    
-#     df_pivot = df_resultat_long.pivot_table(
-#         index='Traitement', 
-#         columns='Intervalle', 
-#         values='Probabilite_Y1'
-#     )
-    
-#     traitements_attendus = sorted(df['T'].unique())
-#     df_pivot = df_pivot.reindex(traitements_attendus)
-#     df_pivot = df_pivot.fillna(global_mean_y)
-#     return df_pivot
+def add_jtvar_to_khiops_dict(dictionary: khiops.core.Dictionary, datasetinfo: DatasetInfo) -> str:
+    logger.debug("Adding target|treatment calculated variable to Khiops dictionary...")
+    jtname = random_varname(dictionary, "j|t---")
+    jtvar = khiops.core.Variable()
+    jtvar.name = jtname
+    jtvar.type = "Categorical"
+    jtvar.used = True
+    jtvar.rule = """Concat({jname},"|",{tname})""".format(jname=datasetinfo.jname, tname=datasetinfo.tname)
+    dictionary.add_variable(jtvar)
+    logger.debug("Done adding target|treatment calculated variable.")
+    return jtname
 
-# def predict_probas_from_pivot(X_test, df_probas_pivot):
-#     labels = df_probas_pivot.columns
-    
-#     try:
-#         bins = [float(labels[0].split(', ')[0].strip('['))]
-#         bins.extend([float(col.split(', ')[1].strip(')')) for col in labels])
-#         bins[0] = -np.inf
-#         bins[-1] = np.inf
-#     except Exception as e:
-#         raise e
 
-#     X_test_copy = X_test.copy()
-    
-#     X_test_copy['Intervalle'] = pandas.cut(
-#         X_test_copy['X'], 
-#         bins=bins, 
-#         labels=labels, 
-#         right=False, 
-#         include_lowest=True
-#     )
-    
-#     df_lookup = df_probas_pivot.T.reset_index()
-    
-#     X_test_with_probas = X_test_copy.merge(
-#         df_lookup, 
-#         on='Intervalle', 
-#         how='left'
-#     )
-    
-#     traitement_cols = sorted(df_probas_pivot.index)
-#     output_list_of_arrays = []
-    
-#     for t in traitement_cols:
-#         arr = X_test_with_probas[t].values.astype(np.float32)
-#         output_list_of_arrays.append(arr)
-        
-#     return output_list_of_arrays
-
-# def calculate_rmse(true_values, predictions):
-#     return np.sqrt(np.mean((true_values - predictions) ** 2))
-
-# def critere_modl(df, col_X, col_T, col_Y, intervalles, regroupements_traitements):
-#     """
-#     Calcule la valeur de l'expression mathématique complète.
-
-#     Args:
-#         df (pandas.DataFrame): Le dataset.
-#         col_X (str): Le nom de la colonne X (variable continue).
-#         col_T (str): Le nom de la colonne T (traitements).
-#         col_Y (str): Le nom de la colonne Y (variable cible).
-#         intervalles (list): Liste des intervalles, e.g., [[0, 0.1], [0.1, 0.2]].
-#         regroupements_traitements (list): Liste des regroupements de traitements par intervalle. Exemple : [[[0,2],[3,1]], [[0,3],[2,1]]]
-
-#     Returns:
-#         float: Le résultat de l'expression.
-#     """
-    
-#     N = len(df)
-#     I = len(intervalles)
-#     T = df[col_T].nunique()
-#     J = df[col_Y].nunique()
-    
-#     total_somme = 0.0
-
-#     # Terme 1: log(N) OK
-#     total_somme += np.log(N)
-
-#     # Terme 2: log(C(N+I-1, I-1)) OK
-#     # Utilisation de gammaln(n+1) = log(n!)
-#     total_somme += gammaln(N + I) - gammaln(I) - gammaln(N + 1)
-
-#     # Terme 3: I * log(T) OK
-#     #total_somme += 20 * I * np.log(T)
-#     total_somme += I * np.log(T)
-
-#     # Terme 4: Somme des log(Beta(T, G_i)) OK
-#     # G_i est le nombre de groupes dans l'intervalle i.
-
-#     for i in range(I):
-#         if i < len(regroupements_traitements):
-#             G_i = len(regroupements_traitements[i])
-#             total_somme += KWStat.LnBell(T, G_i)
-
-#     # Terme 5: Double sommation OK
-#     for i in range(I):
-#         if i < len(regroupements_traitements):
-#             # Obtention des groupes de traitements pour l'intervalle i
-#             groupes_traitements_0 = regroupements_traitements[i]
-#             groupes_traitements = [[int(element) for element in sous_liste] for sous_liste in groupes_traitements_0]
-#             # Filtrage des données pour l'intervalle i
-#             df_i = df[(df[col_X] >= intervalles[i][0]) & (df[col_X] < intervalles[i][1])].copy()
-#             for groupe_g in groupes_traitements:
-#                 # Filtrage des données pour le groupe de traitements g
-#                 df_ig = df_i[df_i[col_T].isin(groupe_g)].copy()
-#                 N_ig = len(df_ig)
-                
-#                 # Terme A: log(C(N_ig + J - 1, J - 1))
-#                 terme_A = gammaln(N_ig + J) - gammaln(J) - gammaln(N_ig + 1)
-                
-#                 # Terme B: log(N_ig!)
-#                 terme_B = gammaln(N_ig + 1)
-                
-#                 # Terme C: Somme des -log(N_igj!)
-#                 terme_C = 0.0
-#                 for y_val in df_ig[col_Y].unique():
-#                     N_igj = len(df_ig[df_ig[col_Y] == y_val])
-#                     terme_C += -gammaln(N_igj + 1)
-
-#                 total_somme += terme_A + terme_B + terme_C
-
-#     return total_somme
-
-# def dict_to_ordered_list(data_dict):
-#   sorted_items = sorted(data_dict.items(), key=lambda item: int(item[0][1:]))
-  
-#   ordered_list = [value for key, value in sorted_items]
-  
-#   return ordered_list
-
-# def applique_MODL(X, nom_col_trait, nom_col_outcome, nom_col_X, groupements_par_intervalle, bornes_superieures):
-#     bornes_superieures = [float(b) for b in bornes_superieures]
-    
-#     X_combined = X.copy()
-#     dfs_a_ajouter = []
-    
-#     for i, (interval_name, groupes) in enumerate(groupements_par_intervalle.items()):
-#         borne_inf = bornes_superieures[i-1] if i > 0 else -np.inf
-#         borne_sup = bornes_superieures[i]
-        
-#         X_intervalle = X[(X[nom_col_X] >= borne_inf) & (X[nom_col_X] < borne_sup)]
-        
-#         for groupe in groupes:
-#             for t_source in groupe:
-#                 for t_cible in groupe:
-#                     if t_source != t_cible:
-#                         df_copie = X_intervalle[X_intervalle[nom_col_trait] == int(t_source)].copy()
-#                         df_copie[nom_col_trait] = t_cible
-#                         dfs_a_ajouter.append(df_copie)
-#     if dfs_a_ajouter:
-#         X_combined = pandas.concat([X_combined] + dfs_a_ajouter, ignore_index=True)
-    
-#     return X_combined
-
-# class S_Learner(BaseEstimator, TransformerMixin):
-#     def __init__(self, classifier):
-#         self.classifier = classifier
-        
-#     def fit(self, X_train, y_train,nom_col_trait):
-#         self.classifier.fit(X_train, y_train)
-#         self.nom_col_trait=nom_col_trait
-#         self.traitements = np.unique(X_train[nom_col_trait])
-#         return self
-        
-#     def predict_uplift(self, X):
-#         X_test=X.copy()
-#         self.X_test_list = []
-#         for value in self.traitements:
-#             X_test_copy = X_test.copy()
-#             X_test_copy[self.nom_col_trait] = value
-#             self.X_test_list.append(X_test_copy)
-
-#         probabilities_0 = self.classifier.predict_proba(self.X_test_list[0])[:, 1]
-#         probabilities_1 = self.classifier.predict_proba(self.X_test_list[1])[:, 1]
-#         uplift_values=[]
-#         for i in range(len(probabilities_0)):
-#             uplift_values.append([probabilities_1[i] - probabilities_0[i]])
-#         for X_test in self.X_test_list[2:]:
-#             probabilities = self.classifier.predict_proba(X_test)[:, 1]
-#             uplift = probabilities - probabilities_0
-#             for i in range(len(uplift_values)):
-#                 l=[]
-#                 ll=[]
-#                 for j in uplift_values[i]:
-#                     ll.append(j)
-#                 ll.append(uplift[i])
-#                 uplift_values[i] = ll
-#         #return np.array(self.X_test_list)
-#         uplift_values = np.array(uplift_values)
-#         return uplift_values
-    
-#     def predict_policy(self, X):
-#         uplift_values = self.predict_uplift(X)
-#         indices = np.argmax(uplift_values, axis=1) + 1
-#         for i, values in enumerate(uplift_values):
-#             if np.all(values <= 0):
-#                 indices[i] = 0 
-#         return indices
-
-#     def predict_worst_policy(self, X):
-#         uplift_values = self.predict_uplift(X)
-#         indices = np.argmin(uplift_values, axis=1) + 1
-#         for i, values in enumerate(uplift_values):
-#             if np.all(values >= 0):
-#                 indices[i] = 0 
-#         return indices
+def add_selectionvar_to_khiops_dict(dictionary: khiops.core.Dictionary, xname: str, xparts: list) -> str:
+    logger.debug("Adding selection variable for variable %r to Khiops dictionary...", xname)
+    selectionvarname = random_varname(dictionary, f"Selection_{xname}---")
+    selectionvar = khiops.core.Variable()
+    selectionvar.name = selectionvarname
+    selectionvar.type = "Categorical"
+    selectionvar.used = True
+    selectionvar.rule = str(partition_to_rule(xparts, dictionary.get_variable(xname)))
+    logger.debug("Selection variable rule: %r.", selectionvar.rule)
+    dictionary.add_variable(selectionvar)
+    logger.debug("Done adding selection variable.")
+    return selectionvarname
