@@ -153,8 +153,8 @@ class MultiTreatmentUnivariateEncoding:
 
         stats, upliftdict = compute_stats(dataset, datasetinfo, fileoutput, maxparts)
 
-        # Disable all input variables since we will create a filter variable for each one in turn
-        # and it is that filter variable that will be enabled.
+        # Disable all input variables since we will create a selection variable for each one in turn
+        # and it is that selection variable that will be enabled.
         for xname in stats.inputvarstats:
             upliftdict.dict.get_variable(xname).used = False
 
