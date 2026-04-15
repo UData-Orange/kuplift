@@ -799,48 +799,53 @@ def group_treatments_for_variable(variable: str, datasetinfo: DatasetInfo, stats
         A tuple of groups which are tuples of treatments.
     """
     xname = variable
-    logger.info("(variable %r)  Grouping treatments...", xname)
+    logger.info("Grouping treatments for variable %r...", xname)
 
     xstats = stats.inputvarstats[xname]
     selectionvarname = add_selectionvar_to_khiops_dict(upliftdict.dict, xname, xstats.parts)
     groups_by_part = {}
-    for partindex, part in enumerate(xstats.parts):
+    for partindex, part in enumerate(part for part in xstats.parts if not (part.part_type() == "Interval" and part.is_missing)):
+        logger.debug("Grouping treatments for part %s...", part)
         partname = f"I{partindex + 1}"
-        logger.debug("(variable %r, part %s)  Training recoder...", xname, part)
+        logger.debug("Training recoder...")
         analysis_result_files = khiops.core.train_recoder(
             upliftdict.domain, upliftdict.dict.name, str(fileoutput.datasetfile), datasetinfo.jname, str(fileoutput.xi_analysisresultfile(xname, partname)),
             sample_percentage=100, selection_variable=selectionvarname, selection_value=partname,
             max_trees=0, max_pairs=0, max_constructed_variables=0, max_text_features=0, max_parts=maxtreatmentgroups or 0)
-        logger.debug("(variable %r, part %s)  Done training.", xname, part)
-        logger.debug("(variable %r, part %s)  Analysis result files: %s, %s.", xname, part, analysis_result_files[0], analysis_result_files[1])
+        logger.debug("Done training.")
+        logger.debug("Analysis result files: %s, %s.", analysis_result_files[0], analysis_result_files[1])
 
-        logger.debug("(variable %r, part %s)  Reading analysis result file...", xname, part)
+        logger.debug("Reading analysis result file...")
         train_results = khiops.core.read_analysis_results_file(analysis_result_files[0])
-        logger.debug("(variable %r, part %s)  Done reading.", xname, part)
-        logger.debug(
-            "(variable %r, part %s)  Analysis result refers to these variable names: {%s}",
-            xname, part, ", ".join(f"'{varname}'" for varname in train_results.preparation_report.get_variable_names()))
+        logger.debug("Done reading.")
+        logger.debug("Analysis result refers to these variable names: {%s}", ", ".join(f"'{varname}'" for varname in train_results.preparation_report.get_variable_names()))
     
         if not train_results.preparation_report.target_values:
-            logger.debug("(variable %r, part %s)  Empty preparation report.", xname, part)
+            logger.debug("Empty preparation report.")
         group_results = train_results.preparation_report.get_variable_statistics(datasetinfo.tname)
-        logger.debug("(variable %r, part %s)  Level of treatment %r is %f.", xname, part, datasetinfo.tname, group_results.level)
+        logger.debug("Level of treatment %r is %f.", datasetinfo.tname, group_results.level)
     
         if group_results.level == 0:  # ==> Put all treatments into the same group.
             groups_by_part[part] = (tuple(stats.ts),)
         else:
-            treatment_groups = group_results.data_grid.dimensions[0].partition
-            logger.debug("(variable %r, part %s)  Groups before repairs: %s.", xname, part, [grp.to_dict() for grp in treatment_groups])
-            logger.debug("(variable %r, part %s)  Repairing groups...", xname, part)
-            groups_by_part[part] = repair_groups(treatment_groups, stats.ts)
-            logger.debug("(variable %r, part %s)  Done repairing.", xname, part)
-            logger.debug("(variable %r, part %s)  Groups after repairs: %s.", xname, part, groups_by_part[part])
+            groups_by_part[part] = get_repaired_groups(group_results.data_grid.dimensions[0], stats)
+        logger.debug("Done grouping treatments for part %s...", part)
     
     upliftdict.dict.remove_variable(selectionvarname)
 
-    logger.info("(variable %r)  Done grouping treatments.", xname)
+    logger.info("Done grouping treatments for variable %r.", xname)
     
     return groups_by_part
+
+
+def get_repaired_groups(dimension: khiops.core.DataGridDimension, stats: Stats) -> tuple[tuple[str]]:
+    treatment_groups = dimension.partition
+    logger.debug("Groups before repairs: %s.", tuple(tuple(grp.to_dict()) for grp in treatment_groups))
+    logger.debug("Repairing groups...")
+    repaired_groups = repair_groups(treatment_groups, stats.ts)
+    logger.debug("Done repairing.")
+    logger.debug("Groups after repairs: %s.", repaired_groups)
+    return repaired_groups
 
 
 def repair_groups(groups, all_treatments):
