@@ -8,20 +8,6 @@ This module contains everything needed to make univariate variable transformatio
 capable of merging treatments that give similar outcome.
 
 The main class of this module is 'MultiTreatmentUnivariateEncoding'.
-
-Many tables in this module are represented using `pandas.DataFrame`.
-For example, there are tables containing frequencies and others containing probabilities.
-A Table is named `<something>ijt` where "<something>" is replaced with the kind of the values contained
-within the table whereas *ijt* stands for:
-- *i*: part (interval for a numerical variable or value group for a categorical variable);
-- *j*: target (outcome);
-- *t*: treatment.
-One DataFrame column contains the values for one part (one part = one "i").
-One DataFrame row contains the values for one target-treatment pair (one "(j, t)" pair).
-Below are some examples of table names:
-- *Nijt*: numbers of observations (= frequencies);
-- *Pijt*: probabilities;
-- *Uijt*: uplifts.
 """
 
 from pathlib import Path
@@ -43,8 +29,204 @@ import pandas.core.dtypes.base
 logger = logging.getLogger(__name__)
 
 
+VarType = typing.Literal["Numerical", "Categorical"]
 Part = khiops.core.PartInterval | khiops.core.PartValueGroup
 Groups = tuple[tuple[str]]
+
+
+@dataclass(frozen=True)
+class DatasetInfo:
+    """Basic information of a dataset.
+    
+    Attributes
+    ----------
+    jname: str
+        The name of the target/outcome variable.
+    tname: str
+        The name of the treatment variable.
+    xs: dict mapping str to VarType
+        Dictionary mapping variable names to variable types.
+    size: int
+        The number of observations.
+    """
+    jname: str
+    tname: str
+    xs: dict[str, VarType]
+    size: int
+
+    @property
+    def categorical_xs(self) -> list[str]:
+        return [varname for varname, vartype in self.xs.items() if vartype == "Categorical"]
+
+
+@dataclass(frozen=True)
+class VarStats:
+    """Statistics for a variable, extracted from a Khiops analysis report.
+    
+    Attributes
+    ----------
+    is_informative: bool
+        `true` if the variable is informative, `false` otherwise.
+
+    level: float
+        The level. Zero for a non-informative variable.
+
+    parts: list[Part]
+        The list of parts. Empty for a non-informative variable.
+
+    nijt: pandas DataFrame or None
+        `None` for a non-informative variable.
+        Otherwise, a DataFrame that is the N_ijt table of the variable, where:
+            N: number of observations;
+            i: part (interval for a numerical variable or value group for a categorical variable);
+            j: target (outcome);
+            t: treatment.
+        One DataFrame column contains the number of observations for one part (one "i").
+        One DataFrame row contains the numbers of observations for one target-treatment pair (one "(j, t)" pair).
+    """
+    is_informative: bool
+    level: float
+    parts: list[Part]
+    nijt: pandas.DataFrame | None
+
+
+@dataclass(frozen=True)
+class VarStatsWithGroups:
+    varstats: VarStats
+    groups: dict[Part, Groups]
+
+
+@dataclass(frozen=True)
+class GeneralStats:
+    """Statistics extracted from a Khiops analysis report.
+    
+    Attributes
+    ----------
+    js: list
+        The list of targets.
+
+    ts: list of str
+        The list of treatments.
+
+    jts: list of str
+        The list of target-treatment pairs.
+
+    informative_xnames: list
+        The list of informative input variables.
+
+    noninformative_xnames: list
+        The list of non-informative input variables.
+    """
+    js: list
+    ts: list
+    jts: list
+    informative_xnames: list[str]
+    noninformative_xnames: list[str]
+
+
+@dataclass(frozen=True)
+class Stats:
+    """Statistics extracted from a Khiops analysis report.
+    
+    Attributes
+    ----------
+    generalstats: GeneralStats
+        Statistics not including input-variable specific stats.
+
+    xstats: dict mapping str to VarStats
+        A dictionary mapping the names of the input variables to the statistics of these variables.
+    """
+    generalstats: GeneralStats
+    xstats: dict[str, VarStats]
+
+
+@dataclass(frozen=True)
+class StatsWithGroups:
+    generalstats: GeneralStats
+    xstats: dict[str, VarStatsWithGroups]
+
+
+@dataclass(frozen=True)
+class UpliftDictionary:
+    """Khiops dictionary with extra information.
+    
+    Attributes
+    ----------
+    domain: khiops.core.DictionaryDomain
+        The domain to which the dictionary belongs.
+    dict: khiops.core.Dictionary
+        The Khiops dictionary.
+    jtname: str
+        The name of the created target|treatment calculated variable.
+    """
+    domain: khiops.core.DictionaryDomain
+    dict: khiops.core.Dictionary
+    jtname: str
+
+
+@dataclass(frozen=True)
+class FileOutput:
+    outputdir: Path
+    is_persistent: bool
+    @cached_property
+    def datasetfile(self) -> Path:
+        return self.outputdir / "dataset.csv"
+    @cached_property
+    def dictfile(self) -> Path:
+        return self.outputdir / "dictionary.kdic"
+    @cached_property
+    def analysisresultdir(self) -> Path:
+        return self.outputdir / "analysis_result"
+    @cached_property
+    def predictor_analysisresultfile(self) -> Path:
+        return self.analysisresultdir / "predictor_analysis_result.khj"
+    def xi_analysisresultfile(self, xname: str, iname: str) -> Path:
+        return self.analysisresultdir / "{xname}_{iname}_analysis_result.khj".format(xname=xname, iname=iname)
+    @cached_property
+    def is_temporary(self) -> bool:
+        return not self.is_persistent
+    def __str__(self) -> str:
+        xname = "x_example"
+        iname = "I_example"
+        fileoutputtype = "Persistent" if self.is_persistent else "Temporary"
+        return "{type} file output: outputdir={outdir}, datasetfile={dsf}, dictfile={dctf}, "\
+            "analysisresultdir={ard}, predictor_analysisresultfile={parf}, xi_analysisresultfile({x!r}, {i!r})={xiarf}".format(
+                type=fileoutputtype,
+                outdir=self.outputdir,
+                dsf=self.datasetfile,
+                dctf=self.dictfile,
+                ard=self.analysisresultdir,
+                parf=self.predictor_analysisresultfile,
+                x=xname,
+                i=iname,
+                xiarf=self.xi_analysisresultfile(xname, iname)
+            )
+
+
+def build_ijt_table_by_column(xname: str, jts: list[str], parts: list[Part], func: collections.abc.Callable[[int, Part], typing.Sequence]) -> pandas.DataFrame:
+    """Build a "*something*_ijt" table.
+
+    Build a "*something*_ijt" table where *ijt* stands for:
+    - *i*: part (interval for a numerical variable or value group for a categorical variable);
+    - *j*: target (outcome);
+    - *t*: treatment.
+    One DataFrame column contains the values for one part (one part = one "i").
+    One DataFrame row contains the values for one target-treatment pair (one "(j, t)" pair).
+    """
+    return pandas.DataFrame(index=jts, data={i: func(iindex, i) for iindex, i in enumerate(parts)})
+
+
+def build_ijt_table_by_cell(xname: str, jts: list[str], parts: list[Part], func: collections.abc.Callable[[int, Part, int, str], typing.Any]) -> pandas.DataFrame:
+    """Build a "<something>_ijt" table.
+
+    Build a "<something>_ijt" table where *ijt* stands for:
+    - *i*: part (interval for a numerical variable or value group for a categorical variable);
+    - *j*: target (outcome);
+    - *t*: treatment.
+    One DataFrame column contains the values for one part (one part = one "i").
+    One DataFrame row contains the values for one target-treatment pair (one "(j, t)" pair).
+    """
+    return pandas.DataFrame(index=jts, data={i: [func(iindex, i, jtindex, jt) for jtindex, jt in enumerate(jts)] for iindex, i in enumerate(parts)})
 
 
 class MultiTreatmentUnivariateEncoding:
@@ -286,10 +468,8 @@ class MultiTreatmentUnivariateEncoding:
             return {xname: xstats.groups for xname, xstats in self.stats.xstats.items()}
     
 
-    def get_target_frequencies(self, variable):
-        """Get the frequencies for each (target, treatment) pair.
-        
-        The frequencies are computed for a single variable.
+    def get_target_frequencies(self, variable: str) -> pandas.DataFrame:
+        """Get the frequencies for a variable.
         
         Parameters
         ----------
@@ -299,28 +479,10 @@ class MultiTreatmentUnivariateEncoding:
         Returns
         -------
         pandas.DataFrame
-            The frequencies as a Dataframe containing:
-                - A column named 'Part' listing all the parts of the variable.
-                - One column per (target, treatment) pair.
+            The frequency table for the variable.
         """
         varcol = self.variable_cols[variable]
         partition = self.get_partition(variable)
-        return pandas.DataFrame(
-            {
-                **{"Part": partition},
-                **{
-                    ttpair: [
-                        len(
-                            varcol[
-                                (self.treatment_col == ttpair.treatment) & (self.target_col == ttpair.target) & varcol.map(lambda elem: partition.transform_elem(elem) == i)
-                            ]
-                        )
-                        for i, _ in enumerate(partition)
-                    ]
-                    for ttpair in self.target_treatment_pairs
-                }
-            }
-        )
 
 
     def get_target_frequencies_of_treatment_groups(self, variable):
@@ -530,9 +692,6 @@ def find_dimensions(variables: typing.Collection[str] | typing.Mapping[str, Dime
     return result_dims
 
 
-VarType = typing.Literal["Numerical", "Categorical"]
-
-
 def dtype_to_vartype(dtype: numpy.dtype | pandas.core.dtypes.base.ExtensionDtype) -> VarType:
     if dtype in [numpy.dtypes.StrDType | numpy.dtypes.StringDType | numpy.dtypes.ObjectDType]:
         return "Categorical"
@@ -556,175 +715,6 @@ def vartypes_by_name_from_dataframe(data: pandas.DataFrame) -> dict[str, VarType
         The order of the variables is the same in the dictionary keys as in the dataframe columns.
     """
     return {name: dtype_to_vartype(dtype) for name, dtype in zip(data.columns, data.dtypes)}
-
-
-@dataclass(frozen=True)
-class DatasetInfo:
-    """Basic information of a dataset.
-    
-    Attributes
-    ----------
-    jname: str
-        The name of the target/outcome variable.
-    tname: str
-        The name of the treatment variable.
-    xs: dict mapping str to VarType
-        Dictionary mapping variable names to variable types.
-    size: int
-        The number of observations.
-    """
-    jname: str
-    tname: str
-    xs: dict[str, VarType]
-    size: int
-
-    @property
-    def categorical_xs(self) -> list[str]:
-        return [varname for varname, vartype in self.xs.items() if vartype == "Categorical"]
-
-
-@dataclass(frozen=True)
-class VarStats:
-    """Statistics for a variable, extracted from a Khiops analysis report.
-    
-    Attributes
-    ----------
-    is_informative: bool
-        `true` if the variable is informative, `false` otherwise.
-
-    level: float
-        The level. Zero for a non-informative variable.
-
-    parts: list[Part]
-        The list of parts. Empty for a non-informative variable.
-
-    nijt: pandas DataFrame or None
-        `None` for a non-informative variable.
-        Otherwise, a DataFrame that is the N_ijt table of the variable, where:
-            N: number of observations;
-            i: part (interval for a numerical variable or value group for a categorical variable);
-            j: target (outcome);
-            t: treatment.
-        One DataFrame column contains the number of observations for one part (one "i").
-        One DataFrame row contains the numbers of observations for one target-treatment pair (one "(j, t)" pair).
-    """
-    is_informative: bool
-    level: float
-    parts: list[Part]
-    nijt: pandas.DataFrame | None
-
-
-@dataclass(frozen=True)
-class VarStatsWithGroups:
-    varstats: VarStats
-    groups: dict[Part, Groups]
-
-
-@dataclass(frozen=True)
-class GeneralStats:
-    """Statistics extracted from a Khiops analysis report.
-    
-    Attributes
-    ----------
-    js: list
-        The list of targets.
-
-    ts: list of str
-        The list of treatments.
-
-    jts: list of str
-        The list of target-treatment pairs.
-
-    informative_xnames: list
-        The list of informative input variables.
-
-    noninformative_xnames: list
-        The list of non-informative input variables.
-    """
-    js: list
-    ts: list
-    jts: list
-    informative_xnames: list[str]
-    noninformative_xnames: list[str]
-
-
-@dataclass(frozen=True)
-class Stats:
-    """Statistics extracted from a Khiops analysis report.
-    
-    Attributes
-    ----------
-    generalstats: GeneralStats
-        Statistics not including input-variable specific stats.
-
-    xstats: dict mapping str to VarStats
-        A dictionary mapping the names of the input variables to the statistics of these variables.
-    """
-    generalstats: GeneralStats
-    xstats: dict[str, VarStats]
-
-
-@dataclass(frozen=True)
-class StatsWithGroups:
-    generalstats: GeneralStats
-    xstats: dict[str, VarStatsWithGroups]
-
-
-@dataclass(frozen=True)
-class UpliftDictionary:
-    """Khiops dictionary with extra information.
-    
-    Attributes
-    ----------
-    domain: khiops.core.DictionaryDomain
-        The domain to which the dictionary belongs.
-    dict: khiops.core.Dictionary
-        The Khiops dictionary.
-    jtname: str
-        The name of the created target|treatment calculated variable.
-    """
-    domain: khiops.core.DictionaryDomain
-    dict: khiops.core.Dictionary
-    jtname: str
-
-
-@dataclass(frozen=True)
-class FileOutput:
-    outputdir: Path
-    is_persistent: bool
-    @cached_property
-    def datasetfile(self) -> Path:
-        return self.outputdir / "dataset.csv"
-    @cached_property
-    def dictfile(self) -> Path:
-        return self.outputdir / "dictionary.kdic"
-    @cached_property
-    def analysisresultdir(self) -> Path:
-        return self.outputdir / "analysis_result"
-    @cached_property
-    def predictor_analysisresultfile(self) -> Path:
-        return self.analysisresultdir / "predictor_analysis_result.khj"
-    def xi_analysisresultfile(self, xname: str, iname: str) -> Path:
-        return self.analysisresultdir / "{xname}_{iname}_analysis_result.khj".format(xname=xname, iname=iname)
-    @cached_property
-    def is_temporary(self) -> bool:
-        return not self.is_persistent
-    def __str__(self) -> str:
-        xname = "x_example"
-        iname = "I_example"
-        fileoutputtype = "Persistent" if self.is_persistent else "Temporary"
-        return "{type} file output: outputdir={outdir}, datasetfile={dsf}, dictfile={dctf}, "\
-            "analysisresultdir={ard}, predictor_analysisresultfile={parf}, xi_analysisresultfile({x!r}, {i!r})={xiarf}".format(
-                type=fileoutputtype,
-                outdir=self.outputdir,
-                dsf=self.datasetfile,
-                dctf=self.dictfile,
-                ard=self.analysisresultdir,
-                parf=self.predictor_analysisresultfile,
-                x=xname,
-                i=iname,
-                xiarf=self.xi_analysisresultfile(xname, iname)
-            )
 
 
 def stats_from_analysis_report(report: khiops.core.PreparationReport, datasetinfo: DatasetInfo, jtname: str):
@@ -770,7 +760,7 @@ def stats_from_analysis_report(report: khiops.core.PreparationReport, datasetinf
         xdim = find_dimensions([xname], stats.data_grid.dimensions)[xname]
         is_ = xdim.partition
         xfreqs = stats.data_grid.part_target_frequencies
-        xstats[xname] = VarStats(True, stats.level, is_, pandas.DataFrame(index=jts, data={i: xfreqs[iindex] for iindex, i in enumerate(is_)}))
+        xstats[xname] = VarStats(True, stats.level, is_, build_ijt_table_by_column(xname, jts, is_, lambda iindex, _: xfreqs[iindex]))
     return Stats(GeneralStats(js, ts, jts, informative_xnames, noninformative_xnames), xstats)
 
 
