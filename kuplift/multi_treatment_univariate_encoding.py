@@ -8,6 +8,20 @@ This module contains everything needed to make univariate variable transformatio
 capable of merging treatments that give similar outcome.
 
 The main class of this module is 'MultiTreatmentUnivariateEncoding'.
+
+Many tables in this module are represented using `pandas.DataFrame`.
+For example, there are tables containing frequencies and others containing probabilities.
+A Table is named `<something>ijt` where "<something>" is replaced with the kind of the values contained
+within the table whereas *ijt* stands for:
+- *i*: part (interval for a numerical variable or value group for a categorical variable);
+- *j*: target (outcome);
+- *t*: treatment.
+One DataFrame column contains the values for one part (one part = one "i").
+One DataFrame row contains the values for one target-treatment pair (one "(j, t)" pair).
+Below are some examples of table names:
+- *Nijt*: numbers of observations (= frequencies);
+- *Pijt*: probabilities;
+- *Uijt*: uplifts.
 """
 
 from pathlib import Path
