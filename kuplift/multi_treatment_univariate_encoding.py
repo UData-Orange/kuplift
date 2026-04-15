@@ -227,7 +227,7 @@ class MultiTreatmentUnivariateEncoding:
         list[tuple[str, float]]
             (variable-name, variable-level) pairs in decreasing level order.
         """
-        return self.levels
+        return list(sorted(((varname, varstats.level) for varname, varstats in self.stats.inputvarstats.items()), key=lambda varpair: (-varpair[1], varpair[0])))
     
 
     def get_level(self, variable):
@@ -243,7 +243,7 @@ class MultiTreatmentUnivariateEncoding:
         float
             The level of the specified variable.
         """
-        return dict(self.levels)[variable]
+        return self.stats.inputvarstats[variable].level
     
 
     def get_partition(self, variable):
