@@ -29,6 +29,10 @@ import pandas.core.dtypes.base
 logger = logging.getLogger(__name__)
 
 
+Part = khiops.core.PartInterval | khiops.core.PartValueGroup
+Groups = tuple[tuple[str]]
+
+
 class MultiTreatmentUnivariateEncoding:
     """
     The MultiTreatmentUnivariateEncoding class makes use of the khiops Python wrapper
@@ -47,18 +51,8 @@ class MultiTreatmentUnivariateEncoding:
     target_col: Series
         The target column from the dataset.
 
-    stats: Stats
-        Statistics produced by Khiops.
-
-    treatment_groups: 
-        A dict mapping variable names to dictionaries mapping parts to treatment groups.
-        For instance:
-            {
-                "var1": { Interval(-inf, 0.2): ( ("T0", "T1), ("T2", "T3", "T4)       ),
-                          Interval( 0.2, inf): ( ("T5", "T6"), ("T7", "T8")           ) }
-                "var2": { ValGrp(["A", "B"]) : ( ("T0", "T1", "T2")                   ),
-                          ValGrp(["C", "D"]) : ( ("T3", "T4", "T5", "T6", "T7", "T8") ) }
-            }
+    stats: StatsWithGroups
+        Statistics produced by Khiops, augmented with treatment groups, also computed by Khiops.
     """
 
     def __init__(self):
@@ -66,25 +60,24 @@ class MultiTreatmentUnivariateEncoding:
         self.treatment_col = None
         self.target_col = None
         self.stats = None
-        self.treatment_groups = None
 
 
     @property
     def input_variables(self) -> list[str]:
         """The names of the variables."""
-        return self.stats.xnames
+        return list(self.stats.xstats)
     
 
     @property
     def informative_input_variables(self) -> list[str]:
         """The names of the informative variables."""
-        return self.stats.informative_xnames
+        return self.stats.generalstats.informative_xnames
     
 
     @property
     def noninformative_input_variables(self) -> list[str]:
         """The names of the non-informative variables."""
-        return self.stats.noninformative_xnames
+        return self.stats.generalstats.noninformative_xnames
     
 
     @property
@@ -102,22 +95,22 @@ class MultiTreatmentUnivariateEncoding:
     @property
     def treatment_modalities(self) -> list:
         """All the different treatments from the dataset."""
-        return self.stats.ts
+        return self.stats.generalstats.ts
     
 
     @property
     def target_modalities(self) -> list:
         """All the different targets from the dataset."""
-        return self.stats.js
+        return self.stats.generalstats.js
     
 
     @property
     def target_treatment_pairs(self) -> list[str]:
         """All (target, treatment) pairs as a list of "target|treatment"-formatted strings."""
-        return self.stats.jts
+        return self.stats.generalstats.jts
     
 
-    def fit(self, data, treatment_col, target_col, maxparts = None, maxtreatmentgroups = None, *, outputdir = None):
+    def fit(self, data, treatment_col, target_col, maxparts = None, maxtreatmentgroups = None, *, outputdir = None) -> None:
         """Learn a discretisation model using Khiops.
 
         Parameters
@@ -155,19 +148,17 @@ class MultiTreatmentUnivariateEncoding:
 
         # Disable all input variables since we will create a selection variable for each one in turn
         # and it is that selection variable that will be enabled.
-        for xname in stats.inputvarstats:
+        for xname in stats.xstats:
             upliftdict.dict.get_variable(xname).used = False
 
-        treatment_groups = {}
-        for xname, xstats in stats.inputvarstats.items():
-            if xstats.is_informative:
-                treatment_groups[xname] = group_treatments_for_variable(xname, datasetinfo, stats, upliftdict, fileoutput, maxtreatmentgroups)
+        xstats_with_groups = {}
+        for xname in stats.xstats:
+            xstats_with_groups[xname] = group_treatments_for_variable(xname, datasetinfo, stats, upliftdict, fileoutput, maxtreatmentgroups)
 
         self.variable_cols = data
         self.treatment_col = treatment_col
         self.target_col = target_col
-        self.stats = stats
-        self.treatment_groups = treatment_groups
+        self.stats = StatsWithGroups(stats.generalstats, xstats_with_groups)
 
 
     def transform(self, data):
@@ -227,7 +218,7 @@ class MultiTreatmentUnivariateEncoding:
         list[tuple[str, float]]
             (variable-name, variable-level) pairs in decreasing level order.
         """
-        return list(sorted(((varname, varstats.level) for varname, varstats in self.stats.inputvarstats.items()), key=lambda varpair: (-varpair[1], varpair[0])))
+        return list(sorted(((varname, varstats.varstats.level) for varname, varstats in self.stats.xstats.items()), key=lambda varpair: (-varpair[1], varpair[0])))
     
 
     def get_level(self, variable):
@@ -243,10 +234,10 @@ class MultiTreatmentUnivariateEncoding:
         float
             The level of the specified variable.
         """
-        return self.stats.inputvarstats[variable].level
+        return self.stats.xstats[variable].varstats.level
     
 
-    def get_partition(self, variable):
+    def get_partition(self, variable: str) -> list[Part]:
         """Get the partition corresponding to a single variable of the model.
 
         Parameters
@@ -256,18 +247,18 @@ class MultiTreatmentUnivariateEncoding:
         
         Returns
         -------
-        ValGrpPartition | IntervalPartition
+        list[Part]
             The partition corresponding to a single variable of the model.
         """
-        return self.model[variable]
+        return self.stats.xstats[variable].varstats.parts
     
 
-    def get_treatment_groups(self, variable=None):
+    def get_treatment_groups(self, variable: str | None = None) -> dict[Part, Groups] | dict[str, dict[Part, Groups]]:
         """Get the groups of treatments for one or all variables.
 
         Parameters
         ----------
-        variable
+        variable: str | None
             If set to None, get groups of all variables, otherwise get groups of specified variable.
 
         Returns
@@ -275,7 +266,10 @@ class MultiTreatmentUnivariateEncoding:
         If `variable` is not None, returns a dict mapping parts to treatment groups.
         If `variable` is None, returns a dict mapping variable names to dictionaries mapping parts to treatment groups.
         """
-        return self.treatment_groups if variable is None else self.treatment_groups[variable]
+        if variable is not None:
+            return self.stats.xstats[variable].groups
+        else:
+            return {xname: xstats.groups for xname, xstats in self.stats.xstats.items()}
     
 
     def get_target_frequencies(self, variable):
@@ -587,7 +581,7 @@ class VarStats:
     level: float
         The level. Zero for a non-informative variable.
 
-    parts: list
+    parts: list[Part]
         The list of parts. Empty for a non-informative variable.
 
     nijt: pandas DataFrame or None
@@ -602,12 +596,18 @@ class VarStats:
     """
     is_informative: bool
     level: float
-    parts: list
+    parts: list[Part]
     nijt: pandas.DataFrame | None
 
 
 @dataclass(frozen=True)
-class Stats:
+class VarStatsWithGroups:
+    varstats: VarStats
+    groups: dict[Part, Groups]
+
+
+@dataclass(frozen=True)
+class GeneralStats:
     """Statistics extracted from a Khiops analysis report.
     
     Attributes
@@ -621,25 +621,39 @@ class Stats:
     jts: list of str
         The list of target-treatment pairs.
 
-    xnames: list of str
-        The list of input variables.
-
     informative_xnames: list
         The list of informative input variables.
 
     noninformative_xnames: list
         The list of non-informative input variables.
-
-    inputvarstats: dict mapping str to VarStats
-        A dictionary mapping the names of the input variables to the statistics of these variables.
     """
     js: list
     ts: list
     jts: list
-    xnames: list[str]
     informative_xnames: list[str]
     noninformative_xnames: list[str]
-    inputvarstats: dict[str, VarStats]
+
+
+@dataclass(frozen=True)
+class Stats:
+    """Statistics extracted from a Khiops analysis report.
+    
+    Attributes
+    ----------
+    generalstats: GeneralStats
+        Statistics not including input-variable specific stats.
+
+    xstats: dict mapping str to VarStats
+        A dictionary mapping the names of the input variables to the statistics of these variables.
+    """
+    generalstats: GeneralStats
+    xstats: dict[str, VarStats]
+
+
+@dataclass(frozen=True)
+class StatsWithGroups:
+    generalstats: GeneralStats
+    xstats: dict[str, VarStatsWithGroups]
 
 
 @dataclass(frozen=True)
@@ -726,7 +740,7 @@ def stats_from_analysis_report(report: khiops.core.PreparationReport, datasetinf
     ts = list(chain.from_iterable(tpart.values for tpart in tdim.partition))
     jts = [part.value for part in jtdim.partition]
     xnames, informative_xnames, noninformative_xnames = [], [], []
-    inputvarstats = {}
+    xstats = {}
     for varname in report.get_variable_names():
         if varname in [tname, jname]:
             continue  # Skip treatment and target variables.
@@ -735,15 +749,15 @@ def stats_from_analysis_report(report: khiops.core.PreparationReport, datasetinf
         stats = report.get_variable_statistics(xname)
         is_not_informative = stats.level == 0
         if is_not_informative:
-            inputvarstats[xname] = VarStats(False, stats.level, [], None)
+            xstats[xname] = VarStats(False, stats.level, [], None)
             noninformative_xnames.append(xname)
             continue
         informative_xnames.append(xname)
         xdim = find_dimensions([xname], stats.data_grid.dimensions)[xname]
         is_ = xdim.partition
         xfreqs = stats.data_grid.part_target_frequencies
-        inputvarstats[xname] = VarStats(True, stats.level, is_, pandas.DataFrame(index=jts, data={i: xfreqs[iindex] for iindex, i in enumerate(is_)}))
-    return Stats(js, ts, jts, xnames, informative_xnames, noninformative_xnames, inputvarstats)
+        xstats[xname] = VarStats(True, stats.level, is_, pandas.DataFrame(index=jts, data={i: xfreqs[iindex] for iindex, i in enumerate(is_)}))
+    return Stats(GeneralStats(js, ts, jts, informative_xnames, noninformative_xnames), xstats)
 
 
 def compute_stats(dataset: pandas.DataFrame, datasetinfo: DatasetInfo, fileoutput: FileOutput, maxparts: int | None = None) -> tuple[Stats, UpliftDictionary]:
@@ -773,7 +787,7 @@ def compute_stats(dataset: pandas.DataFrame, datasetinfo: DatasetInfo, fileoutpu
     return stats, upliftdict
 
 
-def group_treatments_for_variable(variable: str, datasetinfo: DatasetInfo, stats: Stats, upliftdict: UpliftDictionary, fileoutput: FileOutput, maxtreatmentgroups: int | None = None) -> tuple[tuple[str]]:
+def group_treatments_for_variable(variable: str, datasetinfo: DatasetInfo, stats: Stats, upliftdict: UpliftDictionary, fileoutput: FileOutput, maxtreatmentgroups: int | None = None) -> VarStatsWithGroups:
     """Create groups of treatments for a variable.
     
     Create groups of treatments so that all treatments in each group give similar outcomes given the same values of the specified variable.
@@ -795,13 +809,15 @@ def group_treatments_for_variable(variable: str, datasetinfo: DatasetInfo, stats
 
     Returns
     -------
-    tuple of tuple of str
-        A tuple of groups which are tuples of treatments.
+    VarStatsWithGroups
+        Variable statistics augmented with treatment groups.
     """
     xname = variable
+    xstats = stats.xstats[xname]
+    if not xstats.is_informative:
+        return VarStatsWithGroups(xstats, {})
     logger.info("Grouping treatments for variable %r...", xname)
 
-    xstats = stats.inputvarstats[xname]
     selectionvarname = add_selectionvar_to_khiops_dict(upliftdict.dict, xname, xstats.parts)
     groups_by_part = {}
     for partindex, part in enumerate(part for part in xstats.parts if not (part.part_type() == "Interval" and part.is_missing)):
@@ -826,7 +842,7 @@ def group_treatments_for_variable(variable: str, datasetinfo: DatasetInfo, stats
         logger.debug("Level of treatment %r is %f.", datasetinfo.tname, group_results.level)
     
         if group_results.level == 0:  # ==> Put all treatments into the same group.
-            groups_by_part[part] = (tuple(stats.ts),)
+            groups_by_part[part] = (tuple(stats.generalstats.ts),)
         else:
             groups_by_part[part] = get_repaired_groups(group_results.data_grid.dimensions[0], stats)
         logger.debug("Done grouping treatments for part %s...", part)
@@ -835,14 +851,14 @@ def group_treatments_for_variable(variable: str, datasetinfo: DatasetInfo, stats
 
     logger.info("Done grouping treatments for variable %r.", xname)
     
-    return groups_by_part
+    return VarStatsWithGroups(xstats, groups_by_part)
 
 
-def get_repaired_groups(dimension: khiops.core.DataGridDimension, stats: Stats) -> tuple[tuple[str]]:
+def get_repaired_groups(dimension: khiops.core.DataGridDimension, stats: Stats) -> Groups:
     treatment_groups = dimension.partition
     logger.debug("Groups before repairs: %s.", tuple(tuple(grp.to_dict()) for grp in treatment_groups))
     logger.debug("Repairing groups...")
-    repaired_groups = repair_groups(treatment_groups, stats.ts)
+    repaired_groups = repair_groups(treatment_groups, stats.generalstats.ts)
     logger.debug("Done repairing.")
     logger.debug("Groups after repairs: %s.", repaired_groups)
     return repaired_groups
