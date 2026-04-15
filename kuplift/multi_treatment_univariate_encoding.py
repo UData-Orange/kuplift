@@ -469,7 +469,7 @@ class MultiTreatmentUnivariateEncoding:
     
 
     def get_target_frequencies(self, variable: str) -> pandas.DataFrame:
-        """Get the frequencies for a variable.
+        """Get the frequencies N_ijt for a variable.
         
         Parameters
         ----------
@@ -499,28 +499,11 @@ class MultiTreatmentUnivariateEncoding:
         dict[Part, pandas.Series]
             The frequencies as a dict mapping parts to Series which index represents target-treatmentgroup pairs and which values are the frequencies.
         """
-        varcol = self.variable_cols[variable]
-        partition = self.get_partition(variable)
-        return {
-            part: pandas.Series(
-                {
-                    TargetTreatmentGroupPair(target, treatmentgrp): len(
-                        varcol[
-                            (self.treatment_col.isin(treatmentgrp)) & (self.target_col == target) & varcol.map(lambda elem: partition.transform_elem(elem) == i)
-                        ]
-                    )
-                    for target in self.target_modalities
-                    for treatmentgrp in self.treatment_groups[variable][part]
-                }
-            )
-            for i, part in enumerate(partition)
-        }
+        raise NotImplementedError
     
 
     def get_target_probabilities(self, variable):
-        """Get the probabilities P(target|treatment) for each (target, treatment) pair.
-        
-        The probabilities are computed for a single variable.
+        """Get the probabilities P_ijt for a variable.
         
         Parameters
         ----------
@@ -530,22 +513,9 @@ class MultiTreatmentUnivariateEncoding:
         Returns
         -------
         pandas.DataFrame
-            The probabilities as a Dataframe containing:
-                - A column named 'Part' listing all the parts of the variable.
-                - One column per (target, treatment) pair.
+            The probability table for the variable.
         """
-        freqs = self.get_target_frequencies(variable)
-        return freqs["Part"].to_frame().join(
-            pandas.DataFrame({
-                ttpair: [
-                    freqs[ttpair][freqs["Part"] == part].sum() / freqs[
-                        [TargetTreatmentPair(target, ttpair.treatment) for target in self.target_modalities]
-                    ][freqs["Part"] == part].sum().sum()
-                    for part in self.get_partition(variable)
-                ]
-                for ttpair in self.target_treatment_pairs
-            })
-        )
+        raise NotImplementedError
     
 
     def get_target_probabilities_of_treatment_groups(self, variable):
@@ -563,18 +533,11 @@ class MultiTreatmentUnivariateEncoding:
         dict[Part, pandas.Series]
             The probabilities as a dict mapping parts to Series which index represents target-treatmentgroup pairs and which values are the probabilities.
         """
-        freqs = self.get_target_frequencies_of_treatment_groups(variable)
-        return {
-            part: pandas.Series({
-                ttgrppair: partfreqs[ttgrppair] / partfreqs[partfreqs.index.map(lambda i: i.treatment_group == ttgrppair.treatment_group)].sum()
-                for ttgrppair in partfreqs.index
-            })
-            for part, partfreqs in freqs.items()
-        }
+        raise NotImplementedError
     
 
     def get_uplift(self, reftarget, reftreatment, variable):
-        """Get the uplift for a single variable.
+        """Get the uplift Uplift_ijt for a variable.
 
         See explanations of the computations in the 'Returns' section below.
         
@@ -597,16 +560,7 @@ class MultiTreatmentUnivariateEncoding:
                   the benefit (or deficit) of probabilities to have 'reftarget' as the outcome with the column's
                   treatment compared to the reference treatment.
         """
-        if reftreatment not in self.treatment_modalities:
-            raise ValueError("treatment %r not in known treatments {%s}" % (reftreatment, ", ".join(f"'{t}'" for t in self.treatment_modalities)))
-        if reftarget not in self.target_modalities:
-            raise ValueError("target %r not in known targets {%s}" % (reftarget, ", ".join(f"'{y}'" for y in self.target_modalities)))
-        probs = self.get_target_probabilities(variable)
-        refprobs = probs[TargetTreatmentPair(reftarget, reftreatment)]
-        return probs["Part"].to_frame().join(pandas.DataFrame({
-            f"Uplift {reftarget} {treatment}": probs[TargetTreatmentPair(reftarget, treatment)] - refprobs
-            for treatment in self.treatment_modalities if treatment != reftreatment
-        }))
+        raise NotImplementedError
     
 
     def get_uplift_of_treatment_groups(self, reftarget, reftreatment, variable):
@@ -627,17 +581,7 @@ class MultiTreatmentUnivariateEncoding:
             The probabilities as a dict mapping parts to Series which index represents target-treatmentgroup pairs and
             which values are the differences P(reftarget|treatment group) - P(reftarget|reftreatment).
         """
-        if reftreatment not in self.treatment_modalities:
-            raise ValueError("treatment %r not in known treatments {%s}" % (reftreatment, ", ".join(f"'{t}'" for t in self.treatment_modalities)))
-        if reftarget not in self.target_modalities:
-            raise ValueError("target %r not in known targets {%s}" % (reftarget, ", ".join(f"'{y}'" for y in self.target_modalities)))
-        return {
-            part: pandas.Series({
-                ttgrppair: partprobs[TargetTreatmentGroupPair(reftarget, ttgrppair.treatment_group)] - partprobs[next(ttg for ttg in partprobs.index if ttg.target == reftarget and reftreatment in ttg.treatment_group)]
-                for ttgrppair in partprobs.index
-            })
-            for part, partprobs in self.get_target_probabilities_of_treatment_groups(variable).items()
-        }
+        raise NotImplementedError
     
 
 @dataclass(frozen=True)
