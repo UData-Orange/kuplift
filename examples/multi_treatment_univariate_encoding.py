@@ -1,0 +1,56 @@
+from kuplift import *
+import pandas as pd
+import logging
+
+
+LOGLEVEL = logging.INFO
+# LOGLEVEL = logging.DEBUG
+DATASET_PATH = "../data/data.csv"
+TREATMENT_NAME = "TRAITEMENT"
+TARGET_NAME = "CIBLE"
+TARGET1 = 1
+REF_TREATMENT = "T0"
+OUTPUT_DIR = None
+# OUTPUT_DIR = "./OUTPUT"
+
+
+if __name__ == "__main__":
+    logging.basicConfig(level=LOGLEVEL)
+    df = pd.read_csv(DATASET_PATH)
+    ue = MultiTreatmentUnivariateEncoding()
+    ue.fit(df[df.columns[:-2]], df[TREATMENT_NAME], df[TARGET_NAME], outputdir=OUTPUT_DIR)
+
+    print("Input variables:", ue.input_variables)
+    print("Informative input variables:", ue.informative_input_variables)
+    print("Non-informative input variables:", ue.noninformative_input_variables)
+    print("Treatment name:", ue.treatment_name)
+    print("Target name:", ue.target_name)
+    print("Treatments:", ue.treatment_modalities)
+    print("Targets:", ue.target_modalities)
+    print("Target-treatment pairs:", ue.target_treatment_pairs)
+    print("Input variable levels:", ue.get_levels())
+    print("All treatment groups:", "  ;  ".join("var({})->groups({})".format(var, ", ".join("{}=>{}".format(part, groups) for part, groups in groups_by_part.items())) for var, groups_by_part in ue.get_treatment_groups()))
+    
+    for var in ue.informative_input_variables:
+        print("\n[Details of variable {!r}]".format(var))
+        print("Level:", ue.get_level(var))
+        print("Partition:", ", ".join(map(str, ue.get_partition(var))))
+        print("Treatment groups:", ", ".join("{}=>{}".format(part, groups) for part, groups in ue.get_treatment_groups(var).items()))
+        print("Target frequencies:")
+        print(ue.get_target_frequencies(var))
+        print(ue.get_target_probabilities(var))
+        print(ue.get_uplift(TARGET1, REF_TREATMENT, var))
+        for part, freqs in ue.get_target_frequencies_of_treatment_groups(var).items():
+            print("Part:", part)
+            print("Target frequencies with groups:")
+            print(freqs)
+        for part, probs in ue.get_target_probabilities_of_treatment_groups(var).items():
+            print("Part:", part)
+            print("Target probabilities with groups:")
+            print(probs)
+        for part, uplift in ue.get_uplift_of_treatment_groups(TARGET1, REF_TREATMENT, var).items():
+            print("Part:", part)
+            print("Uplift with groups:")
+            print(uplift)
+    
+    raise Exception("Utiliser le principe de repair_groups pour les variables catégorielles !!!")

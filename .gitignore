@@ -130,5 +130,3 @@ dmypy.json
 
 # VS Code
 .vscode/
-
-/localtest*
