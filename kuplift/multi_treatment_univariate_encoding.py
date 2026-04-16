@@ -503,7 +503,7 @@ class MultiTreatmentUnivariateEncoding:
     
 
     def get_target_probabilities(self, variable):
-        """Get the probabilities P_ijt for a variable.
+        """Get the probabilities P(1)_ijt for a variable.
         
         Parameters
         ----------
