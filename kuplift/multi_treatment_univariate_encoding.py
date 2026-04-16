@@ -216,6 +216,21 @@ class MultiTreatmentUnivariateEncoding:
     The MultiTreatmentUnivariateEncoding class makes use of the khiops Python wrapper
     and enables one to fit and transform data while grouping treatments giving similar
     outcome.
+
+    # TODO: Move the following definition sections to the kuplift README.md.
+    Many function docstrings in this class refer to "*something*_ijt", "*something*_it" or "*something*_ig" tables.
+    
+    In *ijt*, *it* or *ig*, the individual letters stand for:
+    - *i*: part (interval for a numerical variable or value group for a categorical variable);
+    - *j*: target (outcome);
+    - *t*: treatment;
+    - *g*: group of treatments.
+
+    These tables are represented by `pandas.DataFrame` where:
+    - one DataFrame column contains the values for one part (one part = one *i*);
+    - one DataFrame row contains the values for either one target-treatment pair (*jt*), one treatment (*t*) or one treatment group (*g*).
+
+    Depending on the context, a value may be a number of observation (a frequency), a probability or an uplift.
     
     Attributes
     ----------
@@ -467,9 +482,7 @@ class MultiTreatmentUnivariateEncoding:
 
 
     def get_target_frequencies_of_treatment_groups(self, variable):
-        """Get the frequencies for each (target, treatment group) pair, for each part in the variable's partition.
-        
-        The frequencies are computed for a single variable.
+        """Get the frequencies N_ijg for a variable.
         
         Parameters
         ----------
@@ -479,7 +492,7 @@ class MultiTreatmentUnivariateEncoding:
         Returns
         -------
         dict[Part, pandas.Series]
-            The frequencies as a dict mapping parts to Series which index represents target-treatmentgroup pairs and which values are the frequencies.
+            The frequency table for the variable.
         """
         raise NotImplementedError
     
@@ -505,9 +518,7 @@ class MultiTreatmentUnivariateEncoding:
     
 
     def get_target_probabilities_of_treatment_groups(self, variable):
-        """Get the probabilities P(target|treatment group) for each (target, treatment group) pair.
-        
-        The probabilities are computed for a single variable.
+        """Get the probabilities P(1)_ijg for a variable.
         
         Parameters
         ----------
@@ -516,16 +527,14 @@ class MultiTreatmentUnivariateEncoding:
 
         Returns
         -------
-        dict[Part, pandas.Series]
-            The probabilities as a dict mapping parts to Series which index represents target-treatmentgroup pairs and which values are the probabilities.
+        pandas.DataFrame
+            The probability table for the variable.
         """
         raise NotImplementedError
     
 
     def get_uplift(self, reftarget, reftreatment, variable):
         """Get the uplift Uplift_ijt for a variable.
-
-        See explanations of the computations in the 'Returns' section below.
         
         Parameters
         ----------
@@ -549,9 +558,7 @@ class MultiTreatmentUnivariateEncoding:
     
 
     def get_uplift_of_treatment_groups(self, reftarget, reftreatment, variable):
-        """Get the uplift for a single variable.
-
-        See explanations of the computations in the 'Returns' section below.
+        """Get the uplift Uplift_ijg for a variable.
         
         Parameters
         ----------
@@ -562,9 +569,10 @@ class MultiTreatmentUnivariateEncoding:
         variable: str
             The name of the variable.
 
-        dict[Part, pandas.Series]
-            The probabilities as a dict mapping parts to Series which index represents target-treatmentgroup pairs and
-            which values are the differences P(reftarget|treatment group) - P(reftarget|reftreatment).
+        Returns
+        -------
+        pandas.DataFrame
+            The uplift table for the variable.
         """
         raise NotImplementedError
     
