@@ -5,7 +5,7 @@ import logging
 
 LOGLEVEL = logging.INFO
 # LOGLEVEL = logging.DEBUG
-DATASET_PATH = "../data/data.csv"
+DATASET_PATH = "./data/data.csv"
 TREATMENT_NAME = "TRAITEMENT"
 TARGET_NAME = "CIBLE"
 TARGET1 = 1
