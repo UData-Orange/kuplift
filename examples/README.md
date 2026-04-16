@@ -11,26 +11,16 @@ There are two types of examples:
 - Jupyter notebooks.
 
 Running the Python modules
------------------------
+--------------------------
 
-Some of the Python modules may assume your current working directory is the toplevel of this package,
-so as to be able to access the sample data files without the need to adapt their paths.
+> Some of the Python modules may assume your current working directory is the toplevel of this package (where the pyproject.toml file resides),
+> so as to be able to access the sample data files without any modification of their paths in the example code.
 
-Here are three different ways to use the *Python modules*:
+The following shows how to run a Python example module from a shell.
+~~~ bash
+python examples/multi_treatment_univariate_encoding.py
+~~~
 
-- Calling an example module using the python executable in 'inspection' mode, for example:
-  ~~~ console
-  $ python -i .\examples\optimized_univariate_encoding.py
-  ~~~
-  > Skipping the `-i` option will cause the interpreter to exit directly after executing the
-  > example script.
-
-- Importing everything from this module into a running interpreter like this:
-  ~~~ pycon
-  >>> from examples.optimized_univariate_encoding import *
-  ~~~
-  
-- Copying-pasting the code into a Python interpreter.
 
 Running the Jupyter notebooks
 -----------------------------
