@@ -201,32 +201,14 @@ class FileOutput:
                 i=iname,
                 xiarf=self.xi_analysisresultfile(xname, iname)
             )
+    
+
+def build_table_by_cell(columns: typing.Sequence, rows: typing.Sequence, func: collections.abc.Callable) -> pandas.DataFrame:
+    return pandas.DataFrame(index=rows, data={col: [func(colindex, col, rowindex, row) for rowindex, row in enumerate(rows)] for colindex, col in enumerate(columns)})
 
 
-def build_ijt_table_by_column(xname: str, jts: list[str], parts: list[Part], func: collections.abc.Callable[[int, Part], typing.Sequence]) -> pandas.DataFrame:
-    """Build a "*something*_ijt" table.
-
-    Build a "*something*_ijt" table where *ijt* stands for:
-    - *i*: part (interval for a numerical variable or value group for a categorical variable);
-    - *j*: target (outcome);
-    - *t*: treatment.
-    One DataFrame column contains the values for one part (one part = one "i").
-    One DataFrame row contains the values for one target-treatment pair (one "(j, t)" pair).
-    """
-    return pandas.DataFrame(index=jts, data={i: func(iindex, i) for iindex, i in enumerate(parts)})
-
-
-def build_ijt_table_by_cell(xname: str, jts: list[str], parts: list[Part], func: collections.abc.Callable[[int, Part, int, str], typing.Any]) -> pandas.DataFrame:
-    """Build a "<something>_ijt" table.
-
-    Build a "<something>_ijt" table where *ijt* stands for:
-    - *i*: part (interval for a numerical variable or value group for a categorical variable);
-    - *j*: target (outcome);
-    - *t*: treatment.
-    One DataFrame column contains the values for one part (one part = one "i").
-    One DataFrame row contains the values for one target-treatment pair (one "(j, t)" pair).
-    """
-    return pandas.DataFrame(index=jts, data={i: [func(iindex, i, jtindex, jt) for jtindex, jt in enumerate(jts)] for iindex, i in enumerate(parts)})
+def build_table_by_column(columns: typing.Sequence, rows: typing.Sequence, func: collections.abc.Callable) -> pandas.DataFrame:
+    return pandas.DataFrame(index=rows, data={col: func(colindex, col) for colindex, col in enumerate(columns)})
 
 
 class MultiTreatmentUnivariateEncoding:
@@ -515,7 +497,11 @@ class MultiTreatmentUnivariateEncoding:
         pandas.DataFrame
             The probability table for the variable.
         """
-        raise NotImplementedError
+        xfreqs = self.get_target_frequencies(variable)
+        return build_table_by_cell(
+            self.stats.xstats[variable].varstats.parts, self.stats.generalstats.ts,
+            lambda iindex, i, tindex, t: xfreqs[i][f"1|{t}"] / (xfreqs[i][f"0|{t}"] + xfreqs[i][f"1|{t}"])
+        )
     
 
     def get_target_probabilities_of_treatment_groups(self, variable):
@@ -703,7 +689,7 @@ def stats_from_analysis_report(report: khiops.core.PreparationReport, datasetinf
         xdim = find_dimensions([xname], stats.data_grid.dimensions)[xname]
         is_ = xdim.partition
         xfreqs = stats.data_grid.part_target_frequencies
-        xstats[xname] = VarStats(True, stats.level, is_, build_ijt_table_by_column(xname, jts, is_, lambda iindex, _: xfreqs[iindex]))
+        xstats[xname] = VarStats(True, stats.level, is_, build_table_by_column(is_, jts, lambda iindex, _: xfreqs[iindex]))
     return Stats(GeneralStats(js, ts, jts, informative_xnames, noninformative_xnames), xstats)
 
 

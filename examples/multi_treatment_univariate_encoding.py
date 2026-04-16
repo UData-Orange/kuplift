@@ -29,7 +29,7 @@ if __name__ == "__main__":
     print("Targets:", ue.target_modalities)
     print("Target-treatment pairs:", ue.target_treatment_pairs)
     print("Input variable levels:", ue.get_levels())
-    print("All treatment groups:", "  ;  ".join("var({})->groups({})".format(var, ", ".join("{}=>{}".format(part, groups) for part, groups in groups_by_part.items())) for var, groups_by_part in ue.get_treatment_groups()))
+    print("All treatment groups:", "  ;  ".join("var({!r})->groups({})".format(var, ", ".join("{}=>{}".format(part, groups) for part, groups in groups_by_part.items())) for var, groups_by_part in ue.get_treatment_groups().items()))
     
     for var in ue.informative_input_variables:
         print("\n[Details of variable {!r}]".format(var))
@@ -38,7 +38,9 @@ if __name__ == "__main__":
         print("Treatment groups:", ", ".join("{}=>{}".format(part, groups) for part, groups in ue.get_treatment_groups(var).items()))
         print("Target frequencies:")
         print(ue.get_target_frequencies(var))
+        print("Target probabilities:")
         print(ue.get_target_probabilities(var))
+        print("Uplift:")
         print(ue.get_uplift(TARGET1, REF_TREATMENT, var))
         for part, freqs in ue.get_target_frequencies_of_treatment_groups(var).items():
             print("Part:", part)
