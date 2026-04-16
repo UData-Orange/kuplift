@@ -539,14 +539,13 @@ class MultiTreatmentUnivariateEncoding:
         Returns
         -------
         pandas.DataFrame
-            A Dataframe containing:
-                - A column named 'Part' listing all the parts of the variable.
-                - One column per treatment other than the reference treatment.
-                  A column gives the difference P(reftarget|treatment) - P(reftarget|reftreatment), that is,
-                  the benefit (or deficit) of probabilities to have 'reftarget' as the outcome with the column's
-                  treatment compared to the reference treatment.
+            The uplift table for the variable.
         """
-        raise NotImplementedError
+        xprobs = self.get_target_probabilities(variable)
+        return build_table_by_cell(
+            self.stats.xstats[variable].varstats.parts, self.stats.generalstats.ts,
+            lambda iindex, i, tindex, t: xprobs[i][t] - xprobs[i][reftreatment]
+        )
     
 
     def get_uplift_of_treatment_groups(self, reftarget, reftreatment, variable):
