@@ -20,7 +20,7 @@ from dataclasses import dataclass
 import collections.abc
 import typing
 import warnings
-from operator import itemgetter
+from operator import itemgetter, add
 import khiops.core
 import numpy
 import pandas
@@ -31,7 +31,8 @@ logger = logging.getLogger(__name__)
 
 VarType = typing.Literal["Numerical", "Categorical"]
 Part = khiops.core.PartInterval | khiops.core.PartValueGroup
-Groups = tuple[tuple[str]]
+Group = tuple[str]
+Groups = tuple[Group]
 
 
 @dataclass(frozen=True)
@@ -93,7 +94,8 @@ class VarStats:
 @dataclass(frozen=True)
 class VarStatsWithGroups:
     varstats: VarStats
-    groups: dict[Part, Groups]
+    groups_by_parts: dict[Part, Groups]
+    groups_by_treatments_by_parts: dict[Part, dict[str, Group]]
 
 
 @dataclass(frozen=True)
@@ -460,9 +462,9 @@ class MultiTreatmentUnivariateEncoding:
         If `variable` is None, returns a dict mapping variable names to dictionaries mapping parts to treatment groups.
         """
         if variable is not None:
-            return self.stats.xstats[variable].groups
+            return self.stats.xstats[variable].groups_by_parts
         else:
-            return {xname: xstats.groups for xname, xstats in self.stats.xstats.items()}
+            return {xname: xstats.groups_by_parts for xname, xstats in self.stats.xstats.items()}
     
 
     def get_target_frequencies(self, variable: str) -> pandas.DataFrame:
@@ -479,26 +481,10 @@ class MultiTreatmentUnivariateEncoding:
             The frequency table for the variable.
         """
         return self.stats.xstats[variable].varstats.nijt
-
-
-    def get_target_frequencies_of_treatment_groups(self, variable):
-        """Get the frequencies N_ijg for a variable.
-        
-        Parameters
-        ----------
-        variable: str
-            The variable name.
-
-        Returns
-        -------
-        dict[Part, pandas.Series]
-            The frequency table for the variable.
-        """
-        raise NotImplementedError
     
 
     def get_target_probabilities(self, variable):
-        """Get the probabilities P(1)_ijt for a variable.
+        """Get the probabilities P(1)_it for a variable.
         
         Parameters
         ----------
@@ -518,7 +504,7 @@ class MultiTreatmentUnivariateEncoding:
     
 
     def get_target_probabilities_of_treatment_groups(self, variable):
-        """Get the probabilities P(1)_ijg for a variable.
+        """Get the probabilities P(1)_ig for a variable.
         
         Parameters
         ----------
@@ -530,11 +516,21 @@ class MultiTreatmentUnivariateEncoding:
         pandas.DataFrame
             The probability table for the variable.
         """
-        raise NotImplementedError
+        xfreqs = self.get_target_frequencies(variable)
+        def xfreq_of_g(i, t, val):
+            return sum(xfreqs[i][f"{val}|{t_}"] for t_ in self.stats.xstats[variable].groups_by_treatments_by_parts[i][t])
+        def xprobability_of_g(i, t, val, otherval):
+            xfreq_val = xfreq_of_g(i, t, val)
+            xfreq_otherval = xfreq_of_g(i, t, otherval)
+            return xfreq_val / (xfreq_val + xfreq_otherval)
+        return build_table_by_cell(
+            self.stats.xstats[variable].varstats.parts, self.stats.generalstats.ts,
+            lambda iindex, i, tindex, t: xprobability_of_g(i, t, 1, 0)
+        )
     
 
     def get_uplift(self, reftarget, reftreatment, variable):
-        """Get the uplift Uplift_ijt for a variable.
+        """Get the uplift Uplift_it for a variable.
         
         Parameters
         ----------
@@ -558,7 +554,7 @@ class MultiTreatmentUnivariateEncoding:
     
 
     def get_uplift_of_treatment_groups(self, reftarget, reftreatment, variable):
-        """Get the uplift Uplift_ijg for a variable.
+        """Get the uplift Uplift_ig for a variable.
         
         Parameters
         ----------
@@ -574,7 +570,11 @@ class MultiTreatmentUnivariateEncoding:
         pandas.DataFrame
             The uplift table for the variable.
         """
-        raise NotImplementedError
+        xprobs = self.get_target_probabilities_of_treatment_groups(variable)
+        return build_table_by_cell(
+            self.stats.xstats[variable].varstats.parts, self.stats.generalstats.ts,
+            lambda iindex, i, tindex, t: xprobs[i][t] - xprobs[i][reftreatment]
+        )
     
 
 @dataclass(frozen=True)
@@ -694,10 +694,20 @@ def stats_from_analysis_report(report: khiops.core.PreparationReport, datasetinf
             continue
         informative_xnames.append(xname)
         xdim = find_dimensions([xname], stats.data_grid.dimensions)[xname]
-        is_ = xdim.partition
-        xfreqs = stats.data_grid.part_target_frequencies
+        is_, xfreqs = merge_missing_into_first_interval(xdim.partition, stats.data_grid.part_target_frequencies)
+        print(list(map(str, is_)))
+        print(xfreqs)
+        print(jts)
         xstats[xname] = VarStats(True, stats.level, is_, build_table_by_column(is_, jts, lambda iindex, _: xfreqs[iindex]))
     return Stats(GeneralStats(js, ts, jts, informative_xnames, noninformative_xnames), xstats)
+
+
+def merge_missing_into_first_interval(parts: list[Part], xfreqs: list[list[int]]) -> list[list[int]]:
+    print("=", xfreqs)
+    if parts[0].part_type() == "Interval" and parts[0].is_missing and len(parts) > 1:
+        return parts[1:], [list(map(add, xfreqs[0], xfreqs[1])), *xfreqs[2:]]
+    else:
+        return parts, xfreqs
 
 
 def compute_stats(dataset: pandas.DataFrame, datasetinfo: DatasetInfo, fileoutput: FileOutput, maxparts: int | None = None) -> tuple[Stats, UpliftDictionary]:
@@ -755,11 +765,12 @@ def group_treatments_for_variable(variable: str, datasetinfo: DatasetInfo, stats
     xname = variable
     xstats = stats.xstats[xname]
     if not xstats.is_informative:
-        return VarStatsWithGroups(xstats, {})
+        return VarStatsWithGroups(xstats, {}, {})
     logger.info("Grouping treatments for variable %r...", xname)
 
     selectionvarname = add_selectionvar_to_khiops_dict(upliftdict.dict, xname, xstats.parts)
-    groups_by_part = {}
+    groups_by_parts = {}
+    groups_by_treatments_by_parts = {}
     for partindex, part in enumerate(part for part in xstats.parts if not (part.part_type() == "Interval" and part.is_missing)):
         logger.debug("Grouping treatments for part %s...", part)
         partname = f"I{partindex + 1}"
@@ -782,16 +793,18 @@ def group_treatments_for_variable(variable: str, datasetinfo: DatasetInfo, stats
         logger.debug("Level of treatment %r is %f.", datasetinfo.tname, group_results.level)
     
         if group_results.level == 0:  # ==> Put all treatments into the same group.
-            groups_by_part[part] = (tuple(stats.generalstats.ts),)
+            groups_by_parts[part] = (tuple(stats.generalstats.ts),)
+            groups_by_treatments_by_parts[part] = {t: groups_by_parts[part][0] for t in stats.generalstats.ts}
         else:
-            groups_by_part[part] = get_repaired_groups(group_results.data_grid.dimensions[0], stats)
+            groups_by_parts[part] = get_repaired_groups(group_results.data_grid.dimensions[0], stats)
+            groups_by_treatments_by_parts[part] = {t: g for g in groups_by_parts[part] for t in g}
         logger.debug("Done grouping treatments for part %s...", part)
     
     upliftdict.dict.remove_variable(selectionvarname)
 
     logger.info("Done grouping treatments for variable %r.", xname)
     
-    return VarStatsWithGroups(xstats, groups_by_part)
+    return VarStatsWithGroups(xstats, groups_by_parts, groups_by_treatments_by_parts)
 
 
 def get_repaired_groups(dimension: khiops.core.DataGridDimension, stats: Stats) -> Groups:

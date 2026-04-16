@@ -42,17 +42,9 @@ if __name__ == "__main__":
         print(ue.get_target_probabilities(var))
         print("Uplift:")
         print(ue.get_uplift(TARGET1, REF_TREATMENT, var))
-        for part, freqs in ue.get_target_frequencies_of_treatment_groups(var).items():
-            print("Part:", part)
-            print("Target frequencies with groups:")
-            print(freqs)
-        for part, probs in ue.get_target_probabilities_of_treatment_groups(var).items():
-            print("Part:", part)
-            print("Target probabilities with groups:")
-            print(probs)
-        for part, uplift in ue.get_uplift_of_treatment_groups(TARGET1, REF_TREATMENT, var).items():
-            print("Part:", part)
-            print("Uplift with groups:")
-            print(uplift)
+        print("Target probabilities with groups:")
+        print(ue.get_target_probabilities_of_treatment_groups(var))
+        print("Uplift with groups.")
+        print(ue.get_uplift_of_treatment_groups(TARGET1, REF_TREATMENT, var))
     
     raise Exception("Utiliser le principe de repair_groups pour les variables catégorielles !!!")
