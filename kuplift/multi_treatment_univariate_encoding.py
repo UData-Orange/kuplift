@@ -31,8 +31,8 @@ logger = logging.getLogger(__name__)
 
 VarType = typing.Literal["Numerical", "Categorical"]
 Part = khiops.core.PartInterval | khiops.core.PartValueGroup
-Group = tuple[str]
-Groups = tuple[Group]
+TreatmentGroup = khiops.core.PartValueGroup
+TreatmentGroups = list[TreatmentGroup]
 
 
 @dataclass(frozen=True)
@@ -94,8 +94,8 @@ class VarStats:
 @dataclass(frozen=True)
 class VarStatsWithGroups:
     varstats: VarStats
-    groups_by_parts: dict[Part, Groups]
-    groups_by_treatments_by_parts: dict[Part, dict[str, Group]]
+    groups_by_parts: dict[Part, TreatmentGroups]
+    groups_by_treatments_by_parts: dict[Part, dict[str, TreatmentGroup]]
 
 
 @dataclass(frozen=True)
@@ -104,7 +104,7 @@ class GeneralStats:
 
     Attributes
     ----------
-    js: list
+    js: list of str
         The list of targets.
 
     ts: list of str
@@ -113,15 +113,15 @@ class GeneralStats:
     jts: list of str
         The list of target-treatment pairs.
 
-    informative_xnames: list
+    informative_xnames: list of str
         The list of informative input variables.
 
-    noninformative_xnames: list
+    noninformative_xnames: list of str
         The list of non-informative input variables.
     """
-    js: list
-    ts: list
-    jts: list
+    js: list[str]
+    ts: list[str]
+    jts: list[str]
     informative_xnames: list[str]
     noninformative_xnames: list[str]
 
@@ -448,7 +448,7 @@ class MultiTreatmentUnivariateEncoding:
         return self.stats.xstats[variable].varstats.parts
 
 
-    def get_treatment_groups(self, variable: str | None = None) -> dict[Part, Groups] | dict[str, dict[Part, Groups]]:
+    def get_treatment_groups(self, variable: str | None = None) -> dict[Part, TreatmentGroups] | dict[str, dict[Part, TreatmentGroups]]:
         """Get the groups of treatments for one or all variables.
 
         Parameters
@@ -518,7 +518,7 @@ class MultiTreatmentUnivariateEncoding:
         """
         xfreqs = self.get_target_frequencies(variable)
         def xfreq_of_g(i, t, val):
-            return sum(xfreqs[i][f"{val}|{t_}"] for t_ in self.stats.xstats[variable].groups_by_treatments_by_parts[i][t])
+            return sum(xfreqs[i][f"{val}|{t_}"] for t_ in self.stats.xstats[variable].groups_by_treatments_by_parts[i][t].values)
         def xprobability_of_g(i, t, val, otherval):
             xfreq_val = xfreq_of_g(i, t, val)
             xfreq_otherval = xfreq_of_g(i, t, otherval)
@@ -761,6 +761,7 @@ def group_treatments_for_variable(variable: str, datasetinfo: DatasetInfo, stats
     xname = variable
     xstats = stats.xstats[xname]
     if not xstats.is_informative:
+        logger.info("Variable %r is not informative -> skipped treatment grouping.", xname)
         return VarStatsWithGroups(xstats, {}, {})
     logger.info("Grouping treatments for variable %r...", xname)
 
@@ -786,14 +787,20 @@ def group_treatments_for_variable(variable: str, datasetinfo: DatasetInfo, stats
         if not train_results.preparation_report.target_values:
             logger.debug("Empty preparation report.")
         group_results = train_results.preparation_report.get_variable_statistics(datasetinfo.tname)
-        logger.debug("Level of treatment %r is %f.", datasetinfo.tname, group_results.level)
+        logger.debug("Level of treatment %r is %f%s.", datasetinfo.tname, group_results.level, " -> put all treatments into the same group" if group_results.level == 0 else "")
 
         if group_results.level == 0:  # ==> Put all treatments into the same group.
-            groups_by_parts[part] = (tuple(stats.generalstats.ts),)
+            group = khiops.core.PartValueGroup(stats.generalstats.ts)
+            group.is_default_part = True
+            groups_by_parts[part] = [group]
             groups_by_treatments_by_parts[part] = {t: groups_by_parts[part][0] for t in stats.generalstats.ts}
         else:
-            groups_by_parts[part] = get_repaired_groups(group_results.data_grid.dimensions[0], stats)
-            groups_by_treatments_by_parts[part] = {t: g for g in groups_by_parts[part] for t in g}
+            groups = group_results.data_grid.dimensions[0].partition
+            logger.debug("Groups before fix: %s.", ", ".join(str(grp) for grp in groups))
+            fix_valuegroups(groups, stats.generalstats.ts)
+            logger.debug("Groups after fix: %s.", ", ".join(str(grp) for grp in groups))
+            groups_by_parts[part] = groups
+            groups_by_treatments_by_parts[part] = {t: group for group in groups for t in group.values}
         logger.debug("Done grouping treatments for part %s...", part)
 
     upliftdict.dict.remove_variable(selectionvarname)
@@ -803,49 +810,21 @@ def group_treatments_for_variable(variable: str, datasetinfo: DatasetInfo, stats
     return VarStatsWithGroups(xstats, groups_by_parts, groups_by_treatments_by_parts)
 
 
-def get_repaired_groups(dimension: khiops.core.DataGridDimension, stats: Stats) -> Groups:
-    treatment_groups = dimension.partition
-    logger.debug("Groups before repairs: %s.", tuple(tuple(grp.to_dict()) for grp in treatment_groups))
-    logger.debug("Repairing groups...")
-    repaired_groups = repair_groups(treatment_groups, stats.generalstats.ts)
-    logger.debug("Done repairing.")
-    logger.debug("Groups after repairs: %s.", repaired_groups)
-    return repaired_groups
-
-
-def repair_groups(groups, all_treatments):
-    """Complete groups with the default values."""
-    resulting_groups = []
-    marked_elements = set()
-
-    default_group_index_in_res = -1
-    default_group_values = set()
-
-    # 1. Analyze partition, find groups and default group.
-    for i, part in enumerate(groups):
-        current_group = tuple(part.values)
-        resulting_groups.append(current_group)
-        marked_elements.update(current_group)
-
-        if part.is_default_part:
-            default_group_index_in_res = i
-            default_group_values.update(current_group)
-
-    # 2. Find unmarked elements.
-    unmarked_elements = set(str(t) for t in all_treatments).difference(marked_elements)
-
-    # 3. Merge unmarked elements into the default group, if any.
-    if unmarked_elements:
-        if default_group_index_in_res != -1:  # A default group has been found.
-            # Merge unmarked elements with existing values of the default group.
-            merged_group = default_group_values.union(unmarked_elements)
-            # Update result with correct index.
-            resulting_groups[default_group_index_in_res] = sorted(tuple(merged_group))
+def fix_valuegroups(valuegroups: list[khiops.core.PartValueGroup], all_values: typing.Iterable[str]) -> None:
+    unvisited_values = set(all_values)
+    default_valuegroup = None
+    for valuegroup in valuegroups:
+        unvisited_values.difference_update(valuegroup.values)
+        if valuegroup.is_default_part:
+            default_valuegroup = valuegroup
+    if unvisited_values:
+        if default_valuegroup is None:
+            new_default_valuegroup = khiops.core.PartValueGroup(sorted(list(unvisited_values)))
+            new_default_valuegroup.is_default_part = True
+            valuegroups.append(new_default_valuegroup)
         else:
-            # No default group found, set unmarked elements apart.
-            resulting_groups.append(sorted(tuple(unmarked_elements)))
-
-    return tuple(resulting_groups)
+            default_valuegroup.values.extend(unvisited_values)
+            default_valuegroup.values.sort()
 
 
 def build_khiops_dict_from_dataset_file(dictfilepath: Path | str, datasetfilepath: Path | str, datasetinfo: DatasetInfo) -> UpliftDictionary:

@@ -4,8 +4,8 @@ import logging
 
 
 LOGLEVEL = logging.INFO
-# LOGLEVEL = logging.DEBUG
-DATASET_PATH = "./data/data.csv"
+LOGLEVEL = logging.DEBUG
+DATASET_PATH = "./data/dataset.csv"
 TREATMENT_NAME = "TRAITEMENT"
 TARGET_NAME = "CIBLE"
 TARGET1 = 1
@@ -29,13 +29,16 @@ if __name__ == "__main__":
     print("Targets:", ue.target_modalities)
     print("Target-treatment pairs:", ue.target_treatment_pairs)
     print("Input variable levels:", ue.get_levels())
-    print("All treatment groups:", "  ;  ".join("var({!r})->groups({})".format(var, ", ".join("{}=>{}".format(part, groups) for part, groups in groups_by_part.items())) for var, groups_by_part in ue.get_treatment_groups().items()))
+    for var, groups_by_parts in ue.get_treatment_groups().items():
+        for part, groups in groups_by_parts.items():
+            print("Treatment groups for variable {} and part {}: [{}]".format(var, part, ", ".join(str(group) for group in groups)))
     
     for var in ue.informative_input_variables:
         print("\n[Details of variable {!r}]".format(var))
         print("Level:", ue.get_level(var))
         print("Partition:", ", ".join(map(str, ue.get_partition(var))))
-        print("Treatment groups:", ", ".join("{}=>{}".format(part, groups) for part, groups in ue.get_treatment_groups(var).items()))
+        for part, groups in ue.get_treatment_groups(var).items():
+            print("Treatment groups for part {}: [{}]".format(part, ", ".join(str(group) for group in groups)))
         print("Target frequencies:")
         print(ue.get_target_frequencies(var))
         print("Target probabilities:")
@@ -46,5 +49,3 @@ if __name__ == "__main__":
         print(ue.get_target_probabilities_of_treatment_groups(var))
         print("Uplift with groups.")
         print(ue.get_uplift_of_treatment_groups(TARGET1, REF_TREATMENT, var))
-    
-    raise Exception("Utiliser le principe de repair_groups pour les variables catégorielles !!!")

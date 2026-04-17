@@ -11,7 +11,7 @@ Multi-treatment univariate encoding
   inside of this function, but the parameter is also not used.
   Maybe the parameter should be moved to the `get_target_probabilities` function?
   Or maybe the "1" target should be specified upon `MultiTreatmentUnivariateEncoding` class instantiation?
-- [ ] Allow grouping by treatments in `get_target_probabilities` and `get_uplift`
+- [x] Allow grouping by treatments in `get_target_probabilities` and `get_uplift`
 
 
 Decision Tree
