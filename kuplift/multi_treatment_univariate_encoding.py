@@ -695,15 +695,11 @@ def stats_from_analysis_report(report: khiops.core.PreparationReport, datasetinf
         informative_xnames.append(xname)
         xdim = find_dimensions([xname], stats.data_grid.dimensions)[xname]
         is_, xfreqs = merge_missing_into_first_interval(xdim.partition, stats.data_grid.part_target_frequencies)
-        print(list(map(str, is_)))
-        print(xfreqs)
-        print(jts)
         xstats[xname] = VarStats(True, stats.level, is_, build_table_by_column(is_, jts, lambda iindex, _: xfreqs[iindex]))
     return Stats(GeneralStats(js, ts, jts, informative_xnames, noninformative_xnames), xstats)
 
 
 def merge_missing_into_first_interval(parts: list[Part], xfreqs: list[list[int]]) -> list[list[int]]:
-    print("=", xfreqs)
     if parts[0].part_type() == "Interval" and parts[0].is_missing and len(parts) > 1:
         return parts[1:], [list(map(add, xfreqs[0], xfreqs[1])), *xfreqs[2:]]
     else:
