@@ -38,7 +38,7 @@ Groups = tuple[Group]
 @dataclass(frozen=True)
 class DatasetInfo:
     """Basic information of a dataset.
-    
+
     Attributes
     ----------
     jname: str
@@ -63,7 +63,7 @@ class DatasetInfo:
 @dataclass(frozen=True)
 class VarStats:
     """Statistics for a variable, extracted from a Khiops analysis report.
-    
+
     Attributes
     ----------
     is_informative: bool
@@ -101,7 +101,7 @@ class VarStatsWithGroups:
 @dataclass(frozen=True)
 class GeneralStats:
     """Statistics extracted from a Khiops analysis report.
-    
+
     Attributes
     ----------
     js: list
@@ -129,7 +129,7 @@ class GeneralStats:
 @dataclass(frozen=True)
 class Stats:
     """Statistics extracted from a Khiops analysis report.
-    
+
     Attributes
     ----------
     generalstats: GeneralStats
@@ -151,7 +151,7 @@ class StatsWithGroups:
 @dataclass(frozen=True)
 class UpliftDictionary:
     """Khiops dictionary with extra information.
-    
+
     Attributes
     ----------
     domain: khiops.core.DictionaryDomain
@@ -203,7 +203,7 @@ class FileOutput:
                 i=iname,
                 xiarf=self.xi_analysisresultfile(xname, iname)
             )
-    
+
 
 def build_table_by_cell(columns: typing.Sequence, rows: typing.Sequence, func: collections.abc.Callable) -> pandas.DataFrame:
     return pandas.DataFrame(index=rows, data={col: [func(colindex, col, rowindex, row) for rowindex, row in enumerate(rows)] for colindex, col in enumerate(columns)})
@@ -221,7 +221,7 @@ class MultiTreatmentUnivariateEncoding:
 
     # TODO: Move the following definition sections to the kuplift README.md.
     Many function docstrings in this class refer to "*something*_ijt", "*something*_it" or "*something*_ig" tables.
-    
+
     In *ijt*, *it* or *ig*, the individual letters stand for:
     - *i*: part (interval for a numerical variable or value group for a categorical variable);
     - *j*: target (outcome);
@@ -233,7 +233,7 @@ class MultiTreatmentUnivariateEncoding:
     - one DataFrame row contains the values for either one target-treatment pair (*jt*), one treatment (*t*) or one treatment group (*g*).
 
     Depending on the context, a value may be a number of observation (a frequency), a probability or an uplift.
-    
+
     Attributes
     ----------
     variable_cols: DataFrame
@@ -261,49 +261,49 @@ class MultiTreatmentUnivariateEncoding:
     def input_variables(self) -> list[str]:
         """The names of the variables."""
         return list(self.stats.xstats)
-    
+
 
     @property
     def informative_input_variables(self) -> list[str]:
         """The names of the informative variables."""
         return self.stats.generalstats.informative_xnames
-    
+
 
     @property
     def noninformative_input_variables(self) -> list[str]:
         """The names of the non-informative variables."""
         return self.stats.generalstats.noninformative_xnames
-    
+
 
     @property
     def treatment_name(self) -> str:
         """The name of the treatment column."""
         return self.treatment_col.name
-    
+
 
     @property
     def target_name(self) -> str:
         """The name of the target column."""
         return self.target_col.name
-    
+
 
     @property
     def treatment_modalities(self) -> list:
         """All the different treatments from the dataset."""
         return self.stats.generalstats.ts
-    
+
 
     @property
     def target_modalities(self) -> list:
         """All the different targets from the dataset."""
         return self.stats.generalstats.js
-    
+
 
     @property
     def target_treatment_pairs(self) -> list[str]:
         """All (target, treatment) pairs as a list of "target|treatment"-formatted strings."""
         return self.stats.generalstats.jts
-    
+
 
     def fit(self, data, treatment_col, target_col, maxparts = None, maxtreatmentgroups = None, *, outputdir = None) -> None:
         """Learn a discretisation model using Khiops.
@@ -335,7 +335,7 @@ class MultiTreatmentUnivariateEncoding:
             dirpath = Path(tmpdir.name)
         fileoutput = FileOutput(dirpath, is_outputdir_persistent)
         logger.info("%s", fileoutput)
-        
+
         dataset = pandas.DataFrame(data).join([treatment_col, target_col])
         datasetinfo = DatasetInfo(target_col.name, treatment_col.name, vartypes_by_name_from_dataframe(data), len(dataset))
 
@@ -373,7 +373,7 @@ class MultiTreatmentUnivariateEncoding:
         self.transformed_data = data.transform(lambda col: self.model[col.name].transform(col))
         return self.transformed_data
 
-    
+
     def fit_transform(self, data, treatment_col, target_col, *, maxpartnumber = None, maxtreatmentgroups = None, outputdir = None):
         """Learn a discretisation model using Khiops and transform the data.
 
@@ -403,18 +403,18 @@ class MultiTreatmentUnivariateEncoding:
         """
         self.fit(data, treatment_col, target_col, maxpartnumber=maxpartnumber, maxtreatmentgroups=maxtreatmentgroups, outputdir=outputdir)
         return self.transform(data)
-    
+
 
     def get_levels(self):
         """Get the level of all variables.
-        
+
         Returns
         -------
         list[tuple[str, float]]
             (variable-name, variable-level) pairs in decreasing level order.
         """
         return list(sorted(((varname, varstats.varstats.level) for varname, varstats in self.stats.xstats.items()), key=lambda varpair: (-varpair[1], varpair[0])))
-    
+
 
     def get_level(self, variable):
         """Get the level of a single variable.
@@ -423,14 +423,14 @@ class MultiTreatmentUnivariateEncoding:
         ----------
         variable: str
             The variable to get the level from.
-        
+
         Returns
         -------
         float
             The level of the specified variable.
         """
         return self.stats.xstats[variable].varstats.level
-    
+
 
     def get_partition(self, variable: str) -> list[Part]:
         """Get the partition corresponding to a single variable of the model.
@@ -439,14 +439,14 @@ class MultiTreatmentUnivariateEncoding:
         ----------
         variable: str
             The variable name.
-        
+
         Returns
         -------
         list[Part]
             The partition corresponding to a single variable of the model.
         """
         return self.stats.xstats[variable].varstats.parts
-    
+
 
     def get_treatment_groups(self, variable: str | None = None) -> dict[Part, Groups] | dict[str, dict[Part, Groups]]:
         """Get the groups of treatments for one or all variables.
@@ -465,11 +465,11 @@ class MultiTreatmentUnivariateEncoding:
             return self.stats.xstats[variable].groups_by_parts
         else:
             return {xname: xstats.groups_by_parts for xname, xstats in self.stats.xstats.items()}
-    
+
 
     def get_target_frequencies(self, variable: str) -> pandas.DataFrame:
         """Get the frequencies N_ijt for a variable.
-        
+
         Parameters
         ----------
         variable: str
@@ -481,11 +481,11 @@ class MultiTreatmentUnivariateEncoding:
             The frequency table for the variable.
         """
         return self.stats.xstats[variable].varstats.nijt
-    
+
 
     def get_target_probabilities(self, variable):
         """Get the probabilities P(1)_it for a variable.
-        
+
         Parameters
         ----------
         variable: str
@@ -501,11 +501,11 @@ class MultiTreatmentUnivariateEncoding:
             self.stats.xstats[variable].varstats.parts, self.stats.generalstats.ts,
             lambda iindex, i, tindex, t: xfreqs[i][f"1|{t}"] / (xfreqs[i][f"0|{t}"] + xfreqs[i][f"1|{t}"])
         )
-    
+
 
     def get_target_probabilities_of_treatment_groups(self, variable):
         """Get the probabilities P(1)_ig for a variable.
-        
+
         Parameters
         ----------
         variable: str
@@ -527,11 +527,11 @@ class MultiTreatmentUnivariateEncoding:
             self.stats.xstats[variable].varstats.parts, self.stats.generalstats.ts,
             lambda iindex, i, tindex, t: xprobability_of_g(i, t, 1, 0)
         )
-    
+
 
     def get_uplift(self, reftarget, reftreatment, variable):
         """Get the uplift Uplift_it for a variable.
-        
+
         Parameters
         ----------
         reftarget
@@ -551,11 +551,11 @@ class MultiTreatmentUnivariateEncoding:
             self.stats.xstats[variable].varstats.parts, self.stats.generalstats.ts,
             lambda iindex, i, tindex, t: xprobs[i][t] - xprobs[i][reftreatment]
         )
-    
+
 
     def get_uplift_of_treatment_groups(self, reftarget, reftreatment, variable):
         """Get the uplift Uplift_ig for a variable.
-        
+
         Parameters
         ----------
         reftarget
@@ -575,7 +575,7 @@ class MultiTreatmentUnivariateEncoding:
             self.stats.xstats[variable].varstats.parts, self.stats.generalstats.ts,
             lambda iindex, i, tindex, t: xprobs[i][t] - xprobs[i][reftreatment]
         )
-    
+
 
 @dataclass(frozen=True)
 class DimensionConstraint:
@@ -638,7 +638,7 @@ def dtype_to_vartype(dtype: numpy.dtype | pandas.core.dtypes.base.ExtensionDtype
 
 def vartypes_by_name_from_dataframe(data: pandas.DataFrame) -> dict[str, VarType]:
     """Get variable names and types.
-    
+
     Parameters
     ----------
     data: pandas.DataFrame
@@ -712,7 +712,7 @@ def merge_missing_into_first_interval(parts: list[Part], xfreqs: list[list[int]]
 
 def compute_stats(dataset: pandas.DataFrame, datasetinfo: DatasetInfo, fileoutput: FileOutput, maxparts: int | None = None) -> tuple[Stats, UpliftDictionary]:
     logger.info("Computing stats with %r...", datasetinfo)
-    
+
     logger.debug("Writing to data file...")
     dataset.to_csv(fileoutput.datasetfile, index=False)
     logger.debug("Done writing.")
@@ -739,7 +739,7 @@ def compute_stats(dataset: pandas.DataFrame, datasetinfo: DatasetInfo, fileoutpu
 
 def group_treatments_for_variable(variable: str, datasetinfo: DatasetInfo, stats: Stats, upliftdict: UpliftDictionary, fileoutput: FileOutput, maxtreatmentgroups: int | None = None) -> VarStatsWithGroups:
     """Create groups of treatments for a variable.
-    
+
     Create groups of treatments so that all treatments in each group give similar outcomes given the same values of the specified variable.
 
     Parameters
@@ -786,12 +786,12 @@ def group_treatments_for_variable(variable: str, datasetinfo: DatasetInfo, stats
         train_results = khiops.core.read_analysis_results_file(analysis_result_files[0])
         logger.debug("Done reading.")
         logger.debug("Analysis result refers to these variable names: {%s}", ", ".join(f"'{varname}'" for varname in train_results.preparation_report.get_variable_names()))
-    
+
         if not train_results.preparation_report.target_values:
             logger.debug("Empty preparation report.")
         group_results = train_results.preparation_report.get_variable_statistics(datasetinfo.tname)
         logger.debug("Level of treatment %r is %f.", datasetinfo.tname, group_results.level)
-    
+
         if group_results.level == 0:  # ==> Put all treatments into the same group.
             groups_by_parts[part] = (tuple(stats.generalstats.ts),)
             groups_by_treatments_by_parts[part] = {t: groups_by_parts[part][0] for t in stats.generalstats.ts}
@@ -799,11 +799,11 @@ def group_treatments_for_variable(variable: str, datasetinfo: DatasetInfo, stats
             groups_by_parts[part] = get_repaired_groups(group_results.data_grid.dimensions[0], stats)
             groups_by_treatments_by_parts[part] = {t: g for g in groups_by_parts[part] for t in g}
         logger.debug("Done grouping treatments for part %s...", part)
-    
+
     upliftdict.dict.remove_variable(selectionvarname)
 
     logger.info("Done grouping treatments for variable %r.", xname)
-    
+
     return VarStatsWithGroups(xstats, groups_by_parts, groups_by_treatments_by_parts)
 
 
@@ -821,13 +821,13 @@ def repair_groups(groups, all_treatments):
     """Complete groups with the default values."""
     resulting_groups = []
     marked_elements = set()
-    
+
     default_group_index_in_res = -1
     default_group_values = set()
 
     # 1. Analyze partition, find groups and default group.
     for i, part in enumerate(groups):
-        current_group = tuple(part.values) 
+        current_group = tuple(part.values)
         resulting_groups.append(current_group)
         marked_elements.update(current_group)
 
@@ -854,7 +854,7 @@ def repair_groups(groups, all_treatments):
 
 def build_khiops_dict_from_dataset_file(dictfilepath: Path | str, datasetfilepath: Path | str, datasetinfo: DatasetInfo) -> UpliftDictionary:
     """Build a Khiops dictionary from a dataset file.
-    
+
     1. Read a dataset file.
     2. Create a dictionary file from the dataset.
     3. Read the dictionary file. This actually returns a dictionary domain.
