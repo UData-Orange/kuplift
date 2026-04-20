@@ -39,7 +39,7 @@ jobs:
 
           Installer (dans un venv ou non) avec \`pip install $SDIST[notebook]\`.
           EOF
-          cp examples/*.ipynb $FULL_OUTPUT_PATH
+          cp examples/*.ipynb examples/*.py $FULL_OUTPUT_PATH
           cp data/* $FULL_OUTPUT_PATH
         
       - uses: actions/upload-artifact@v6
