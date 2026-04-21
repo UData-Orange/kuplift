@@ -4,6 +4,7 @@ Tasks To Do
 Multi-treatment univariate encoding
 -----------------------------------
 
+- [x] Allow grouping by treatments in `get_target_probabilities` and `get_uplift`.
 - [ ] Clarify how the "1" target, that is, the value in the target column when the treatment "works", should be specified.
   Currently, it is a parameter of the `get_uplift` function but not of the `get_target_probabilities` function!
   The `get_target_probabilities` function works because the target modalities are hardcoded inside of this function (`0` and `1`).
@@ -11,7 +12,14 @@ Multi-treatment univariate encoding
   inside of this function, but the parameter is also not used.
   Maybe the parameter should be moved to the `get_target_probabilities` function?
   Or maybe the "1" target should be specified upon `MultiTreatmentUnivariateEncoding` class instantiation?
-- [x] Allow grouping by treatments in `get_target_probabilities` and `get_uplift`
+- [ ] See if `fix_valuegroups` is still needed with Khiops v11.
+- [ ] In *helperfunctions.py* -> `preprocess_data`: verify computations.
+  The code of this function contains the pattern `t0j1 + t0j1` twice.
+  Possible consequences:
+  - The computed uplift to sort catergories may be wrong.
+  - The sort in `ordered_dict` to encode modalities may become incorrect.
+  - The transformation of categorical variables may impact negatively the learning process.
+  Two fix proposals are in *preprocess_data_fix_proposal.py*.
 
 
 Decision Tree
