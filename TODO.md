@@ -5,7 +5,8 @@ Multi-treatment univariate encoding
 -----------------------------------
 
 - [x] Allow grouping by treatments in `get_target_probabilities` and `get_uplift`.
-- [ ] Fix `transform`.
+- [x] Fix `transform`.
+- [ ] Verify/fix behaviour when dataset is too small and all levels are 0.
 - [ ] Clarify how the "1" target, that is, the value in the target column when the treatment "works", should be specified.
   Currently, it is a parameter of the `get_uplift` function but not of the `get_target_probabilities` function!
   The `get_target_probabilities` function works because the target modalities are hardcoded inside of this function (`0` and `1`).
