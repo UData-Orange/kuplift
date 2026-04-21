@@ -8,6 +8,8 @@ from kuplift.feature_selection import FeatureSelection
 from kuplift.univariate_encoding import UnivariateEncoding
 from kuplift.optimized_univariate_encoding import OptimizedUnivariateEncoding
 from kuplift.multi_treatment_univariate_encoding import MultiTreatmentUnivariateEncoding
+from kuplift.multi_treatment_decision_tree import MultiTreatmentDecisionTree
+from kuplift.multi_treatment_random_forest import MultiTreatmentRandomForest
 from kuplift.helperclasses import (
     Partition,
     ValGrp,
@@ -25,6 +27,8 @@ __all__ = [
     "UnivariateEncoding",
     "OptimizedUnivariateEncoding",
     "MultiTreatmentUnivariateEncoding",
+    "MultiTreatmentDecisionTree",
+    "MultiTreatmentRandomForest",
 
     "Partition",
     "ValGrp",
