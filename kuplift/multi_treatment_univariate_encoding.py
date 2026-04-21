@@ -20,6 +20,7 @@ from dataclasses import dataclass
 import collections.abc
 import typing
 import warnings
+from math import isnan
 from operator import itemgetter, add
 import khiops.core
 import numpy
@@ -33,6 +34,41 @@ VarType = typing.Literal["Numerical", "Categorical"]
 Part = khiops.core.PartInterval | khiops.core.PartValueGroup
 TreatmentGroup = khiops.core.PartValueGroup
 TreatmentGroups = list[TreatmentGroup]
+
+
+def transform_variable(parts: list[Part], values: pandas.Series) -> int:
+    if not parts:
+        raise ValueError("No parts.")
+    match parts[0].part_type():
+        case "Interval":
+            return transform_numerical_variable(parts, values)
+        case "Value group":
+            return transform_categorical_variable(parts, values)
+        case unsupported:
+            raise ValueError("Unsupported {!r} part type.".format(unsupported))
+
+
+def transform_numerical_variable(parts: list[khiops.core.PartInterval], values: pandas.Series) -> int:
+    partition_contains_missing_part = parts[0].is_missing
+    def transform_value(value):
+        if not isinstance(value, (int, float)) or isnan(value):
+            if partition_contains_missing_part:
+                return 0
+            else:
+                raise ValueError("Value is missing but there is no missing-value dedicated part.")
+        else:
+            return next(interval_index for interval_index, interval in enumerate(parts) if interval.lower_bound < value <= interval.upper_bound)
+    return values.transform(transform_value)
+
+
+def transform_categorical_variable(parts: list[khiops.core.PartValueGroup], values: pandas.Series) -> int:
+    default_group_index = next(group_index for group_index, group in enumerate(parts) if group.is_default_part)
+    def transform_value(value):
+        for group_index, group in enumerate(parts):
+            if value in group:
+                return group_index
+        return default_group_index
+    return values.transform(transform_value)
 
 
 @dataclass(frozen=True)
@@ -318,7 +354,7 @@ class MultiTreatmentUnivariateEncoding:
             Treatment column.
         target_col: pandas.Series
             Outcome column.
-        maxpartnumber: int, default=None
+        maxparts: int, default=None
             The maximal number of intervals or groups. None means default to the 'khiops' program default.
         maxtreatmentgroups: int, default=None
             The maximal number of groups to define when grouping treatments together. None means automatic.
@@ -369,9 +405,7 @@ class MultiTreatmentUnivariateEncoding:
         pandas.DataFrame
             Pandas Dataframe that contains encoded data.
         """
-        data = data[list(self.model.keys())]  # Keep only informative variables
-        self.transformed_data = data.transform(lambda col: self.model[col.name].transform(col))
-        return self.transformed_data
+        return data[list(self.informative_input_variables)].transform(lambda column: transform_variable(self.get_partition(column.name), column))
 
 
     def fit_transform(self, data, treatment_col, target_col, *, maxparts = None, maxtreatmentgroups = None, outputdir = None):
@@ -401,7 +435,7 @@ class MultiTreatmentUnivariateEncoding:
         pandas.Dataframe
             Pandas Dataframe that contains encoded data.
         """
-        self.fit(data, treatment_col, target_col, maxpartnumber=maxparts, maxtreatmentgroups=maxtreatmentgroups, outputdir=outputdir)
+        self.fit(data, treatment_col, target_col, maxparts=maxparts, maxtreatmentgroups=maxtreatmentgroups, outputdir=outputdir)
         return self.transform(data)
 
 
