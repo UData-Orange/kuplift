@@ -49,15 +49,11 @@ def transform_variable(parts: list[Part], values: pandas.Series) -> int:
 
 
 def transform_numerical_variable(parts: list[khiops.core.PartInterval], values: pandas.Series) -> int:
-    partition_contains_missing_part = parts[0].is_missing
     def transform_value(value):
         if not isinstance(value, (int, float)) or isnan(value):
-            if partition_contains_missing_part:
-                return 0
-            else:
-                raise ValueError("Value is missing but there is no missing-value dedicated part.")
+            return 0
         else:
-            return next(interval_index for interval_index, interval in enumerate(parts) if interval.lower_bound < value <= interval.upper_bound)
+            return next(interval_index for interval_index, interval in enumerate(parts) if interval.is_left_open and interval.is_right_open or interval.is_left_open and value <= interval.upper_bound or interval.lower_bound < value and interval.is_right_open or interval.lower_bound < value <= interval.upper_bound)
     return values.transform(transform_value)
 
 
@@ -65,7 +61,7 @@ def transform_categorical_variable(parts: list[khiops.core.PartValueGroup], valu
     default_group_index = next(group_index for group_index, group in enumerate(parts) if group.is_default_part)
     def transform_value(value):
         for group_index, group in enumerate(parts):
-            if value in group:
+            if value in group.values:
                 return group_index
         return default_group_index
     return values.transform(transform_value)
