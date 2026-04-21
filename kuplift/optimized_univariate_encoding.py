@@ -126,7 +126,7 @@ class OptimizedUnivariateEncoding:
         """
         return [TargetTreatmentPair(target, treatment) for target in self.target_modalities for treatment in self.treatment_modalities]
 
-    def fit_transform(self, data, treatment_col, target_col, maxpartnumber = None):
+    def fit_transform(self, data, treatment_col, target_col, maxparts = None):
         """Learn a discretisation model using UMODL and transform the data.
 
         Parameters
@@ -139,7 +139,7 @@ class OptimizedUnivariateEncoding:
             Treatment column.
         target_col: pd.Series
             Outcome column.
-        maxpartnumber: int, default=None
+        maxparts: int, default=None
             The maximal number of intervals or groups. None means default to the 'umodl' program default.
 
         Returns
@@ -147,10 +147,10 @@ class OptimizedUnivariateEncoding:
         pd.Dataframe
             Pandas Dataframe that contains encoded data.
         """
-        self.fit(data, treatment_col, target_col, maxpartnumber)
+        self.fit(data, treatment_col, target_col, maxparts)
         return self.transform(data)
     
-    def fit(self, data, treatment_col, target_col, maxpartnumber = None):
+    def fit(self, data, treatment_col, target_col, maxparts = None):
         """Learn a discretisation model using UMODL.
 
         Parameters
@@ -163,7 +163,7 @@ class OptimizedUnivariateEncoding:
             Treatment column.
         target_col: pd.Series
             Outcome column.
-        maxpartnumber: int, default=None
+        maxparts: int, default=None
             The maximal number of intervals or groups. None means default to the 'umodl' program default.
         """
         # Force the types of the treatment and target columns so that khiops lib understands they are categorical
@@ -182,7 +182,7 @@ class OptimizedUnivariateEncoding:
 
             txtfilename, _ = dataset.create_table_files_for_khiops(dirname)  # Create .txt file
             dataset.create_khiops_dictionary_domain().export_khiops_dictionary_file(kdicfilename)  # Create .kdic file
-            run_umodl(txtfilename, kdicfilename, "main_table", treatment_col.name, target_col.name, maxpartnumber)
+            run_umodl(txtfilename, kdicfilename, "main_table", treatment_col.name, target_col.name, maxparts)
 
             txtfilepath = pathlib.Path(txtfilename)
             with open(txtfilepath.with_name(f"UP_{txtfilepath.stem}.json")) as jsonfile:
