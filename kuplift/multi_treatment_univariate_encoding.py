@@ -374,7 +374,7 @@ class MultiTreatmentUnivariateEncoding:
         return self.transformed_data
 
 
-    def fit_transform(self, data, treatment_col, target_col, *, maxpartnumber = None, maxtreatmentgroups = None, outputdir = None):
+    def fit_transform(self, data, treatment_col, target_col, *, maxparts = None, maxtreatmentgroups = None, outputdir = None):
         """Learn a discretisation model using Khiops and transform the data.
 
         Parameters
@@ -387,7 +387,7 @@ class MultiTreatmentUnivariateEncoding:
             Treatment column.
         target_col: pandas.Series
             Outcome column.
-        maxpartnumber: int, default=None
+        maxparts: int, default=None
             The maximal number of intervals or groups. None means default to the 'khiops' program default.
         maxtreatmentgroups: int, default=None
             The maximal number of groups to define when grouping treatments together. None means automatic.
@@ -401,7 +401,7 @@ class MultiTreatmentUnivariateEncoding:
         pandas.Dataframe
             Pandas Dataframe that contains encoded data.
         """
-        self.fit(data, treatment_col, target_col, maxpartnumber=maxpartnumber, maxtreatmentgroups=maxtreatmentgroups, outputdir=outputdir)
+        self.fit(data, treatment_col, target_col, maxpartnumber=maxparts, maxtreatmentgroups=maxtreatmentgroups, outputdir=outputdir)
         return self.transform(data)
 
 
