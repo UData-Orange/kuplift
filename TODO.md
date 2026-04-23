@@ -6,18 +6,12 @@ Multi-treatment univariate encoding
 
 - [x] Allow grouping by treatments in `get_target_probabilities` and `get_uplift`.
 - [x] Fix `transform`.
-- [ ] Verify/fix behaviour when dataset is too small and all levels are 0.
+- [ ] Fix behaviour when dataset is too small and all levels are 0.
 - [ ] Merge files (replace files + fix imports) after verification:
   - *bayesian_decision_tree_v2.py* into *bayesian_decision_tree.py*;
   - *tree_v2.py* into *tree.py*;
   - *node_v2.py* into *node.py*.
-- [ ] Clarify how the "1" target, that is, the value in the target column when the treatment "works", should be specified.
-  Currently, it is a parameter of the `get_uplift` function but not of the `get_target_probabilities` function!
-  The `get_target_probabilities` function works because the target modalities are hardcoded inside of this function (`0` and `1`).
-  Because the `get_uplift` function works with the probabilities returned by `get_target_probabilities`, no target modality is hardcoded
-  inside of this function, but the parameter is also not used.
-  Maybe the parameter should be moved to the `get_target_probabilities` function?
-  Or maybe the "1" target should be specified upon `MultiTreatmentUnivariateEncoding` class instantiation?
+- [ ] `get_target_probabilities` must compute probabilities for all j|t.
 - [ ] See if `fix_valuegroups` is still needed with Khiops v11.
 - [ ] In *helperfunctions.py* -> `preprocess_data`: verify computations.
   The code of this function contains the pattern `t0j1 + t0j1` twice.
