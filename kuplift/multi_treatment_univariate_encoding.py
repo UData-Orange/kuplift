@@ -67,6 +67,15 @@ def transform_categorical_variable(parts: list[khiops.core.PartValueGroup], valu
     return values.transform(transform_value)
 
 
+def split_jt(jt: str) -> tuple[str, str]:
+    """Returns j and t from j|t."""
+    return tuple(jt.split("|"))
+
+def join_jt(j: typing.Any, t: typing.Any) -> str:
+    """Returns j|t from j and t."""
+    return "{}|{}".format(j, t)
+
+
 @dataclass(frozen=True)
 class DatasetInfo:
     """Basic information of a dataset.
@@ -514,7 +523,7 @@ class MultiTreatmentUnivariateEncoding:
 
 
     def get_target_probabilities(self, variable):
-        """Get the probabilities P(1)_it for a variable.
+        """Get the probabilities P_ijt for a variable.
 
         Parameters
         ----------
@@ -526,15 +535,15 @@ class MultiTreatmentUnivariateEncoding:
         pandas.DataFrame
             The probability table for the variable.
         """
-        xfreqs = self.get_target_frequencies(variable)
-        return build_table_by_cell(
-            self.stats.xstats[variable].varstats.parts, self.stats.generalstats.ts,
-            lambda iindex, i, tindex, t: xfreqs[i][f"1|{t}"] / (xfreqs[i][f"0|{t}"] + xfreqs[i][f"1|{t}"])
-        )
+        frequencies = self.get_target_frequencies(variable)
+        def probabilities(iindex: int, i: Part, jtindex: int, jt: str) -> float:
+            j, t = split_jt(jt)
+            return frequencies[i][jt] / (frequencies[i][jt] + frequencies[i][join_jt(self._other_target_modality(j), t)])
+        return build_table_by_cell(self.stats.xstats[variable].varstats.parts, self.stats.generalstats.jts, probabilities)
 
 
     def get_target_probabilities_of_treatment_groups(self, variable):
-        """Get the probabilities P(1)_ig for a variable.
+        """Get the probabilities P_ijg for a variable.
 
         Parameters
         ----------
@@ -546,17 +555,14 @@ class MultiTreatmentUnivariateEncoding:
         pandas.DataFrame
             The probability table for the variable.
         """
-        xfreqs = self.get_target_frequencies(variable)
-        def xfreq_of_g(i, t, val):
-            return sum(xfreqs[i][f"{val}|{t_}"] for t_ in self.stats.xstats[variable].groups_by_treatments_by_parts[i][t].values)
-        def xprobability_of_g(i, t, val, otherval):
-            xfreq_val = xfreq_of_g(i, t, val)
-            xfreq_otherval = xfreq_of_g(i, t, otherval)
-            return xfreq_val / (xfreq_val + xfreq_otherval)
-        return build_table_by_cell(
-            self.stats.xstats[variable].varstats.parts, self.stats.generalstats.ts,
-            lambda iindex, i, tindex, t: xprobability_of_g(i, t, 1, 0)
-        )
+        frequencies = self.get_target_frequencies(variable)
+        def frequencies_of_group(i, j, t):
+            return sum(frequencies[i][f"{j}|{current_t}"] for current_t in self.stats.xstats[variable].groups_by_treatments_by_parts[i][t].values)
+        def probabilities_of_group(iindex: int, i: Part, jtindex: int, jt: str) -> float:
+            j, t = split_jt(jt)
+            target_frequencies_of_group = frequencies_of_group(i, j, t)
+            return target_frequencies_of_group / (target_frequencies_of_group + frequencies_of_group(i, self._other_target_modality(j), t))
+        return build_table_by_cell(self.stats.xstats[variable].varstats.parts, self.stats.generalstats.jts, probabilities_of_group)
 
 
     def get_uplift(self, reftarget, reftreatment, variable):
@@ -579,7 +585,7 @@ class MultiTreatmentUnivariateEncoding:
         xprobs = self.get_target_probabilities(variable)
         return build_table_by_cell(
             self.stats.xstats[variable].varstats.parts, self.stats.generalstats.ts,
-            lambda iindex, i, tindex, t: xprobs[i][t] - xprobs[i][reftreatment]
+            lambda iindex, i, tindex, t: xprobs[i][join_jt(reftarget, t)] - xprobs[i][join_jt(reftarget, reftreatment)]
         )
 
 
@@ -603,8 +609,12 @@ class MultiTreatmentUnivariateEncoding:
         xprobs = self.get_target_probabilities_of_treatment_groups(variable)
         return build_table_by_cell(
             self.stats.xstats[variable].varstats.parts, self.stats.generalstats.ts,
-            lambda iindex, i, tindex, t: xprobs[i][t] - xprobs[i][reftreatment]
+            lambda iindex, i, tindex, t: xprobs[i][join_jt(reftarget, t)] - xprobs[i][join_jt(reftarget, reftreatment)]
         )
+    
+
+    def _other_target_modality(self, target_modality):
+        return next(current_target_modality for current_target_modality in self.target_modalities if current_target_modality != target_modality)
 
 
 @dataclass(frozen=True)
