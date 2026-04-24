@@ -6,13 +6,12 @@ Multi-treatment univariate encoding
 
 - [x] Allow grouping by treatments in `get_target_probabilities` and `get_uplift`.
 - [x] Fix `transform`.
+- [x] `get_target_probabilities` must compute probabilities for all j|t.
 - [ ] Fix behaviour when dataset is too small and all levels are 0.
 - [ ] Merge files (replace files + fix imports) after verification:
   - *bayesian_decision_tree_v2.py* into *bayesian_decision_tree.py*;
   - *tree_v2.py* into *tree.py*;
   - *node_v2.py* into *node.py*.
-- [ ] `get_target_probabilities` must compute probabilities for all j|t.
-- [ ] See if `fix_valuegroups` is still needed with Khiops v11.
 - [ ] In *helperfunctions.py* -> `preprocess_data`: verify computations.
   The code of this function contains the pattern `t0j1 + t0j1` twice.
   Possible consequences:
@@ -20,6 +19,7 @@ Multi-treatment univariate encoding
   - The sort in `ordered_dict` to encode modalities may become incorrect.
   - The transformation of categorical variables may impact negatively the learning process.
   Two fix proposals are in *preprocess_data_fix_proposal.py*.
+- [ ] See if `fix_valuegroups` is still needed with Khiops v11.
 
 
 Decision Tree
