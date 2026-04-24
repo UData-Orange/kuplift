@@ -79,7 +79,7 @@ class UnivariateEncodingBase(ABC):
             raise RuntimeError("Fit operation not performed yet.")
 
 
-    def fit_transform(self, data: pandas.DataFrame, *args) -> pandas.DataFrame:
+    def fit_transform(self, data: pandas.DataFrame, *args, **kwargs) -> pandas.DataFrame:
         """Learn a discretization model and transform the data.
         
         Parameters
@@ -88,13 +88,15 @@ class UnivariateEncodingBase(ABC):
             Dataframe containing feature variables. Categorical variables must have a string, categorical or object dtype to avoid beeing processed as numerical variables.
         args:
             Same parameters as `fit()`, without the first one which is already in `data`.
+        kwargs:
+            Same parameters as `fit()`, without the first one which is already in `data`.
 
         Returns
         -------
         pandas.Dataframe
             Pandas Dataframe that contains encoded data.
         """
-        self.fit(data, *args)
+        self.fit(data, *args, **kwargs)
         return self.transform(data)
 
 
