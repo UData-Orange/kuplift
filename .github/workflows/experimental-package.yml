@@ -4,6 +4,7 @@
 # - a source dist of the Python package `kuplift`
 # - data files
 # - Jupyter notebooks
+# - Python example modules
 # - a README file.
 
 name: Experimental package
