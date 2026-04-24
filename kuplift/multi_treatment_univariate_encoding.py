@@ -565,13 +565,13 @@ class MultiTreatmentUnivariateEncoding:
         return build_table_by_cell(self.stats.xstats[variable].varstats.parts, self.stats.generalstats.jts, probabilities_of_group)
 
 
-    def get_uplift(self, reftarget, reftreatment, variable):
+    def get_uplift(self, successvalue, reftreatment, variable):
         """Get the uplift Uplift_it for a variable.
 
         Parameters
         ----------
-        reftarget
-            The reference target.
+        successvalue
+            The success value of the target.
         reftreatment
             The reference treatment to which all the other treatments are compared.
         variable: str
@@ -585,17 +585,17 @@ class MultiTreatmentUnivariateEncoding:
         xprobs = self.get_target_probabilities(variable)
         return build_table_by_cell(
             self.stats.xstats[variable].varstats.parts, self.stats.generalstats.ts,
-            lambda iindex, i, tindex, t: xprobs[i][join_jt(reftarget, t)] - xprobs[i][join_jt(reftarget, reftreatment)]
+            lambda iindex, i, tindex, t: xprobs[i][join_jt(successvalue, t)] - xprobs[i][join_jt(successvalue, reftreatment)]
         )
 
 
-    def get_uplift_of_treatment_groups(self, reftarget, reftreatment, variable):
+    def get_uplift_of_treatment_groups(self, successvalue, reftreatment, variable):
         """Get the uplift Uplift_ig for a variable.
 
         Parameters
         ----------
-        reftarget
-            The reference target.
+        successvalue
+            The success value of the target.
         reftreatment
             The reference treatment to which all the other treatments are compared.
         variable: str
@@ -609,7 +609,7 @@ class MultiTreatmentUnivariateEncoding:
         xprobs = self.get_target_probabilities_of_treatment_groups(variable)
         return build_table_by_cell(
             self.stats.xstats[variable].varstats.parts, self.stats.generalstats.ts,
-            lambda iindex, i, tindex, t: xprobs[i][join_jt(reftarget, t)] - xprobs[i][join_jt(reftarget, reftreatment)]
+            lambda iindex, i, tindex, t: xprobs[i][join_jt(successvalue, t)] - xprobs[i][join_jt(successvalue, reftreatment)]
         )
     
 
