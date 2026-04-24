@@ -260,21 +260,6 @@ class MultiTreatmentUnivariateEncoding:
     and enables one to fit and transform data while grouping treatments giving similar
     outcome.
 
-    # TODO: Move the following definition sections to the kuplift README.md.
-    Many function docstrings in this class refer to "*something*_ijt", "*something*_it" or "*something*_ig" tables.
-
-    In *ijt*, *it* or *ig*, the individual letters stand for:
-    - *i*: part (interval for a numerical variable or value group for a categorical variable);
-    - *j*: target (outcome);
-    - *t*: treatment;
-    - *g*: group of treatments.
-
-    These tables are represented by `pandas.DataFrame` where:
-    - one DataFrame column contains the values for one part (one part = one *i*);
-    - one DataFrame row contains the values for either one target-treatment pair (*jt*), one treatment (*t*) or one treatment group (*g*).
-
-    Depending on the context, a value may be a number of observation (a frequency), a probability or an uplift.
-
     Attributes
     ----------
     variable_cols: DataFrame
