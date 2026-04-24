@@ -6,209 +6,84 @@
 
 This module contains everything needed to make univariate variable transformation
 capable of merging treatments that give similar outcome.
-
-The main class of this module is 'MultiTreatmentUnivariateEncoding'.
 """
 
 from pathlib import Path
 from .helperfunctions import partition_to_rule, random_varname
 from tempfile import TemporaryDirectory
 import logging
-from itertools import chain
 from functools import cached_property
 from dataclasses import dataclass
-import collections.abc
-import typing
 import warnings
-from math import isnan
-from operator import itemgetter, add
 import khiops.core
-import numpy
 import pandas
-import pandas.core.dtypes.base
+from .utils import DatasetInfo, Dictionary, vartypes_by_name_from_dataframe, fix_valuegroups
+from .treatment_grouping import StatsWithGroups, VarStatsWithGroups
+from .preparation_report import Stats, stats_from_analysis_report
+from .univariate_encoding_treatment_grouping import UnivariateEncodingWithGroupsBase
 
 logger = logging.getLogger(__name__)
 
 
-VarType = typing.Literal["Numerical", "Categorical"]
-Part = khiops.core.PartInterval | khiops.core.PartValueGroup
-TreatmentGroup = khiops.core.PartValueGroup
-TreatmentGroups = list[TreatmentGroup]
+class MultiTreatmentUnivariateEncoding(UnivariateEncodingWithGroupsBase):
+    """
+    The MultiTreatmentUnivariateEncoding class makes use of the khiops Python wrapper
+    and enables one to fit and transform data while grouping treatments giving similar
+    outcome.
+    """
+    def fit(self, data, treatment_col, target_col, maxparts = None, maxtreatmentgroups = None, outputdir = None) -> None:
+        """Learn a discretization model using Khiops.
 
-
-def transform_variable(parts: list[Part], values: pandas.Series) -> int:
-    if not parts:
-        raise ValueError("No parts.")
-    match parts[0].part_type():
-        case "Interval":
-            return transform_numerical_variable(parts, values)
-        case "Value group":
-            return transform_categorical_variable(parts, values)
-        case unsupported:
-            raise ValueError("Unsupported {!r} part type.".format(unsupported))
-
-
-def transform_numerical_variable(parts: list[khiops.core.PartInterval], values: pandas.Series) -> int:
-    def transform_value(value):
-        if not isinstance(value, (int, float)) or isnan(value):
-            return 0
+        Parameters
+        ----------
+        data: pandas.DataFrame
+            Dataframe containing feature variables. Categorical variables must have a string, categorical or object dtype to avoid beeing processed as numerical variables.
+        treatment_col: pandas.Series
+            Treatment column.
+        target_col: pandas.Series
+            Outcome column.
+        maxparts: int, default=None
+            The maximal number of intervals or groups. None means default to the 'khiops' program default.
+        maxtreatmentgroups: int, default=None
+            The maximal number of groups to define when grouping treatments together. None means automatic.
+        outputdir: Path-like
+            Set this if you want khiops's workfiles to be kept in a specific directory. If None, fallback
+            to the default behaviour which is to have khiops write its files into a temporary directory that
+            is deleted when the work is done.
+        """
+        is_outputdir_persistent = outputdir is not None
+        if is_outputdir_persistent:
+            dirpath = Path(outputdir)
         else:
-            return next(interval_index for interval_index, interval in enumerate(parts) if interval.is_left_open and interval.is_right_open or interval.is_left_open and value <= interval.upper_bound or interval.lower_bound < value and interval.is_right_open or interval.lower_bound < value <= interval.upper_bound)
-    return values.transform(transform_value)
+            tmpdir = TemporaryDirectory()
+            dirpath = Path(tmpdir.name)
+        fileoutput = FileOutput(dirpath, is_outputdir_persistent)
+        logger.info("%s", fileoutput)
 
+        dataset = pandas.DataFrame(data).join([treatment_col, target_col])
+        datasetinfo = DatasetInfo(target_col.name, treatment_col.name, vartypes_by_name_from_dataframe(data), len(dataset))
 
-def transform_categorical_variable(parts: list[khiops.core.PartValueGroup], values: pandas.Series) -> int:
-    default_group_index = next(group_index for group_index, group in enumerate(parts) if group.is_default_part)
-    def transform_value(value):
-        for group_index, group in enumerate(parts):
-            if value in group.values:
-                return group_index
-        return default_group_index
-    return values.transform(transform_value)
+        stats, upliftdict = compute_stats(dataset, datasetinfo, fileoutput, maxparts)
 
+        # Disable all input variables since we will create a selection variable for each one in turn
+        # and it is that selection variable that will be enabled.
+        for xname in stats.model:
+            upliftdict.dict.get_variable(xname).used = False
 
-def split_jt(jt: str) -> tuple[str, str]:
-    """Returns j and t from j|t."""
-    return tuple(jt.split("|"))
+        xstats_with_groups = {}
+        for xname in stats.model:
+            xstats_with_groups[xname] = group_treatments_for_variable(xname, datasetinfo, stats, upliftdict, fileoutput, maxtreatmentgroups)
 
-def join_jt(j: typing.Any, t: typing.Any) -> str:
-    """Returns j|t from j and t."""
-    return "{}|{}".format(j, t)
-
-
-@dataclass(frozen=True)
-class DatasetInfo:
-    """Basic information of a dataset.
-
-    Attributes
-    ----------
-    jname: str
-        The name of the target/outcome variable.
-    tname: str
-        The name of the treatment variable.
-    xs: dict mapping str to VarType
-        Dictionary mapping variable names to variable types.
-    size: int
-        The number of observations.
-    """
-    jname: str
-    tname: str
-    xs: dict[str, VarType]
-    size: int
-
-    @property
-    def categorical_xs(self) -> list[str]:
-        return [varname for varname, vartype in self.xs.items() if vartype == "Categorical"]
-
-
-@dataclass(frozen=True)
-class VarStats:
-    """Statistics for a variable, extracted from a Khiops analysis report.
-
-    Attributes
-    ----------
-    is_informative: bool
-        `true` if the variable is informative, `false` otherwise.
-
-    level: float
-        The level. Zero for a non-informative variable.
-
-    parts: list[Part]
-        The list of parts. Empty for a non-informative variable.
-
-    nijt: pandas DataFrame or None
-        `None` for a non-informative variable.
-        Otherwise, a DataFrame that is the N_ijt table of the variable, where:
-            N: number of observations;
-            i: part (interval for a numerical variable or value group for a categorical variable);
-            j: target (outcome);
-            t: treatment.
-        One DataFrame column contains the number of observations for one part (one "i").
-        One DataFrame row contains the numbers of observations for one target-treatment pair (one "(j, t)" pair).
-    """
-    is_informative: bool
-    level: float
-    parts: list[Part]
-    nijt: pandas.DataFrame | None
-
-
-@dataclass(frozen=True)
-class VarStatsWithGroups:
-    varstats: VarStats
-    groups_by_parts: dict[Part, TreatmentGroups]
-    groups_by_treatments_by_parts: dict[Part, dict[str, TreatmentGroup]]
-
-
-@dataclass(frozen=True)
-class GeneralStats:
-    """Statistics extracted from a Khiops analysis report.
-
-    Attributes
-    ----------
-    js: list of str
-        The list of targets.
-
-    ts: list of str
-        The list of treatments.
-
-    jts: list of str
-        The list of target-treatment pairs.
-
-    informative_xnames: list of str
-        The list of informative input variables.
-
-    noninformative_xnames: list of str
-        The list of non-informative input variables.
-    """
-    js: list[str]
-    ts: list[str]
-    jts: list[str]
-    informative_xnames: list[str]
-    noninformative_xnames: list[str]
-
-
-@dataclass(frozen=True)
-class Stats:
-    """Statistics extracted from a Khiops analysis report.
-
-    Attributes
-    ----------
-    generalstats: GeneralStats
-        Statistics not including input-variable specific stats.
-
-    xstats: dict mapping str to VarStats
-        A dictionary mapping the names of the input variables to the statistics of these variables.
-    """
-    generalstats: GeneralStats
-    xstats: dict[str, VarStats]
-
-
-@dataclass(frozen=True)
-class StatsWithGroups:
-    generalstats: GeneralStats
-    xstats: dict[str, VarStatsWithGroups]
-
-
-@dataclass(frozen=True)
-class UpliftDictionary:
-    """Khiops dictionary with extra information.
-
-    Attributes
-    ----------
-    domain: khiops.core.DictionaryDomain
-        The domain to which the dictionary belongs.
-    dict: khiops.core.Dictionary
-        The Khiops dictionary.
-    jtname: str
-        The name of the created target|treatment calculated variable.
-    """
-    domain: khiops.core.DictionaryDomain
-    dict: khiops.core.Dictionary
-    jtname: str
+        self._variable_cols = data
+        self._treatment_col = treatment_col
+        self._target_col = target_col
+        self._stats = StatsWithGroups(stats.js, stats.ts, stats.jts, stats.informative_xnames, stats.noninformative_xnames, xstats_with_groups)
+        self._fit_performed = True
 
 
 @dataclass(frozen=True)
 class FileOutput:
+    """Compute paths to files and directories to be created."""
     outputdir: Path
     is_persistent: bool
     @cached_property
@@ -246,492 +121,7 @@ class FileOutput:
             )
 
 
-def build_table_by_cell(columns: typing.Sequence, rows: typing.Sequence, func: collections.abc.Callable) -> pandas.DataFrame:
-    return pandas.DataFrame(index=rows, data={col: [func(colindex, col, rowindex, row) for rowindex, row in enumerate(rows)] for colindex, col in enumerate(columns)})
-
-
-def build_table_by_column(columns: typing.Sequence, rows: typing.Sequence, func: collections.abc.Callable) -> pandas.DataFrame:
-    return pandas.DataFrame(index=rows, data={col: func(colindex, col) for colindex, col in enumerate(columns)})
-
-
-class MultiTreatmentUnivariateEncoding:
-    """
-    The MultiTreatmentUnivariateEncoding class makes use of the khiops Python wrapper
-    and enables one to fit and transform data while grouping treatments giving similar
-    outcome.
-
-    Attributes
-    ----------
-    variable_cols: DataFrame
-        The data columns of all variables.
-        This means all the data from the dataset but the treatment and target columns.
-
-    treatment_col: Series
-        The treatment column from the dataset.
-
-    target_col: Series
-        The target column from the dataset.
-
-    stats: StatsWithGroups
-        Statistics produced by Khiops, augmented with treatment groups, also computed by Khiops.
-    """
-
-    def __init__(self):
-        self.variable_cols = None
-        self.treatment_col = None
-        self.target_col = None
-        self.stats = None
-
-
-    @property
-    def input_variables(self) -> list[str]:
-        """The names of the variables."""
-        return list(self.stats.xstats)
-
-
-    @property
-    def informative_input_variables(self) -> list[str]:
-        """The names of the informative variables."""
-        return self.stats.generalstats.informative_xnames
-
-
-    @property
-    def noninformative_input_variables(self) -> list[str]:
-        """The names of the non-informative variables."""
-        return self.stats.generalstats.noninformative_xnames
-
-
-    @property
-    def treatment_name(self) -> str:
-        """The name of the treatment column."""
-        return self.treatment_col.name
-
-
-    @property
-    def target_name(self) -> str:
-        """The name of the target column."""
-        return self.target_col.name
-
-
-    @property
-    def treatment_modalities(self) -> list:
-        """All the different treatments from the dataset."""
-        return self.stats.generalstats.ts
-
-
-    @property
-    def target_modalities(self) -> list:
-        """All the different targets from the dataset."""
-        return self.stats.generalstats.js
-
-
-    @property
-    def target_treatment_pairs(self) -> list[str]:
-        """All (target, treatment) pairs as a list of "target|treatment"-formatted strings."""
-        return self.stats.generalstats.jts
-
-
-    def fit(self, data, treatment_col, target_col, maxparts = None, maxtreatmentgroups = None, *, outputdir = None) -> None:
-        """Learn a discretisation model using Khiops.
-
-        Parameters
-        ----------
-        data: pandas.DataFrame
-            Dataframe containing feature variables. Categorical
-            variables should have the object dtype, otherwise they
-            are processed as numerical variables.
-        treatment_col: pandas.Series
-            Treatment column.
-        target_col: pandas.Series
-            Outcome column.
-        maxparts: int, default=None
-            The maximal number of intervals or groups. None means default to the 'khiops' program default.
-        maxtreatmentgroups: int, default=None
-            The maximal number of groups to define when grouping treatments together. None means automatic.
-        outputdir: Path-like
-            Set this if you want khiops's workfiles to be kept in a specific directory. If None, fallback
-            to the default behaviour which is to have khiops write its files into a temporary directory that
-            is deleted when the work is done.
-        """
-        is_outputdir_persistent = outputdir is not None
-        if is_outputdir_persistent:
-            dirpath = Path(outputdir)
-        else:
-            tmpdir = TemporaryDirectory()
-            dirpath = Path(tmpdir.name)
-        fileoutput = FileOutput(dirpath, is_outputdir_persistent)
-        logger.info("%s", fileoutput)
-
-        dataset = pandas.DataFrame(data).join([treatment_col, target_col])
-        datasetinfo = DatasetInfo(target_col.name, treatment_col.name, vartypes_by_name_from_dataframe(data), len(dataset))
-
-        stats, upliftdict = compute_stats(dataset, datasetinfo, fileoutput, maxparts)
-
-        # Disable all input variables since we will create a selection variable for each one in turn
-        # and it is that selection variable that will be enabled.
-        for xname in stats.xstats:
-            upliftdict.dict.get_variable(xname).used = False
-
-        xstats_with_groups = {}
-        for xname in stats.xstats:
-            xstats_with_groups[xname] = group_treatments_for_variable(xname, datasetinfo, stats, upliftdict, fileoutput, maxtreatmentgroups)
-
-        self.variable_cols = data
-        self.treatment_col = treatment_col
-        self.target_col = target_col
-        self.stats = StatsWithGroups(stats.generalstats, xstats_with_groups)
-
-
-    def transform(self, data):
-        """Apply the discretisation model learned by the fit() method.
-
-        Parameters
-        ----------
-        data: pandas.DataFrame
-            Dataframe containing feature variables.
-
-        Returns
-        -------
-        pandas.DataFrame
-            Pandas Dataframe that contains encoded data.
-        """
-        return data[list(self.informative_input_variables)].transform(lambda column: transform_variable(self.get_partition(column.name), column))
-
-
-    def fit_transform(self, data, treatment_col, target_col, *, maxparts = None, maxtreatmentgroups = None, outputdir = None):
-        """Learn a discretisation model using Khiops and transform the data.
-
-        Parameters
-        ----------
-        data: pandas.DataFrame
-            Dataframe containing feature variables. Categorical
-            variables should have the object dtype, otherwise they
-            are processed as numerical variables.
-        treatment_col: pandas.Series
-            Treatment column.
-        target_col: pandas.Series
-            Outcome column.
-        maxparts: int, default=None
-            The maximal number of intervals or groups. None means default to the 'khiops' program default.
-        maxtreatmentgroups: int, default=None
-            The maximal number of groups to define when grouping treatments together. None means automatic.
-        outputdir: Path-like
-            Set this if you want khiops's workfiles to be kept in a specific directory. If None, fallback
-            to the default behaviour which is to have khiops write its files into a temporary directory that
-            is deleted when the work is done.
-
-        Returns
-        -------
-        pandas.Dataframe
-            Pandas Dataframe that contains encoded data.
-        """
-        self.fit(data, treatment_col, target_col, maxparts=maxparts, maxtreatmentgroups=maxtreatmentgroups, outputdir=outputdir)
-        return self.transform(data)
-
-
-    def get_levels(self):
-        """Get the level of all variables.
-
-        Returns
-        -------
-        list[tuple[str, float]]
-            (variable-name, variable-level) pairs in decreasing level order.
-        """
-        return list(sorted(((varname, varstats.varstats.level) for varname, varstats in self.stats.xstats.items()), key=lambda varpair: (-varpair[1], varpair[0])))
-
-
-    def get_level(self, variable):
-        """Get the level of a single variable.
-
-        Parameters
-        ----------
-        variable: str
-            The variable to get the level from.
-
-        Returns
-        -------
-        float
-            The level of the specified variable.
-        """
-        return self.stats.xstats[variable].varstats.level
-
-
-    def get_partition(self, variable: str) -> list[Part]:
-        """Get the partition corresponding to a single variable of the model.
-
-        Parameters
-        ----------
-        variable: str
-            The variable name.
-
-        Returns
-        -------
-        list[Part]
-            The partition corresponding to a single variable of the model.
-        """
-        return self.stats.xstats[variable].varstats.parts
-
-
-    def get_treatment_groups(self, variable: str | None = None) -> dict[Part, TreatmentGroups] | dict[str, dict[Part, TreatmentGroups]]:
-        """Get the groups of treatments for one or all variables.
-
-        Parameters
-        ----------
-        variable: str | None
-            If set to None, get groups of all variables, otherwise get groups of specified variable.
-
-        Returns
-        -------
-        If `variable` is not None, returns a dict mapping parts to treatment groups.
-        If `variable` is None, returns a dict mapping variable names to dictionaries mapping parts to treatment groups.
-        """
-        if variable is not None:
-            return self.stats.xstats[variable].groups_by_parts
-        else:
-            return {xname: xstats.groups_by_parts for xname, xstats in self.stats.xstats.items()}
-
-
-    def get_target_frequencies(self, variable: str) -> pandas.DataFrame:
-        """Get the frequencies N_ijt for a variable.
-
-        Parameters
-        ----------
-        variable: str
-            The variable name.
-
-        Returns
-        -------
-        pandas.DataFrame
-            The frequency table for the variable.
-        """
-        return self.stats.xstats[variable].varstats.nijt
-
-
-    def get_target_probabilities(self, variable):
-        """Get the probabilities P_ijt for a variable.
-
-        Parameters
-        ----------
-        variable: str
-            The variable name.
-
-        Returns
-        -------
-        pandas.DataFrame
-            The probability table for the variable.
-        """
-        frequencies = self.get_target_frequencies(variable)
-        def probabilities(iindex: int, i: Part, jtindex: int, jt: str) -> float:
-            j, t = split_jt(jt)
-            return frequencies[i][jt] / (frequencies[i][jt] + frequencies[i][join_jt(self._other_target_modality(j), t)])
-        return build_table_by_cell(self.stats.xstats[variable].varstats.parts, self.stats.generalstats.jts, probabilities)
-
-
-    def get_target_probabilities_of_treatment_groups(self, variable):
-        """Get the probabilities P_ijg for a variable.
-
-        Parameters
-        ----------
-        variable: str
-            The variable name.
-
-        Returns
-        -------
-        pandas.DataFrame
-            The probability table for the variable.
-        """
-        frequencies = self.get_target_frequencies(variable)
-        def frequencies_of_group(i, j, t):
-            return sum(frequencies[i][f"{j}|{current_t}"] for current_t in self.stats.xstats[variable].groups_by_treatments_by_parts[i][t].values)
-        def probabilities_of_group(iindex: int, i: Part, jtindex: int, jt: str) -> float:
-            j, t = split_jt(jt)
-            target_frequencies_of_group = frequencies_of_group(i, j, t)
-            return target_frequencies_of_group / (target_frequencies_of_group + frequencies_of_group(i, self._other_target_modality(j), t))
-        return build_table_by_cell(self.stats.xstats[variable].varstats.parts, self.stats.generalstats.jts, probabilities_of_group)
-
-
-    def get_uplift(self, successvalue, reftreatment, variable):
-        """Get the uplift Uplift_it for a variable.
-
-        Parameters
-        ----------
-        successvalue
-            The success value of the target.
-        reftreatment
-            The reference treatment to which all the other treatments are compared.
-        variable: str
-            The name of the variable.
-
-        Returns
-        -------
-        pandas.DataFrame
-            The uplift table for the variable.
-        """
-        xprobs = self.get_target_probabilities(variable)
-        return build_table_by_cell(
-            self.stats.xstats[variable].varstats.parts, self.stats.generalstats.ts,
-            lambda iindex, i, tindex, t: xprobs[i][join_jt(successvalue, t)] - xprobs[i][join_jt(successvalue, reftreatment)]
-        )
-
-
-    def get_uplift_of_treatment_groups(self, successvalue, reftreatment, variable):
-        """Get the uplift Uplift_ig for a variable.
-
-        Parameters
-        ----------
-        successvalue
-            The success value of the target.
-        reftreatment
-            The reference treatment to which all the other treatments are compared.
-        variable: str
-            The name of the variable.
-
-        Returns
-        -------
-        pandas.DataFrame
-            The uplift table for the variable.
-        """
-        xprobs = self.get_target_probabilities_of_treatment_groups(variable)
-        return build_table_by_cell(
-            self.stats.xstats[variable].varstats.parts, self.stats.generalstats.ts,
-            lambda iindex, i, tindex, t: xprobs[i][join_jt(successvalue, t)] - xprobs[i][join_jt(successvalue, reftreatment)]
-        )
-    
-
-    def _other_target_modality(self, target_modality):
-        return next(current_target_modality for current_target_modality in self.target_modalities if current_target_modality != target_modality)
-
-
-@dataclass(frozen=True)
-class DimensionConstraint:
-    type: str | None
-    partition_type: str | None
-    def validate(self, dimension: khiops.core.analysis_results.DataGridDimension):
-        if self.type is not None:
-            if dimension.type != self.type:
-                raise RuntimeError("type {!r} of variable {!r} does not match expected type {!r}".format(
-                    dimension.type, dimension.variable, self.type))
-        if self.partition_type is not None:
-            if dimension.partition_type != self.partition_type:
-                raise RuntimeError("partition type {!r} of variable {!r} does not match expected partition type {!r}".format(
-                    dimension.partition_type, dimension.variable, self.partition_type))
-
-
-def find_dimensions(variables: typing.Collection[str] | typing.Mapping[str, DimensionConstraint], dimensions: typing.Iterable[khiops.core.analysis_results.DataGridDimension]):
-    """Find specific dimensions in a dimension list.
-
-    Parameters
-    ----------
-    variables: mapping or non-mapping collection
-        If it is a non-mapping collection, it contains the names of the variables.
-        If it is a mapping collection, it maps the names of the variables to dimension constraints.
-        The dimension contraint may be `None` to indicate that there is no constraint attached to a variable.
-
-    dimensions: iterable of `khiops.core.analysis_results.DataGridDimension` items
-        The dimensions.
-
-    Returns
-    -------
-    dict
-        A dictionary mapping the names of the variables to the dimensions found.
-    """
-    result_dims = {}
-    varstofind = set(variables)
-    for dim in dimensions:
-        if not varstofind:
-            break
-        for var in varstofind.copy():
-            if dim.variable == var:
-                if isinstance(variables, collections.abc.Mapping) and (varconstraint := variables.get(var)) is not None:
-                    if not isinstance(varconstraint, DimensionConstraint):
-                        varconstraint = DimensionConstraint(*varconstraint)
-                    varconstraint.validate(dim)
-                result_dims[var] = dim
-                varstofind.remove(var)
-    if varstofind:
-        raise RuntimeError("did not find the expected dimensions: {!r}".format(varstofind))
-    return result_dims
-
-
-def dtype_to_vartype(dtype: numpy.dtype | pandas.core.dtypes.base.ExtensionDtype) -> VarType:
-    if dtype in [numpy.dtypes.StrDType | numpy.dtypes.StringDType | numpy.dtypes.ObjectDType]:
-        return "Categorical"
-    if isinstance(dtype, (pandas.StringDtype, pandas.CategoricalDtype)):
-        return "Categorical"
-    return "Numerical"
-
-
-def vartypes_by_name_from_dataframe(data: pandas.DataFrame) -> dict[str, VarType]:
-    """Get variable names and types.
-
-    Parameters
-    ----------
-    data: pandas.DataFrame
-        The dataframe in which one column contains the data for one variable.
-
-    Returns
-    -------
-    dict mapping str to VarType
-        A dictionary mapping the variable names to the variable types.
-        The order of the variables is the same in the dictionary keys as in the dataframe columns.
-    """
-    return {name: dtype_to_vartype(dtype) for name, dtype in zip(data.columns, data.dtypes)}
-
-
-def stats_from_analysis_report(report: khiops.core.PreparationReport, datasetinfo: DatasetInfo, jtname: str):
-    """Extract stats from a Khiops analysis report.
-
-    Parameters
-    ----------
-    report: khiops.core.PreparationReport
-        The analysis report.
-    datasetinfo: DatasetInfo
-        Information about the dataset.
-    jt: str
-        The name of the variable that concatenates the target and the treatment together.
-
-    Returns
-    -------
-    Stats
-        The statistics.
-    """
-    jname = datasetinfo.jname
-    jdim = find_dimensions({jname: DimensionConstraint("Categorical", "Value groups")}, report.get_variable_statistics(jname).data_grid.dimensions)[jname]
-    js = list(chain.from_iterable(jpart.values for jpart in jdim.partition))
-    tname = datasetinfo.tname
-    tdim, jtdim = itemgetter(tname, jtname)(find_dimensions(
-        {tname: DimensionConstraint("Categorical", "Value groups"), jtname: DimensionConstraint("Categorical", "Values")},
-        report.get_variable_statistics(tname).data_grid.dimensions))
-    ts = list(chain.from_iterable(tpart.values for tpart in tdim.partition))
-    jts = [part.value for part in jtdim.partition]
-    xnames, informative_xnames, noninformative_xnames = [], [], []
-    xstats = {}
-    for varname in report.get_variable_names():
-        if varname in [tname, jname]:
-            continue  # Skip treatment and target variables.
-        xname = varname
-        xnames.append(xname)
-        stats = report.get_variable_statistics(xname)
-        is_not_informative = stats.level == 0
-        if is_not_informative:
-            xstats[xname] = VarStats(False, stats.level, [], None)
-            noninformative_xnames.append(xname)
-            continue
-        informative_xnames.append(xname)
-        xdim = find_dimensions([xname], stats.data_grid.dimensions)[xname]
-        is_, xfreqs = merge_missing_into_first_interval(xdim.partition, stats.data_grid.part_target_frequencies)
-        xstats[xname] = VarStats(True, stats.level, is_, build_table_by_column(is_, jts, lambda iindex, _: xfreqs[iindex]))
-    return Stats(GeneralStats(js, ts, jts, informative_xnames, noninformative_xnames), xstats)
-
-
-def merge_missing_into_first_interval(parts: list[Part], xfreqs: list[list[int]]) -> list[list[int]]:
-    if parts[0].part_type() == "Interval" and parts[0].is_missing and len(parts) > 1:
-        return parts[1:], [list(map(add, xfreqs[0], xfreqs[1])), *xfreqs[2:]]
-    else:
-        return parts, xfreqs
-
-
-def compute_stats(dataset: pandas.DataFrame, datasetinfo: DatasetInfo, fileoutput: FileOutput, maxparts: int | None = None) -> tuple[Stats, UpliftDictionary]:
+def compute_stats(dataset: pandas.DataFrame, datasetinfo: DatasetInfo, fileoutput: FileOutput, maxparts: int | None = None) -> tuple[Stats, Dictionary]:
     logger.info("Computing stats with %r...", datasetinfo)
 
     logger.debug("Writing to data file...")
@@ -758,7 +148,7 @@ def compute_stats(dataset: pandas.DataFrame, datasetinfo: DatasetInfo, fileoutpu
     return stats, upliftdict
 
 
-def group_treatments_for_variable(variable: str, datasetinfo: DatasetInfo, stats: Stats, upliftdict: UpliftDictionary, fileoutput: FileOutput, maxtreatmentgroups: int | None = None) -> VarStatsWithGroups:
+def group_treatments_for_variable(variable: str, datasetinfo: DatasetInfo, stats: Stats, upliftdict: Dictionary, fileoutput: FileOutput, maxtreatmentgroups: int | None = None) -> VarStatsWithGroups:
     """Create groups of treatments for a variable.
 
     Create groups of treatments so that all treatments in each group give similar outcomes given the same values of the specified variable.
@@ -771,7 +161,7 @@ def group_treatments_for_variable(variable: str, datasetinfo: DatasetInfo, stats
         Information about the dataset.
     stats: Stats
         The statistics computed with `compute_stats`.
-    upliftdict: UpliftDictionary
+    upliftdict: Dictionary
         The dictionary created with `compute_stats`.
     fileoutput: FileOutput
         Paths to output files.
@@ -784,10 +174,10 @@ def group_treatments_for_variable(variable: str, datasetinfo: DatasetInfo, stats
         Variable statistics augmented with treatment groups.
     """
     xname = variable
-    xstats = stats.xstats[xname]
+    xstats = stats.model[xname]
     if not xstats.is_informative:
         logger.info("Variable %r is not informative -> skipped treatment grouping.", xname)
-        return VarStatsWithGroups(xstats, {}, {})
+        return VarStatsWithGroups(xstats.is_informative, xstats.level, xstats.parts, xstats.nijt, {}, {})
     logger.info("Grouping treatments for variable %r...", xname)
 
     selectionvarname = add_selectionvar_to_khiops_dict(upliftdict.dict, xname, xstats.parts)
@@ -815,14 +205,14 @@ def group_treatments_for_variable(variable: str, datasetinfo: DatasetInfo, stats
         logger.debug("Level of treatment %r is %f%s.", datasetinfo.tname, group_results.level, " -> put all treatments into the same group" if group_results.level == 0 else "")
 
         if group_results.level == 0:  # ==> Put all treatments into the same group.
-            group = khiops.core.PartValueGroup(stats.generalstats.ts)
+            group = khiops.core.PartValueGroup(stats.ts)
             group.is_default_part = True
             groups_by_parts[part] = [group]
-            groups_by_treatments_by_parts[part] = {t: groups_by_parts[part][0] for t in stats.generalstats.ts}
+            groups_by_treatments_by_parts[part] = {t: groups_by_parts[part][0] for t in stats.ts}
         else:
             groups = group_results.data_grid.dimensions[0].partition
             logger.debug("Groups before fix: %s.", ", ".join(str(grp) for grp in groups))
-            fix_valuegroups(groups, stats.generalstats.ts)
+            fix_valuegroups(groups, stats.ts)
             logger.debug("Groups after fix: %s.", ", ".join(str(grp) for grp in groups))
             groups_by_parts[part] = groups
             groups_by_treatments_by_parts[part] = {t: group for group in groups for t in group.values}
@@ -832,33 +222,18 @@ def group_treatments_for_variable(variable: str, datasetinfo: DatasetInfo, stats
 
     logger.info("Done grouping treatments for variable %r.", xname)
 
-    return VarStatsWithGroups(xstats, groups_by_parts, groups_by_treatments_by_parts)
+    return VarStatsWithGroups(xstats.is_informative, xstats.level, xstats.parts, xstats.nijt, groups_by_parts, groups_by_treatments_by_parts)
 
 
-def fix_valuegroups(valuegroups: list[khiops.core.PartValueGroup], all_values: typing.Iterable[str]) -> None:
-    unvisited_values = set(all_values)
-    default_valuegroup = None
-    for valuegroup in valuegroups:
-        unvisited_values.difference_update(valuegroup.values)
-        if valuegroup.is_default_part:
-            default_valuegroup = valuegroup
-    if unvisited_values:
-        if default_valuegroup is None:
-            new_default_valuegroup = khiops.core.PartValueGroup(sorted(list(unvisited_values)))
-            new_default_valuegroup.is_default_part = True
-            valuegroups.append(new_default_valuegroup)
-        else:
-            default_valuegroup.values.extend(unvisited_values)
-            default_valuegroup.values.sort()
-
-
-def build_khiops_dict_from_dataset_file(dictfilepath: Path | str, datasetfilepath: Path | str, datasetinfo: DatasetInfo) -> UpliftDictionary:
+def build_khiops_dict_from_dataset_file(dictfilepath: Path | str, datasetfilepath: Path | str, datasetinfo: DatasetInfo) -> Dictionary:
     """Build a Khiops dictionary from a dataset file.
 
     1. Read a dataset file.
     2. Create a dictionary file from the dataset.
     3. Read the dictionary file. This actually returns a dictionary domain.
     4. Get the dictionary from the dictionary domain.
+    5. Fix the types of the variables in the dictionary.
+    6. Add a j|t calculated variable in the dictionary.
 
     Parameters
     ----------
@@ -870,7 +245,7 @@ def build_khiops_dict_from_dataset_file(dictfilepath: Path | str, datasetfilepat
 
     Returns
     -------
-    UpliftDictionary
+    Dictionary
         A dictionary built from the dataset file.
     """
     logger.debug("Creating dictionary file from dataset file...")
@@ -889,7 +264,7 @@ def build_khiops_dict_from_dataset_file(dictfilepath: Path | str, datasetfilepat
     dictionary = domain.get_dictionary(DICTNAME)
     fix_vartypes_in_khiops_dict(dictionary, datasetinfo)
     jtname = add_jtvar_to_khiops_dict(dictionary, datasetinfo)
-    return UpliftDictionary(domain, dictionary, jtname)
+    return Dictionary(domain, dictionary, jtname)
 
 
 def fix_vartypes_in_khiops_dict(dictionary: khiops.core.Dictionary, datasetinfo: DatasetInfo) -> None:
