@@ -6,6 +6,8 @@ All notable changes to this project will be documented in this file.
 
 - Add kuplift.MultiTreatmentUnivariateEncoding
 - Set minimal Python version to 3.10 because of khiops v11
+- Add kuplift.MultiTreatmentDecisionTree
+- Add kuplift.MultiTreatmentRandomForest
 
 ## [0.0.16] - 2026-03-25
 
