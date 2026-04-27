@@ -47,5 +47,5 @@ if __name__ == "__main__":
         print(ue.get_uplift(TARGET1, REF_TREATMENT, var))
         print("Target probabilities with groups:")
         print(ue.get_target_probabilities_of_treatment_groups(var))
-        print("Uplift with groups.")
+        print("Uplift with groups:")
         print(ue.get_uplift_of_treatment_groups(TARGET1, REF_TREATMENT, var))

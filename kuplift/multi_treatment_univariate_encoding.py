@@ -263,6 +263,7 @@ def build_khiops_dict_from_dataset_file(dictfilepath: Path | str, datasetfilepat
     logger.debug("Done reading.")
     dictionary = domain.get_dictionary(DICTNAME)
     fix_vartypes_in_khiops_dict(dictionary, datasetinfo)
+    check_vartypes_in_khiops_dict(dictionary, datasetinfo)
     jtname = add_jtvar_to_khiops_dict(dictionary, datasetinfo)
     return Dictionary(domain, dictionary, jtname)
 
@@ -277,6 +278,15 @@ def fix_vartypes_in_khiops_dict(dictionary: khiops.core.Dictionary, datasetinfo:
         warnings.warn("Target variable not detected as categorical; fixing...")
         dictionary.get_variable(datasetinfo.jname).type = "Categorical"
     logger.debug("Done fixing variable types.")
+
+
+def check_vartypes_in_khiops_dict(dictionary: khiops.core.Dictionary, datasetinfo: DatasetInfo) -> None:
+    """Check that all input variables are either numerical or categorical."""
+    for x in datasetinfo.xs:
+        vartype = dictionary.get_variable(x).type
+        logger.debug("Type of input variable %r is %r.", x, vartype)
+        if vartype not in ["Numerical", "Categorical"]:
+            raise ValueError("unsupported variable type {}".format(vartype))
 
 
 def add_jtvar_to_khiops_dict(dictionary: khiops.core.Dictionary, datasetinfo: DatasetInfo) -> str:
