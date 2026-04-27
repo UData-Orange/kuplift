@@ -31,7 +31,7 @@ class MultiTreatmentUnivariateEncoding(UnivariateEncodingWithGroupsBase):
     and enables one to fit and transform data while grouping treatments giving similar
     outcome.
     """
-    def fit(self, data, treatment_col, target_col, maxparts = None, maxtreatmentgroups = None, outputdir = None) -> None:
+    def fit(self, data: pandas.DataFrame, treatment_col: pandas.Series, target_col: pandas.Series, maxparts: int | None = None, maxtreatmentgroups: int | None = None, outputdir: Path | str | None = None) -> None:
         """Learn a discretization model using Khiops.
 
         Parameters
