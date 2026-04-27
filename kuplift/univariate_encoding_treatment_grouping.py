@@ -1,17 +1,9 @@
 import collections.abc
 import pandas
-from .treatment_grouping import ModelWithGroups, TreatmentGroups
+from .treatment_grouping import ModelWithGroups, TreatmentGroups, get_treatment_groups_of_var, get_treatment_groups
 from .univariate_encoding_base import get_target_frequencies_of_var, get_other_target_modality, get_partition_of_var, UnivariateEncodingBase
 from .utils import split_jt, join_jt, probabilities, build_table_by_cell
 from .typealiases import Part
-
-
-def get_treatment_groups_of_var(model: ModelWithGroups, variable: str) -> dict[Part, TreatmentGroups]:
-    return model[variable].groups_by_parts
-
-
-def get_treatment_groups(model: ModelWithGroups) -> dict[str, dict[Part, TreatmentGroups]]:
-    return {varname: varstats.groups_by_parts for varname, varstats in model.items()}
 
 
 def get_target_probabilities_of_var_with_treatment_groups(model: ModelWithGroups, variable: str, target_modalities: tuple[str, str], jts: collections.abc.Sequence[str]) -> pandas.DataFrame:
@@ -32,7 +24,7 @@ def get_uplift_of_var_with_treatment_groups(model: ModelWithGroups, variable: st
 
 
 class UnivariateEncodingWithGroupsBase(UnivariateEncodingBase):
-    def get_treatment_groups(self, variable: str | None = None) -> dict[Part, TreatmentGroups] | dict[str, dict[Part, TreatmentGroups]]:
+    def get_treatment_groups(self, variable: str | None = None) -> dict[Part, tuple[tuple[str]]] | dict[str, dict[Part, tuple[tuple[str]]]]:
         """Get the groups of treatments for one or all variables.
 
         Parameters
@@ -44,12 +36,19 @@ class UnivariateEncodingWithGroupsBase(UnivariateEncodingBase):
         -------
         If `variable` is None, returns a dict mapping variable names to dictionaries mapping parts to treatment groups.
         If `variable` is not None, returns a dict mapping parts to treatment groups.
+        Treatment groups are in a tuple containing tuples of strings which are the treatment names.
         """
         self._check_fit_performed()
         if variable is None:
-            return get_treatment_groups(self._model)
+            return {
+                var: {
+                    part: tuple(tuple(group.values) for group in groups)
+                    for part, groups in groups_by_part.items()
+                }
+                for var, groups_by_part in get_treatment_groups(self._model).items()
+            }
         else:
-            return get_treatment_groups_of_var(self._model, variable)
+            return {part: tuple(tuple(group.values) for group in groups) for part, groups in get_treatment_groups_of_var(self._model, variable).items()}
         
 
     def get_target_probabilities_of_treatment_groups(self, variable):
