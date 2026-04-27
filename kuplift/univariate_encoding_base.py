@@ -3,11 +3,19 @@ import collections.abc
 import pandas
 from .preparation_report import Model, Stats
 from .utils import transform_variable, split_jt, join_jt, probabilities, build_table_by_cell
-from .typealiases import Partition
+from .typealiases import Partition, VarType
 
 
 def transform(model: Model, data: pandas.DataFrame, variables_to_transform: list) -> pandas.DataFrame:
     return data[variables_to_transform].transform(lambda column: transform_variable(model[column.name].parts, column))
+
+
+def get_variable_types(model: Model) -> dict[str, VarType]:
+    return {varname: varstats.type for varname, varstats in model.items()}
+
+
+def get_variable_type(model: Model, variable) -> VarType:
+    return model[variable].type
 
 
 def get_level_of_var(model: Model, variable: str) -> float:
@@ -197,6 +205,14 @@ class UnivariateEncodingBase(ABC):
         """
         self._check_fit_performed()
         return transform(self._model, data, self.informative_input_variables)
+    
+
+    def get_variable_types(self) -> dict[str, VarType]:
+        return get_variable_types(self._model)
+
+
+    def get_variable_type(self, variable) -> VarType:
+        return get_variable_type(self._model, variable)
 
 
     def get_levels(self):
@@ -209,6 +225,7 @@ class UnivariateEncodingBase(ABC):
         """
         self._check_fit_performed()
         return get_levels(self._model)
+
 
     def get_level(self, variable):
         """Get the level of a single variable.

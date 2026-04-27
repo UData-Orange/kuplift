@@ -5,7 +5,7 @@ from itertools import chain
 from operator import itemgetter, add
 import pandas
 import khiops.core
-from .typealiases import Part
+from .typealiases import Part, VarType
 from .utils import DatasetInfo, build_table_by_row
 
 
@@ -15,6 +15,8 @@ class VarStats:
 
     Attributes
     ----------
+    type: VarType
+        The type of the variable.
     is_informative: bool
         `True` if the variable is informative, `False` otherwise.
 
@@ -27,6 +29,7 @@ class VarStats:
     nijt: pandas.DataFrame | None
         A DataFrame that is the N_ijt table of the variable if it is informative, `None` otherwise.
     """
+    type: VarType
     is_informative: bool
     level: float
     parts: list[Part]
@@ -115,13 +118,13 @@ def stats_from_analysis_report(report: khiops.core.PreparationReport, datasetinf
         stats = report.get_variable_statistics(xname)
         is_not_informative = stats.level == 0
         if is_not_informative:
-            xstats[xname] = VarStats(False, stats.level, [], None)
+            xstats[xname] = VarStats(stats.type, False, stats.level, [], None)
             noninformative_xnames.append(xname)
             continue
         informative_xnames.append(xname)
         xdim = find_dimensions([xname], stats.data_grid.dimensions)[xname]
         is_, xfreqs = merge_missing_into_first_interval(xdim.partition, stats.data_grid.part_target_frequencies)
-        xstats[xname] = VarStats(True, stats.level, is_, build_table_by_row(is_, jts, lambda iindex, _: xfreqs[iindex]))
+        xstats[xname] = VarStats(stats.type, True, stats.level, is_, build_table_by_row(is_, jts, lambda iindex, _: xfreqs[iindex]))
     return Stats(js, ts, jts, informative_xnames, noninformative_xnames, xstats)
 
 

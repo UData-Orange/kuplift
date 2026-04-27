@@ -177,7 +177,7 @@ def group_treatments_for_variable(variable: str, datasetinfo: DatasetInfo, stats
     xstats = stats.model[xname]
     if not xstats.is_informative:
         logger.info("Variable %r is not informative -> skipped treatment grouping.", xname)
-        return VarStatsWithGroups(xstats.is_informative, xstats.level, xstats.parts, xstats.nijt, {}, {})
+        return VarStatsWithGroups(xstats.type, xstats.is_informative, xstats.level, xstats.parts, xstats.nijt, {}, {})
     logger.info("Grouping treatments for variable %r...", xname)
 
     selectionvarname = add_selectionvar_to_khiops_dict(upliftdict.dict, xname, xstats.parts)
@@ -222,7 +222,7 @@ def group_treatments_for_variable(variable: str, datasetinfo: DatasetInfo, stats
 
     logger.info("Done grouping treatments for variable %r.", xname)
 
-    return VarStatsWithGroups(xstats.is_informative, xstats.level, xstats.parts, xstats.nijt, groups_by_parts, groups_by_treatments_by_parts)
+    return VarStatsWithGroups(xstats.type, xstats.is_informative, xstats.level, xstats.parts, xstats.nijt, groups_by_parts, groups_by_treatments_by_parts)
 
 
 def build_khiops_dict_from_dataset_file(dictfilepath: Path | str, datasetfilepath: Path | str, datasetinfo: DatasetInfo) -> Dictionary:
