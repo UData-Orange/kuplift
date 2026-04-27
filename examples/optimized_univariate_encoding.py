@@ -1,5 +1,5 @@
 from kuplift import *
-import pandas as pd
+import pandas
 import logging
 
 
@@ -14,10 +14,11 @@ REF_TREATMENT = "T0"
 
 if __name__ == "__main__":
     logging.basicConfig(level=LOGLEVEL)
-    df = pd.read_csv(DATASET_PATH)
+    df = pandas.read_csv(DATASET_PATH).astype({"VAR2": object})
     ue = OptimizedUnivariateEncoding()
     ue.fit(df[df.columns[:-2]], df[TREATMENT_NAME], df[TARGET_NAME])
 
+    print("Variable types:", ue.get_variable_types())
     print("Input variables:", ue.input_variables)
     print("Informative input variables:", ue.informative_input_variables)
     print("Non-informative input variables:", ue.noninformative_input_variables)
@@ -33,6 +34,7 @@ if __name__ == "__main__":
     
     for var in ue.informative_input_variables:
         print("\n[Details of variable {!r}]".format(var))
+        print("Type: {!r}".format(ue.get_variable_type(var)))
         print("Level:", ue.get_level(var))
         print("Partition:", ", ".join(map(str, ue.get_partition(var))))
         for part, groups in ue.get_treatment_groups(var).items():

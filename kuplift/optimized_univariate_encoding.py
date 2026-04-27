@@ -20,6 +20,7 @@ import json
 from typing import Union
 from itertools import starmap
 import khiops.sklearn.dataset
+import khiops.core
 import pandas as pd
 from umodl import run_umodl
 from .helperclasses import ValGrp, ValGrpPartition, Interval, IntervalPartition, TargetTreatmentPair
@@ -181,7 +182,13 @@ class OptimizedUnivariateEncoding:
             dataset = khiops.sklearn.dataset.Dataset(data.join([treatment_col, target_col]))
 
             txtfilename, _ = dataset.create_table_files_for_khiops(dirname)  # Create .txt file
-            dataset.create_khiops_dictionary_domain().export_khiops_dictionary_file(kdicfilename)  # Create .kdic file
+            dictionary_domain = dataset.create_khiops_dictionary_domain()
+            dictionary: khiops.core.Dictionary = dictionary_domain.dictionaries[0]
+            variables: list[khiops.core.Variable] = dictionary.variables
+            variable_types = {
+                variable.name: variable.type for variable in variables if variable.name not in [treatment_col.name, target_col.name]
+            }
+            dictionary_domain.export_khiops_dictionary_file(kdicfilename)  # Create .kdic file
             run_umodl(txtfilename, kdicfilename, "main_table", treatment_col.name, target_col.name, maxparts)
 
             txtfilepath = pathlib.Path(txtfilename)
@@ -211,6 +218,7 @@ class OptimizedUnivariateEncoding:
         self.variable_cols = data
         self.treatment_col = treatment_col
         self.target_col = target_col
+        self.variable_types = variable_types
         self.treatment_groups = treatment_groups
 
 
@@ -230,6 +238,14 @@ class OptimizedUnivariateEncoding:
         data = data[list(self.model.keys())]  # Keep only informative variables
         self.transformed_data = data.transform(lambda col: self.model[col.name].transform(col))
         return self.transformed_data
+    
+    def get_variable_types(self):
+        """Get the types of all input variables as a mapping from variable names to variable types."""
+        return self.variable_types
+    
+    def get_variable_type(self, variable):
+        """Get the type of an input variable."""
+        return self.variable_types[variable]
     
     def get_levels(self):
         """Get the level of all variables.
