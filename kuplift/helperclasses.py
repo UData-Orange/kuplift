@@ -97,7 +97,7 @@ class Interval(Part):
         return "Interval({}, {})".format(self.lower, self.upper)
     
     def __str__(self):
-        return "[]" if self.catches_missing else f"[{self.lower}, {self.upper}["
+        return "[]" if self.catches_missing else f"]{self.lower}, {self.upper}]"
     
     def __contains__(self, x):
         return not self.catches_missing and (self.lower < x <= self.upper)
