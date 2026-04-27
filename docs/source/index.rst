@@ -39,13 +39,13 @@ Explanation of the example names:
 
 - **N_ijt**:
   Each value in the table is a number of observations.
-  One DataFrame column contains the values for one part (*i*).
-  One DataFrame row contains the values for one target-treatment pair (*jt*).
+  One DataFrame row contains the values for one part (*i*).
+  One DataFrame column contains the values for one target-treatment pair (*jt*).
 - **P_ijg**:
   Each value in the table is a probability.
-  One DataFrame column contains the values for one part (*i*).
-  One DataFrame row contains the values for one target-treatmentgroup pair (*jg*).
+  One DataFrame row contains the values for one part (*i*).
+  One DataFrame column contains the values for one target-treatmentgroup pair (*jg*).
 - **Uplift_ig**:
   Each value in the table is an uplift.
-  One DataFrame column contains the values for one part (*i*).
-  One DataFrame row contains the values for one treatment group (*g*).
+  One DataFrame row contains the values for one part (*i*).
+  One DataFrame column contains the values for one treatment group (*g*).
