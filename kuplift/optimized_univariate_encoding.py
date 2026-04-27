@@ -108,7 +108,7 @@ class OptimizedUnivariateEncoding:
         
         All the different treatments from the dataset.
         """
-        return list(self.treatment_col.unique())
+        return sorted(self.treatment_col.unique())
     
     @property
     def target_modalities(self):
@@ -116,7 +116,7 @@ class OptimizedUnivariateEncoding:
         
         All the different targets from the dataset.
         """
-        return list(self.target_col.unique())
+        return sorted(self.target_col.unique())
     
     @property
     def target_treatment_pairs(self):
