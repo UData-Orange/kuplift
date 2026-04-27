@@ -123,8 +123,9 @@ class IntervalPartition(Partition):
         if intervals[0].catches_missing:
             if len(intervals) == 1:
                 raise ValueError("there must be at least one \"non-MISSING\" interval")
-            intervals = intervals[1:]
-        intervals[0] = Interval(-math.inf, intervals[0].upper)
+            intervals[1] = Interval(-math.inf, intervals[1].upper)
+        else:
+            intervals[0] = Interval(-math.inf, intervals[0].upper)
         intervals[-1] = Interval(intervals[-1].lower, +math.inf)
         self.intervals = intervals
 
