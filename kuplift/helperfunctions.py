@@ -189,11 +189,11 @@ def preprocess_data(data, treatment_col="segment", y_col="visit"):
 
             if (t1j1 + t1j0) == 0:
                 uplift_in_this_slice = -1
-            elif (t0j1 + t0j1) == 0:
+            elif (t0j1 + t0j0) == 0:
                 uplift_in_this_slice = 0
             else:
                 uplift_in_this_slice = (t1j1 / (t1j1 + t1j0)) - (
-                    t0j1 / (t0j1 + t0j1)
+                    t0j1 / (t0j1 + t0j0)
                 )
             dict_val_vs_uplift[val] = uplift_in_this_slice
         ordered_dict = {
