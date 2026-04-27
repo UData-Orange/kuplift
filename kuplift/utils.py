@@ -1,11 +1,9 @@
 from dataclasses import dataclass
 import collections.abc
 from math import isnan
-import numpy
 import pandas
-import pandas.core.dtypes.base
 import khiops.core
-from .typealiases import VarType, Partition, NumVarPartition, CatVarPartition
+from .typealiases import Partition, NumVarPartition, CatVarPartition
 
 
 def build_table_by_cell(columns: collections.abc.Sequence, rows: collections.abc.Sequence, func: collections.abc.Callable) -> pandas.DataFrame:
@@ -26,19 +24,15 @@ class DatasetInfo:
         The name of the target/outcome variable.
     tname: str
         The name of the treatment variable.
-    xs: dict mapping str to VarType
-        Dictionary mapping variable names to variable types.
+    xs: list of str
+        The input variable names.
     size: int
         The number of observations.
     """
     jname: str
     tname: str
-    xs: dict[str, VarType]
+    xs: list[str]
     size: int
-
-    @property
-    def categorical_xs(self) -> list[str]:
-        return [varname for varname, vartype in self.xs.items() if vartype == "Categorical"]
     
 
 @dataclass(frozen=True)
@@ -107,31 +101,6 @@ def split_jt(jt: str) -> tuple[str, str]:
 def join_jt(j: str, t: str) -> str:
     """Get j|t from j and t."""
     return "{}|{}".format(j, t)
-
-
-def dtype_to_vartype(dtype: numpy.dtype | pandas.core.dtypes.base.ExtensionDtype) -> VarType:
-    if dtype in [numpy.dtypes.StrDType | numpy.dtypes.StringDType | numpy.dtypes.ObjectDType]:
-        return "Categorical"
-    if isinstance(dtype, (pandas.StringDtype, pandas.CategoricalDtype)):
-        return "Categorical"
-    return "Numerical"
-
-
-def vartypes_by_name_from_dataframe(data: pandas.DataFrame) -> dict[str, VarType]:
-    """Get variable names and types.
-
-    Parameters
-    ----------
-    data: pandas.DataFrame
-        The dataframe in which one column contains the data for one variable.
-
-    Returns
-    -------
-    dict mapping str to VarType
-        A dictionary mapping the variable names to the variable types.
-        The order of the variables is the same in the dictionary keys as in the dataframe columns.
-    """
-    return {name: dtype_to_vartype(dtype) for name, dtype in zip(data.columns, data.dtypes)}
 
 
 def fix_valuegroups(valuegroups: list[khiops.core.PartValueGroup], all_values: collections.abc.Iterable[str]) -> None:

@@ -17,7 +17,7 @@ from dataclasses import dataclass
 import warnings
 import khiops.core
 import pandas
-from .utils import DatasetInfo, Dictionary, vartypes_by_name_from_dataframe, fix_valuegroups
+from .utils import DatasetInfo, Dictionary, fix_valuegroups
 from .treatment_grouping import StatsWithGroups, VarStatsWithGroups
 from .preparation_report import Stats, stats_from_analysis_report
 from .univariate_encoding_treatment_grouping import UnivariateEncodingWithGroupsBase
@@ -61,7 +61,7 @@ class MultiTreatmentUnivariateEncoding(UnivariateEncodingWithGroupsBase):
         logger.info("%s", fileoutput)
 
         dataset = pandas.DataFrame(data).join([treatment_col, target_col])
-        datasetinfo = DatasetInfo(target_col.name, treatment_col.name, vartypes_by_name_from_dataframe(data), len(dataset))
+        datasetinfo = DatasetInfo(target_col.name, treatment_col.name, data.columns.to_list(), len(dataset))
 
         stats, upliftdict = compute_stats(dataset, datasetinfo, fileoutput, maxparts)
 
@@ -268,12 +268,14 @@ def build_khiops_dict_from_dataset_file(dictfilepath: Path | str, datasetfilepat
 
 
 def fix_vartypes_in_khiops_dict(dictionary: khiops.core.Dictionary, datasetinfo: DatasetInfo) -> None:
-    """Set the types of categorical variables, treatment variable and target variable to "Categorical"."""
+    """Set types of treatment and target variables to "Categorical"."""
     logger.debug("Fixing variable types in Khiops dictionary...")
-    for var in datasetinfo.categorical_xs:
-        dictionary.get_variable(var).type = "Categorical"
-    dictionary.get_variable(datasetinfo.tname).type = "Categorical"
-    dictionary.get_variable(datasetinfo.jname).type = "Categorical"
+    if dictionary.get_variable(datasetinfo.tname).type != "Categorical":
+        warnings.warn("Treatment variable not detected as categorical; fixing...")
+        dictionary.get_variable(datasetinfo.tname).type = "Categorical"
+    if dictionary.get_variable(datasetinfo.jname).type != "Categorical":
+        warnings.warn("Target variable not detected as categorical; fixing...")
+        dictionary.get_variable(datasetinfo.jname).type = "Categorical"
     logger.debug("Done fixing variable types.")
 
 
