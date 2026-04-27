@@ -6,12 +6,12 @@ import khiops.core
 from .typealiases import Partition, NumVarPartition, CatVarPartition
 
 
-def build_table_by_cell(columns: collections.abc.Sequence, rows: collections.abc.Sequence, func: collections.abc.Callable) -> pandas.DataFrame:
-    return pandas.DataFrame(index=rows, data={col: [func(colindex, col, rowindex, row) for rowindex, row in enumerate(rows)] for colindex, col in enumerate(columns)})
+def build_table_by_cell(rows: collections.abc.Sequence, columns: collections.abc.Sequence, func: collections.abc.Callable) -> pandas.DataFrame:
+    return pandas.DataFrame(index=rows, data={col: [func(rowindex, row, colindex, col) for rowindex, row in enumerate(rows)] for colindex, col in enumerate(columns)})
 
 
-def build_table_by_column(columns: collections.abc.Sequence, rows: collections.abc.Sequence, func: collections.abc.Callable) -> pandas.DataFrame:
-    return pandas.DataFrame(index=rows, data={col: func(colindex, col) for colindex, col in enumerate(columns)})
+def build_table_by_row(rows: collections.abc.Sequence, columns: collections.abc.Sequence, func: collections.abc.Callable) -> pandas.DataFrame:
+    return pandas.DataFrame(index=rows, columns=columns, data=(func(rowindex, row) for rowindex, row in enumerate(rows)))
 
 
 @dataclass(frozen=True)

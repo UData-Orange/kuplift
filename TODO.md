@@ -8,7 +8,7 @@ Multi-treatment univariate encoding
 - [x] Fix `transform`.
 - [x] `get_target_probabilities` must compute probabilities for all j|t.
 - [x] In *helperfunctions.py* -> `preprocess_data`: fix computations (`t0j1 + t0j1` -> `t0j1 + t0j0`).
-- [ ] Fix MultiTreatmentUnivariateEncoding output tables (transpose them).
+- [x] Fix MultiTreatmentUnivariateEncoding output tables (transpose them).
 - [ ] Fix behaviour when dataset is too small and all levels are 0.
 - [ ] Merge files (replace files + fix imports) after verification:
   - *bayesian_decision_tree_v2.py* into *bayesian_decision_tree.py*;

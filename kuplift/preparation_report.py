@@ -6,7 +6,7 @@ from operator import itemgetter, add
 import pandas
 import khiops.core
 from .typealiases import Part
-from .utils import DatasetInfo, build_table_by_column
+from .utils import DatasetInfo, build_table_by_row
 
 
 @dataclass(frozen=True)
@@ -121,7 +121,7 @@ def stats_from_analysis_report(report: khiops.core.PreparationReport, datasetinf
         informative_xnames.append(xname)
         xdim = find_dimensions([xname], stats.data_grid.dimensions)[xname]
         is_, xfreqs = merge_missing_into_first_interval(xdim.partition, stats.data_grid.part_target_frequencies)
-        xstats[xname] = VarStats(True, stats.level, is_, build_table_by_column(is_, jts, lambda iindex, _: xfreqs[iindex]))
+        xstats[xname] = VarStats(True, stats.level, is_, build_table_by_row(is_, jts, lambda iindex, _: xfreqs[iindex]))
     return Stats(js, ts, jts, informative_xnames, noninformative_xnames, xstats)
 
 

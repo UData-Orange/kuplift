@@ -17,7 +17,7 @@ def get_treatment_groups(model: ModelWithGroups) -> dict[str, dict[Part, Treatme
 def get_target_probabilities_of_var_with_treatment_groups(model: ModelWithGroups, variable: str, target_modalities: tuple[str, str], jts: collections.abc.Sequence[str]) -> pandas.DataFrame:
     frequencies = get_target_frequencies_of_var(model, variable)
     def get_frequencies_of_group(i, j, t):
-        return sum(frequencies[i][join_jt(j, treatment)] for treatment in model[variable].groups_by_treatments_by_parts[i][t].values)
+        return sum(frequencies[join_jt(j, treatment)][i] for treatment in model[variable].groups_by_treatments_by_parts[i][t].values)
     def cell(iindex, i, jtindex, jt):
         j, t = split_jt(jt)
         return probabilities(get_frequencies_of_group(i, j, t), get_frequencies_of_group(i, get_other_target_modality(target_modalities, j), t))
@@ -27,7 +27,7 @@ def get_target_probabilities_of_var_with_treatment_groups(model: ModelWithGroups
 def get_uplift_of_var_with_treatment_groups(model: ModelWithGroups, variable: str, target_modalities: tuple[str, str], ts: collections.abc.Sequence[str], jts: collections.abc.Sequence[str], successvalue: str, reftreatment: str) -> pandas.DataFrame:
     probabilities = get_target_probabilities_of_var_with_treatment_groups(model, variable, target_modalities, jts)
     def cell(iindex, i, tindex, t):
-        return probabilities[i][join_jt(successvalue, t)] - probabilities[i][join_jt(successvalue, reftreatment)]
+        return probabilities[join_jt(successvalue, t)][i] - probabilities[join_jt(successvalue, reftreatment)][i]
     return build_table_by_cell(get_partition_of_var(model, variable), ts, cell)
 
 
