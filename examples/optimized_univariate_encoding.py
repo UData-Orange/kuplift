@@ -27,11 +27,16 @@ if __name__ == "__main__":
     print("Targets:", ue.target_modalities)
     print("Target-treatment pairs:", ue.target_treatment_pairs)
     print("Input variable levels:", ue.get_levels())
+    for var, groups_by_parts in ue.get_treatment_groups().items():
+        for part, groups in groups_by_parts.items():
+            print("Treatment groups for variable {} and part {}: {}".format(var, part, groups))
     
     for var in ue.informative_input_variables:
         print("\n[Details of variable {!r}]".format(var))
         print("Level:", ue.get_level(var))
         print("Partition:", ", ".join(map(str, ue.get_partition(var))))
+        for part, groups in ue.get_treatment_groups(var).items():
+            print("Treatment groups for part {}: {}".format(part,  groups))
         print("Target frequencies:")
         print(ue.get_target_frequencies(var))
         print("Target probabilities:")

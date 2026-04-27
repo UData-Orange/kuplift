@@ -368,3 +368,32 @@ class OptimizedUnivariateEncoding:
             f"Uplift {reftarget} {treatment}": probs[TargetTreatmentPair(reftarget, treatment)] - refprobs
             for treatment in self.treatment_modalities if treatment != reftreatment
         }))
+
+
+    def get_treatment_groups(self, variable: str | None = None) -> dict[Interval | ValGrp, tuple[tuple[str]]] | dict[str, dict[Interval | ValGrp, tuple[tuple[str]]]]:
+        """Get the groups of treatments for one or all variables.
+
+        Parameters
+        ----------
+        variable: str | None
+            If set to None, get groups of all variables, otherwise get groups of specified variable.
+
+        Returns
+        -------
+        If `variable` is None, returns a dict mapping variable names to dictionaries mapping parts to treatment groups.
+        If `variable` is not None, returns a dict mapping parts to treatment groups.
+        Treatment groups are in a tuple containing tuples of strings which are the treatment names.
+        """
+        if variable is None:
+            return {
+                var: {
+                    part: (tuple(self.treatment_modalities),) if grouped else tuple((treatment,) for treatment in self.treatment_modalities)
+                    for part, grouped in groups_by_part.items()
+                }
+                for var, groups_by_part in self.treatment_groups.items()
+            }
+        else:
+            return {
+                part: (tuple(self.treatment_modalities),) if grouped else tuple((treatment,) for treatment in self.treatment_modalities)
+                for part, grouped in self.treatment_groups[variable].items()
+            }
