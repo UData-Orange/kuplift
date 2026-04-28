@@ -7,7 +7,6 @@ from itertools import count
 import string
 import random
 import khiops.core
-from .helperclasses import IntervalPartition, ValGrpPartition
 
 _log_fact_table = []
 

@@ -10,15 +10,6 @@ from kuplift.optimized_univariate_encoding import OptimizedUnivariateEncoding
 from kuplift.multi_treatment_univariate_encoding import MultiTreatmentUnivariateEncoding
 from kuplift.multi_treatment_decision_tree import MultiTreatmentDecisionTree
 from kuplift.multi_treatment_random_forest import MultiTreatmentRandomForest
-from kuplift.helperclasses import (
-    Partition,
-    ValGrp,
-    ValGrpPartition,
-    Interval,
-    IntervalPartition,
-    TargetTreatmentPair
-)
-from kuplift.helperfunctions import partition_to_rule
 
 __all__ = [
     "BayesianDecisionTree",
@@ -29,13 +20,4 @@ __all__ = [
     "MultiTreatmentUnivariateEncoding",
     "MultiTreatmentDecisionTree",
     "MultiTreatmentRandomForest",
-
-    "Partition",
-    "ValGrp",
-    "ValGrpPartition",
-    "Interval",
-    "IntervalPartition",
-    "TargetTreatmentPair",
-
-    "partition_to_rule",
 ]

@@ -62,7 +62,7 @@ def in_interval(value: float, interval: khiops.core.PartInterval) -> bool:
     )
 
 
-def transform_variable(parts: Partition, values: pandas.Series) -> int:
+def transform_variable(parts: Partition, values: pandas.Series) -> pandas.Series:
     if not parts:
         raise ValueError("No parts.")
     match parts[0].part_type():
@@ -74,16 +74,16 @@ def transform_variable(parts: Partition, values: pandas.Series) -> int:
             raise ValueError("Unsupported {!r} part type.".format(unsupported))
 
 
-def transform_numerical_variable(parts: NumVarPartition, values: pandas.Series) -> int:
+def transform_numerical_variable(parts: NumVarPartition, values: pandas.Series) -> pandas.Series:
     def transform_value(value):
         if not isinstance(value, (int, float)) or isnan(value):
             return 0
         else:
-            return next(interval_index for interval_index, interval in enumerate(parts) if in_interval(value, interval))
+            return next(interval_index for interval_index, interval in enumerate(parts) if not interval.is_missing and in_interval(value, interval))
     return values.transform(transform_value)
 
 
-def transform_categorical_variable(parts: CatVarPartition, values: pandas.Series) -> int:
+def transform_categorical_variable(parts: CatVarPartition, values: pandas.Series) -> pandas.Series:
     default_group_index = next(group_index for group_index, group in enumerate(parts) if group.is_default_part)
     def transform_value(value):
         for group_index, group in enumerate(parts):
