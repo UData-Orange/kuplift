@@ -26,6 +26,7 @@ NodeType = Literal["internal", "leaf"]
 
 @dataclass
 class Node:
+    id: str
     type: NodeType
     sample_size: int
     split_var: str | None = None
@@ -71,9 +72,9 @@ class Tree:
     def fit(self) -> None:
         raise NotImplementedError
 
-    def create_node(self, dataset: pandas.DataFrame) -> None:
+    def create_node(self, id: str, dataset: pandas.DataFrame) -> tuple[Node, pandas.DataFrame, pandas.DataFrame]:
         # Create the node object.
-        node = Node("leaf", sample_size=len(dataset))
+        node = Node(id, "leaf", sample_size=len(dataset))
         # Add the node to the tree's list of leaves.
         self._leaf_nodes.append(node)
         # Fit the dataset attached to this node.
@@ -82,6 +83,7 @@ class Tree:
         # Find the variables that decrease the cost of the tree.
         vars_decreasing_the_tree_cost = self._vars_decreasing_the_tree_cost()
         if not vars_decreasing_the_tree_cost:
+            logger.debug("The cost of the tree cannot be decreased any further. Stopping here for node {}.", node.id)
             # The cost of the tree cannot be decreased any further.
             raise NotImplementedError
         else:
@@ -101,8 +103,8 @@ class Tree:
                 self._internal_nodes.append(self._leaf_nodes.pop())
                 logger.debug("Splitting on variable %r of type %r gave two parts: %s and %s.", node.split_var, node.split_var_type, left_part, right_part)
                 # node.group_count = TO BE IMPLEMENTED -> clarify what is should be, as each part may have a different number of treatment groups
-                # Split the dataset according to the two parts.
-                left_subdataset, right_subdataset = split_dataset_of_node(node)
+                # Split the dataset according to the two parts and return the two subdatasets.
+                return split_dataset_of_node(node)
 
     def _choose_split_var(self, vars_to_choose_from: list[str]) -> str:
         match self._split_var_choice_algorithm:
