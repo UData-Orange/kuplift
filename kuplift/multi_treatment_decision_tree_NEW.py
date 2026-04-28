@@ -26,7 +26,6 @@ NodeType = Literal["internal", "leaf"]
 
 @dataclass
 class Node:
-    id: str
     type: NodeType
     sample_size: int
     split_var: str | None = None
@@ -35,6 +34,8 @@ class Node:
     group_count: int | None = None
     dataset: pandas.DataFrame | None = None
     encoder: Encoder | None = None
+    path: list[Part] | None = None
+    supernode: "Node" | None = None
     left_subnode: "Node" | None = None
     right_subnode: "Node" | None = None
 
@@ -70,11 +71,11 @@ class Tree:
     def treatment_modality_count(self) -> int: return len(self._treatment_modalities)
 
     def fit(self) -> None:
-        raise NotImplementedError
+        root, left, right = self.create_node(supernode=None, path=None, dataset=self._data.join([self._treatment_col, self._y_col]))
 
-    def create_node(self, id: str, dataset: pandas.DataFrame) -> tuple[Node, pandas.DataFrame | None, pandas.DataFrame | None]:
+    def create_node(self, supernode: Node | None, path: list[str], dataset: pandas.DataFrame) -> tuple[Node, pandas.DataFrame | None, pandas.DataFrame | None]:
         # Create the node object.
-        node = Node(id, "leaf", sample_size=len(dataset))
+        node = Node("leaf", sample_size=len(dataset), path=path, supernode=supernode)
         # Add the node to the tree's list of leaves.
         self._leaf_nodes.append(node)
         # Fit the dataset attached to this node.
@@ -83,7 +84,7 @@ class Tree:
         # Find the variables that decrease the cost of the tree.
         vars_decreasing_the_tree_cost = self._vars_decreasing_the_tree_cost()
         if not vars_decreasing_the_tree_cost:
-            logger.debug("The cost of the tree cannot be decreased any further. Stopping here for node {}.", node.id)
+            logger.debug("The cost of the tree cannot be decreased any further. Stopping here for node {}.", node.path)
             # Return the node and no subdatasets.
             return node, None, None
         else:
