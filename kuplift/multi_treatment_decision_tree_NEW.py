@@ -72,7 +72,7 @@ class Tree:
     def fit(self) -> None:
         raise NotImplementedError
 
-    def create_node(self, id: str, dataset: pandas.DataFrame) -> tuple[Node, pandas.DataFrame, pandas.DataFrame]:
+    def create_node(self, id: str, dataset: pandas.DataFrame) -> tuple[Node, pandas.DataFrame | None, pandas.DataFrame | None]:
         # Create the node object.
         node = Node(id, "leaf", sample_size=len(dataset))
         # Add the node to the tree's list of leaves.
@@ -84,8 +84,8 @@ class Tree:
         vars_decreasing_the_tree_cost = self._vars_decreasing_the_tree_cost()
         if not vars_decreasing_the_tree_cost:
             logger.debug("The cost of the tree cannot be decreased any further. Stopping here for node {}.", node.id)
-            # The cost of the tree cannot be decreased any further.
-            raise NotImplementedError
+            # Return the node and no subdatasets.
+            return node, None, None
         else:
             # Choose a variable to split on among the variables that decrease the cost of the tree.
             node.split_var = self._choose_split_var(vars_decreasing_the_tree_cost)
@@ -95,6 +95,8 @@ class Tree:
             node.split_parts = tuple(node.encoder.get_partition(node.split_var))
             if len(node.split_parts) == 1:
                 logger.debug("Could not split any further on variable %r of type %r.", node.split_var, node.split_var_type)
+                # Return the node and no subdatasets.
+                return node, None, None
             else:
                 left_part, right_part = node.split_parts
                 # As there will be two new leaves attached to it, this node becomes an internal node.
@@ -103,8 +105,10 @@ class Tree:
                 self._internal_nodes.append(self._leaf_nodes.pop())
                 logger.debug("Splitting on variable %r of type %r gave two parts: %s and %s.", node.split_var, node.split_var_type, left_part, right_part)
                 # node.group_count = TO BE IMPLEMENTED -> clarify what is should be, as each part may have a different number of treatment groups
-                # Split the dataset according to the two parts and return the two subdatasets.
-                return split_dataset_of_node(node)
+                # Split the dataset according to the two parts.
+                left_subdataset, right_subdataset = split_dataset_of_node(node)
+                # Return the created node and the two subdatasets.
+                return node, left_subdataset, right_subdataset
 
     def _choose_split_var(self, vars_to_choose_from: list[str]) -> str:
         match self._split_var_choice_algorithm:
