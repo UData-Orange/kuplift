@@ -72,7 +72,10 @@ class Tree:
         raise NotImplementedError
 
     def create_node(self, dataset: pandas.DataFrame) -> None:
+        # Create the node object.
         node = Node("leaf", sample_size=len(dataset))
+        # Add the node to the tree's list of leaves.
+        self._leaf_nodes.append(node)
         # Fit the dataset attached to this node.
         node.encoder = self._encoder_class()
         node.encoder.fit(dataset[self._data.columns], dataset[self._treatment_col.name], dataset[self._y_col.name], maxparts=2)
@@ -92,7 +95,10 @@ class Tree:
                 logger.debug("Could not split any further on variable %r of type %r.", node.split_var, node.split_var_type)
             else:
                 left_part, right_part = node.split_parts
+                # As there will be two new leaves attached to it, this node becomes an internal node.
                 node.type = "internal"
+                # Move the node from the tree's list of leaves to the tree's list of internal nodes.
+                self._internal_nodes.append(self._leaf_nodes.pop())
                 logger.debug("Splitting on variable %r of type %r gave two parts: %s and %s.", node.split_var, node.split_var_type, left_part, right_part)
                 # node.group_count = TO BE IMPLEMENTED -> clarify what is should be, as each part may have a different number of treatment groups
                 # Split the dataset according to the two parts.
