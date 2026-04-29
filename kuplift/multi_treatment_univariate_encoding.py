@@ -15,6 +15,7 @@ import logging
 from functools import cached_property
 from dataclasses import dataclass
 import warnings
+import re
 import khiops.core
 import pandas
 from .utils import DatasetInfo, Dictionary, fix_valuegroups
@@ -253,8 +254,13 @@ def build_khiops_dict_from_dataset_file(dictfilepath: Path | str, datasetfilepat
     with warnings.catch_warnings():
         warnings.filterwarnings(
             "ignore",
-            r"""^Sample datasets location does not exist \([^)]*/khiops_data/samples\)\.\s+"""
-            r"""Execute the kh-download-datasets script or the khiops\.tools\.download_datasets function to download them\.$""",
+            "".join([
+                "^",
+                re.escape(r"""Sample datasets location does not exist ("""),
+                r"[^)]+",
+                re.escape(r"""). Execute the kh-download-datasets script or the khiops.tools.download_datasets function to download them."""),
+                "$"
+            ]),
             UserWarning, f"^{khiops.core.internals.runner.__name__}$")
         khiops.core.build_dictionary_from_data_table(str(datasetfilepath), DICTNAME, str(dictfilepath))
     logger.debug("Done creating dictionary file.")
