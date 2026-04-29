@@ -56,6 +56,7 @@ class Tree:
         self._split_variables: list[str] = []
         self._target_modalities: list[str] = sorted(self._y_col.unique())
         self._treatment_modalities: list[str] = sorted(self._treatment_col.unique())
+        self._root_node: Node | None = None
         self._internal_nodes: list[Node] = []
         self._leaf_nodes: list[Node] = []
         self._encoder_class: Encoder = OptimizedUnivariateEncoding if self.treatment_modality_count == 2 else MultiTreatmentUnivariateEncoding
@@ -67,6 +68,8 @@ class Tree:
     @property
     def treatment_modalities(self) -> tuple[str]: return tuple(self._treatment_modalities)
     @property
+    def root_node(self) -> Node: return self._root_node
+    @property
     def internal_nodes(self) -> tuple[Node]: return tuple(self._internal_nodes)
     @property
     def leaf_nodes(self) -> tuple[Node]: return tuple(self._leaf_nodes)
@@ -74,14 +77,19 @@ class Tree:
     def treatment_modality_count(self) -> int: return len(self._treatment_modalities)
 
     def fit(self) -> None:
+        logger.debug("Fitting...")
+        # Create the root node.
+        self._root_node, root_left_subdataset, root_right_subdataset = self.create_node(self._data.join([self._treatment_col, self._y_col]))
         # Create a deque that will contain all work to do to grow the tree as much as it decreases its cost.
-        # Initialize it with the root node, which may be a leaf or an internal node.
-        work_to_do: deque[tuple[Node, pandas.DataFrame | None, pandas.DataFrame | None]] = deque([self.create_node(self._data.join([self._treatment_col, self._y_col]))])
-        while work_to_do:
-            node, left_subdataset, right_subdataset = work_to_do.popleft()
+        # It will only act as a simple queue.
+        # Initialize the queue with the root node, which may be a leaf or an internal node.
+        work_queue: deque[tuple[Node, pandas.DataFrame | None, pandas.DataFrame | None]] = deque([(self._root_node, root_left_subdataset, root_right_subdataset)])
+        while work_queue:
+            node, left_subdataset, right_subdataset = work_queue.popleft()
             if node.type == "internal":  # The node is internal, meaning it has two subnodes to iterate upon.
-                work_to_do.append(self.create_node(left_subdataset, node, node.left_part))
-                work_to_do.append(self.create_node(right_subdataset, node, node.right_part))
+                work_queue.append(self.create_node(left_subdataset, node, node.left_part))
+                work_queue.append(self.create_node(right_subdataset, node, node.right_part))
+        logger.debug("Done fitting.")
 
     def create_node(self, dataset: pandas.DataFrame, supernode: Node | None = None, supernode_part: Part | None = None) -> tuple[Node, pandas.DataFrame | None, pandas.DataFrame | None]:
         # Create the node object.
