@@ -43,11 +43,7 @@ class Node:
     def sample_size(self) -> int:
         return len(self.dataset)
 
-@dataclass
-class NodeCreationResult:
-    node: Node
-    left_subdataset: pandas.DataFrame | None
-    right_subdataset: pandas.DataFrame | None
+NodeCreationResult = tuple[Node, pandas.DataFrame | None, pandas.DataFrame | None]
 
 
 SplitVarChoiceAlgorithm = Literal["best", "random", "random_weighted"]
@@ -87,19 +83,19 @@ class Tree:
         logger.debug("Fitting...")
         # Create the root node.
         root_result = self.create_node(self._data.join([self._treatment_col, self._y_col]))
-        self._root_node = root_result.node
+        self._root_node, _, _ = root_result
         # Create a deque that will contain all work to do to grow the tree as much as it decreases its cost.
         # It will only act as a simple queue.
         # Initialize the queue with the root node, which may be a leaf or an internal node.
         work_queue: deque[NodeCreationResult] = deque([root_result])
         while work_queue:
-            work_item = work_queue.popleft()
-            if work_item.node.type == "internal":  # The node is internal, meaning it has two subnodes to iterate upon.
-                left_result = self.create_node(work_item.left_subdataset, work_item.node, work_item.node.left_part)
-                work_item.node.left_subnode = left_result.node
+            node, left_subdataset, right_subdataset = work_queue.popleft()
+            if node.type == "internal":  # The node is internal, meaning it has two subnodes to iterate upon.
+                left_result = self.create_node(left_subdataset, node, node.left_part)
+                node.left_subnode, _, _ = left_result
                 work_queue.append(left_result)
-                right_result = self.create_node(work_item.right_subdataset, work_item.node, work_item.node.right_part)
-                work_item.node.right_subnode = right_result.node
+                right_result = self.create_node(right_subdataset, node, node.right_part)
+                node.right_subnode, _, _ = right_result
                 work_queue.append(right_result)
         logger.debug("Done fitting.")
 
@@ -115,7 +111,7 @@ class Tree:
         if not vars_decreasing_the_tree_cost:  # No variables can decrease the tree cost doing splits.
             logger.debug("The cost of the tree cannot be decreased any further. Stopping here for node {}.", node.path)
             # Return the node and no subdatasets.
-            return NodeCreationResult(node, None, None)
+            return node, None, None
         else:  # At least one variable can decrease the tree cost doing splits.
             # Choose a variable to split on among the variables that decrease the cost of the tree.
             node.split_var = self._choose_split_var(vars_decreasing_the_tree_cost)
@@ -126,7 +122,7 @@ class Tree:
             if len(split_parts) == 1:  # Does not split.
                 logger.debug("Could not split any further on variable %r of type %r.", node.split_var, node.split_var_type)
                 # Return the node and no subdatasets.
-                return NodeCreationResult(node, None, None)
+                return node, None, None
             else:  # Does split.
                 # Register one more occurrence of the variable as used for splitting.
                 self._split_vars.append(node.split_var)
@@ -141,7 +137,7 @@ class Tree:
                 # Split the dataset according to the two parts.
                 left_subdataset, right_subdataset = self._split_dataset_of_node(node)
                 # Return the created node and the two subdatasets.
-                return NodeCreationResult(node, left_subdataset, right_subdataset)
+                return node, left_subdataset, right_subdataset
 
     def _choose_split_var(self, vars_to_choose_from: list[str]) -> str:
         match self._split_var_choice_algorithm:
