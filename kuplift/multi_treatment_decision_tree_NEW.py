@@ -101,15 +101,22 @@ class Tree:
 
     def create_node(self, dataset: pandas.DataFrame, supernode: Node | None = None, supernode_part: Part | None = None) -> NodeCreationResult:
         # Create the node object.
-        node = Node("leaf", dataset, supernode=supernode, supernode_part=supernode_part, path=[] if supernode is None else supernode.path + [supernode_part])
+        node = Node("leaf", dataset, supernode=supernode, supernode_part=supernode_part, path=["ROOT"] if supernode is None else supernode.path + [supernode_part])
         # Add the node to the tree's list of leaves.
         self._leaf_nodes.append(node)
         # Fit the dataset attached to this node.
-        self._encoder.fit(dataset[self._data.columns], dataset[self._treatment_col.name], dataset[self._y_col.name], maxparts=2)
+        try:
+            self._encoder.fit(dataset[self._data.columns], dataset[self._treatment_col.name], dataset[self._y_col.name], maxparts=2)
+        except KeyError as exc:
+            if exc.args[0] == "detailed statistics":
+                logger.debug("Failed to fit the dataset attached to node %s.", " -> ".join(map(str, node.path)))
+                return node, None, None
+            else:
+                raise
         # Find the variables that decrease the cost of the tree.
         vars_decreasing_the_tree_cost = self._vars_decreasing_the_tree_cost()
         if not vars_decreasing_the_tree_cost:  # No variables can decrease the tree cost doing splits.
-            logger.debug("The cost of the tree cannot be decreased any further. Stopping here for node {}.", node.path)
+            logger.debug("The cost of the tree cannot be decreased any further. Stopping here for node %s.", " -> ".join(map(str, node.path)))
             # Return the node and no subdatasets.
             return node, None, None
         else:  # At least one variable can decrease the tree cost doing splits.
