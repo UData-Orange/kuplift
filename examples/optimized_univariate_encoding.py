@@ -14,7 +14,7 @@ REF_TREATMENT = "T0"
 
 if __name__ == "__main__":
     logging.basicConfig(level=LOGLEVEL)
-    df = pandas.read_csv(DATASET_PATH).astype({"VAR2": object})
+    df = pandas.read_csv(DATASET_PATH).astype({"VAR2": object, TREATMENT_NAME: object, TARGET_NAME: object})
     ue = OptimizedUnivariateEncoding()
     ue.fit(df[df.columns[:-2]], df[TREATMENT_NAME], df[TARGET_NAME])
 
