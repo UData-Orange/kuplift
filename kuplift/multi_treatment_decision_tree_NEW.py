@@ -4,7 +4,7 @@
 
 from typing import Literal, get_args
 from dataclasses import dataclass
-from collections import namedtuple
+from collections import deque
 from random import choice, choices
 import logging
 import pandas
@@ -31,7 +31,8 @@ class Node:
     sample_size: int
     split_var: str | None = None
     split_var_type: VarType | None = None
-    split_parts: tuple[Part, Part] | None = None
+    left_part: Part | None = None
+    right_part: Part | None = None
     group_count: int | None = None
     dataset: pandas.DataFrame | None = None
     encoder: Encoder | None = None
@@ -40,9 +41,6 @@ class Node:
     supernode: "Node" | None = None
     left_subnode: "Node" | None = None
     right_subnode: "Node" | None = None
-
-
-NodeCreationResult = namedtuple("NodeCreationResult", ["node", "supernode_left_part", "left_subdataset", "supernode_right_part", "right_subdataset"])
 
 
 SplitVarChoiceAlgorithm = Literal["best", "random", "random_weighted"]
@@ -55,7 +53,7 @@ class Tree:
         self._treatment_col: pandas.Series = treatment_col
         self._y_col: pandas.Series = y_col
         self._split_var_choice_algorithm: SplitVarChoiceAlgorithm = split_var_choice_algorithm
-        self._used_variable_count: int = 0
+        self._split_variables: list[str] = []
         self._target_modalities: list[str] = sorted(self._y_col.unique())
         self._treatment_modalities: list[str] = sorted(self._treatment_col.unique())
         self._internal_nodes: list[Node] = []
@@ -63,7 +61,7 @@ class Tree:
         self._encoder_class: Encoder = OptimizedUnivariateEncoding if self.treatment_modality_count == 2 else MultiTreatmentUnivariateEncoding
 
     @property
-    def used_variable_count(self) -> int: return self._used_variable_count
+    def used_variable_count(self) -> int: return len(set(self._split_variables))
     @property
     def target_modalities(self) -> tuple[str]: return tuple(self._target_modalities)
     @property
@@ -76,9 +74,16 @@ class Tree:
     def treatment_modality_count(self) -> int: return len(self._treatment_modalities)
 
     def fit(self) -> None:
-        root_node, left_part, left_dataset, right_part, right_dataset = self.create_node(self._data.join([self._treatment_col, self._y_col]))
+        # Create a deque that will contain all work to do to grow the tree as much as it decreases its cost.
+        # Initialize it with the root node, which may be a leaf or an internal node.
+        work_to_do: deque[tuple[Node, pandas.DataFrame | None, pandas.DataFrame | None]] = deque([self.create_node(self._data.join([self._treatment_col, self._y_col]))])
+        while work_to_do:
+            node, left_subdataset, right_subdataset = work_to_do.popleft()
+            if node.type == "internal":  # The node is internal, meaning it has two subnodes to iterate upon.
+                work_to_do.append(self.create_node(left_subdataset, node, node.left_part))
+                work_to_do.append(self.create_node(right_subdataset, node, node.right_part))
 
-    def create_node(self, dataset: pandas.DataFrame, supernode: Node | None = None, supernode_part: Part | None = None) -> NodeCreationResult:
+    def create_node(self, dataset: pandas.DataFrame, supernode: Node | None = None, supernode_part: Part | None = None) -> tuple[Node, pandas.DataFrame | None, pandas.DataFrame | None]:
         # Create the node object.
         node = Node("leaf", sample_size=len(dataset), supernode_part=supernode_part, path=supernode.path + [supernode_part], supernode=supernode)
         # Add the node to the tree's list of leaves.
@@ -88,33 +93,36 @@ class Tree:
         node.encoder.fit(dataset[self._data.columns], dataset[self._treatment_col.name], dataset[self._y_col.name], maxparts=2)
         # Find the variables that decrease the cost of the tree.
         vars_decreasing_the_tree_cost = self._vars_decreasing_the_tree_cost()
-        if not vars_decreasing_the_tree_cost:
+        if not vars_decreasing_the_tree_cost:  # No variables can decrease the tree cost doing splits.
             logger.debug("The cost of the tree cannot be decreased any further. Stopping here for node {}.", node.path)
             # Return the node and no subdatasets.
-            return node, None, None, None, None
-        else:
+            return node, None, None
+        else:  # At least one variable can decrease the tree cost doing splits.
             # Choose a variable to split on among the variables that decrease the cost of the tree.
             node.split_var = self._choose_split_var(vars_decreasing_the_tree_cost)
             # Get the type of the variable.
             node.split_var_type = node.encoder.get_variable_type(node.split_var)
             # Get the parts. There may be only one if no splitting could be performed.
-            node.split_parts = tuple(node.encoder.get_partition(node.split_var))
-            if len(node.split_parts) == 1:
+            split_parts = node.encoder.get_partition(node.split_var)
+            if len(split_parts) == 1:  # Does not split.
                 logger.debug("Could not split any further on variable %r of type %r.", node.split_var, node.split_var_type)
                 # Return the node and no subdatasets.
-                return node, None, None, None, None
-            else:
-                left_part, right_part = node.split_parts
+                return node, None, None
+            else:  # Does split.
+                # Register one more occurrence of the variable as used for splitting.
+                self._split_variables.append(node.split_var)
+                # Set the left and right parts of the node.
+                node.left_part, node.right_part = split_parts
                 # As there will be two new leaves attached to it, this node becomes an internal node.
                 node.type = "internal"
                 # Move the node from the tree's list of leaves to the tree's list of internal nodes.
                 self._internal_nodes.append(self._leaf_nodes.pop())
-                logger.debug("Splitting on variable %r of type %r gave two parts: %s and %s.", node.split_var, node.split_var_type, left_part, right_part)
+                logger.debug("Splitting on variable %r of type %r gave two parts: %s and %s.", node.split_var, node.split_var_type, node.left_part, node.right_part)
                 # node.group_count = TO BE IMPLEMENTED -> clarify what is should be, as each part may have a different number of treatment groups
                 # Split the dataset according to the two parts.
                 left_subdataset, right_subdataset = split_dataset_of_node(node)
                 # Return the created node and the two subdatasets.
-                return node, left_part, left_subdataset, right_part, right_subdataset
+                return node, left_subdataset, right_subdataset
 
     def _choose_split_var(self, vars_to_choose_from: list[str]) -> str:
         match self._split_var_choice_algorithm:
