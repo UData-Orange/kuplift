@@ -15,7 +15,8 @@ An example code is in examples/optimized_univariate_encoding.py.
 
 import pathlib
 import tempfile
-from warnings import warn
+from warnings import warn, catch_warnings, filterwarnings
+import re
 import json
 import khiops.sklearn.dataset
 import khiops.core
@@ -180,7 +181,22 @@ class OptimizedUnivariateEncoding:
             kdicfilename = str(dirpath / "main_table.kdic")
             dataset = khiops.sklearn.dataset.Dataset(data.join([treatment_col, target_col]))
 
-            txtfilename, _ = dataset.create_table_files_for_khiops(dirname)  # Create .txt file
+            with catch_warnings():
+                filterwarnings(
+                    "ignore",
+                    "".join([
+                        "^",
+                        re.escape(
+                            r"""Downcasting behavior in `replace` is deprecated and will be removed in a future version. """
+                            r"""To retain the old behavior, explicitly call `result.infer_objects(copy=False)`. """
+                            r"""To opt-in to the future behavior, set `pd.set_option('future.no_silent_downcasting', True)`"""
+                        ),
+                        "$"
+                    ]),
+                    FutureWarning,
+                    f"^{khiops.sklearn.dataset.__name__}$"
+                )
+                txtfilename, _ = dataset.create_table_files_for_khiops(dirname)  # Create .txt file
             dictionary_domain = dataset.create_khiops_dictionary_domain()
             dictionary: khiops.core.Dictionary = dictionary_domain.dictionaries[0]
             variables: list[khiops.core.Variable] = dictionary.variables
