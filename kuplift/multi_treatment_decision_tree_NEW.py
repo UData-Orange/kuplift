@@ -21,13 +21,9 @@ class MultiTreatmentDecisionTree:
         raise NotImplementedError
 
 
-Encoder = OptimizedUnivariateEncoding | MultiTreatmentUnivariateEncoding
-
-NodeType = Literal["internal", "leaf"]
-
 @dataclass
 class Node:
-    type: NodeType
+    type: Literal["internal", "leaf"]
     dataset: pandas.DataFrame
     split_var: str | None = None
     split_var_type: VarType | None = None
