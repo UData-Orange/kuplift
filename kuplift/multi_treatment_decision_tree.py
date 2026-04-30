@@ -24,6 +24,9 @@ class MultiTreatmentDecisionTree:
         self._tree = Tree(data, treatment_col, y_col, split_var_choice_algorithm)
         self._tree.fit()
 
+    def __str__(self) -> str:
+        return str(self._tree)
+
 @dataclass
 class Node:
     type: Literal["internal", "leaf"]
@@ -41,6 +44,8 @@ class Node:
     @property
     def sample_size(self) -> int:
         return len(self.dataset)
+    def format_path(self) -> str:
+        return " . ".join(map(str, self.path))
 
 NodeCreationResult = tuple[Node, pandas.DataFrame | None, pandas.DataFrame | None]
 
@@ -109,14 +114,14 @@ class Tree:
             self._encoder.fit(dataset[self._data.columns], dataset[self._treatment_col.name], dataset[self._y_col.name], maxparts=2)
         except KeyError as exc:
             if exc.args[0] == "detailed statistics":
-                logger.debug("Failed to fit the dataset attached to node %s.", " -> ".join(map(str, node.path)))
+                logger.debug("Failed to fit the dataset attached to node %s.", node.format_path())
                 return node, None, None
             else:
                 raise
         # Find the variables that decrease the cost of the tree.
         vars_decreasing_the_tree_cost = self._vars_decreasing_the_tree_cost()
         if not vars_decreasing_the_tree_cost:  # No variables can decrease the tree cost doing splits.
-            logger.debug("The cost of the tree cannot be decreased any further. Stopping here for node %s.", " -> ".join(map(str, node.path)))
+            logger.debug("The cost of the tree cannot be decreased any further. Stopping here for node %s.", node.format_path())
             # Return the node and no subdatasets.
             return node, None, None
         else:  # At least one variable can decrease the tree cost doing splits.
@@ -165,3 +170,16 @@ class Tree:
     def _split_dataset_of_node(self, node: Node) -> tuple[pandas.DataFrame, pandas.DataFrame]:
         transformed_data_of_split_var = self._encoder.transform(node.dataset)[node.split_var]
         return (node.dataset[transformed_data_of_split_var == 0], node.dataset[transformed_data_of_split_var == 1])
+    
+    def __str__(self) -> str:
+        if not self._root_node:
+            return "Empty tree because fit() has not been called."
+        result_lines = ["Tree:"]
+        work_queue: deque[Node] = deque([self._root_node])
+        while work_queue:
+            node = work_queue.popleft()
+            result_lines.append(node.format_path())
+            if node.type == "internal":
+                work_queue.append(node.left_subnode)
+                work_queue.append(node.right_subnode)
+        return "\n".join(result_lines)
