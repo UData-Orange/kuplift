@@ -84,19 +84,23 @@ class Tree:
         # Create the root node.
         root_result = self.create_node(self._data.join([self._treatment_col, self._y_col]))
         self._root_node, _, _ = root_result
-        # Create a deque that will contain all work to do to grow the tree as much as it decreases its cost.
+        # Create an empty deque that will contain all work to do to grow the tree as much as it decreases its cost.
         # It will only act as a simple queue.
-        # Initialize the queue with the root node, which may be a leaf or an internal node.
-        work_queue: deque[NodeCreationResult] = deque([root_result])
-        while work_queue:
-            node, left_subdataset, right_subdataset = work_queue.popleft()
-            if node.type == "internal":  # The node is internal, meaning it has two subnodes to iterate upon.
-                left_result = self.create_node(left_subdataset, node, node.left_part)
-                node.left_subnode, _, _ = left_result
-                work_queue.append(left_result)
-                right_result = self.create_node(right_subdataset, node, node.right_part)
-                node.right_subnode, _, _ = right_result
-                work_queue.append(right_result)
+        internal_nodes_to_work_on: deque[NodeCreationResult] = deque()
+        # Add the root node to the queue if it successfully split, that is, if it is an internal node.
+        if self._root_node.type == "internal":
+            internal_nodes_to_work_on.append(root_result)
+        # Extract internal nodes from the queue until it is empty.
+        while internal_nodes_to_work_on:
+            node, left_subdataset, right_subdataset = internal_nodes_to_work_on.popleft()
+            left_result = self.create_node(left_subdataset, node, node.left_part)
+            node.left_subnode, _, _ = left_result
+            if node.left_subnode.type == "internal":
+                internal_nodes_to_work_on.append(left_result)
+            right_result = self.create_node(right_subdataset, node, node.right_part)
+            node.right_subnode, _, _ = right_result
+            if node.right_subnode.type == "internal":
+                internal_nodes_to_work_on.append(right_result)
         logger.debug("Done fitting.")
 
     def create_node(self, dataset: pandas.DataFrame, supernode: Node | None = None, supernode_part: Part | None = None) -> NodeCreationResult:
