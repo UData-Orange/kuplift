@@ -162,7 +162,7 @@ class Tree:
     def _vars_decreasing_the_tree_cost(self) -> list[str]:
         import warnings
         warnings.warn("TODO: Implement proper algorithm.")
-        variables = list(set(self._data.columns) - set(self._split_vars))
+        variables = list(set(self._encoder.informative_input_variables) - set(self._split_vars))
         logger.debug("Variables decreasing the tree cost: %s", variables)
         return variables
     
