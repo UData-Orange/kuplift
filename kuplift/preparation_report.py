@@ -100,7 +100,10 @@ def stats_from_analysis_report(report: khiops.core.PreparationReport, datasetinf
         The statistics.
     """
     jname = datasetinfo.jname
-    jdim = find_dimensions({jname: DimensionConstraint("Categorical", "Value groups")}, report.get_variable_statistics(jname).data_grid.dimensions)[jname]
+    data_grid = report.get_variable_statistics(jname).data_grid
+    if data_grid is None:
+        raise RuntimeError("could not fit")
+    jdim = find_dimensions({jname: DimensionConstraint("Categorical", "Value groups")}, data_grid.dimensions)[jname]
     js = list(chain.from_iterable(jpart.values for jpart in jdim.partition))
     tname = datasetinfo.tname
     tdim, jtdim = itemgetter(tname, jtname)(find_dimensions(
