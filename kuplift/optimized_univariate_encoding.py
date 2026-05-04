@@ -299,6 +299,16 @@ class OptimizedUnivariateEncoding:
         """
         return dict(self.levels)[variable]
     
+    def get_partitions(self):
+        """Get the partitions of all informative input variables in the model.
+        
+        Returns
+        -------
+        dict[str, Partition]
+            A dictionary mapping the informative input variable names to the partitions.
+        """
+        return self.model
+    
     def get_partition(self, variable):
         """Get the partition corresponding to a single variable of the model.
 
@@ -309,7 +319,7 @@ class OptimizedUnivariateEncoding:
         
         Returns
         -------
-        Part
+        Partition
             The partition corresponding to a single variable of the model.
         """
         return self.model[variable]

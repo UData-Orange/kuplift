@@ -26,6 +26,10 @@ def get_levels(model: Model) -> list[tuple[str, float]]:
     return sorted(((varname, varstats.level) for varname, varstats in model.items()), key=lambda name_level_pair: (-name_level_pair[1], name_level_pair[0]))
 
 
+def get_partitions(model: Model) -> dict[str, Partition]:
+    return {varname: varstats.parts for varname, varstats in model.items() if varstats.is_informative}
+
+
 def get_partition_of_var(model: Model, variable: str) -> Partition:
     return model[variable].parts
 
@@ -242,6 +246,18 @@ class UnivariateEncodingBase(ABC):
         """
         self._check_fit_performed()
         return get_level_of_var(self._model, variable)
+    
+
+    def get_partitions(self) -> dict[str, Partition]:
+        """Get the partitions of all informative input variables in the model.
+        
+        Returns
+        -------
+        dict[str, Partition]
+            A dictionary mapping the informative input variable names to the partitions.
+        """
+        self._check_fit_performed()
+        return get_partitions(self._model)
 
 
     def get_partition(self, variable: str) -> Partition:
