@@ -212,6 +212,8 @@ class OptimizedUnivariateEncoding:
 
         model = {}
         treatment_groups = {}
+        if 'detailed statistics' not in docroot:
+            raise RuntimeError("could not fit")
         for variable in docroot['detailed statistics']:
             vardim = variable['dataGrid']['dimensions'][0]
             varname = vardim['variable']
