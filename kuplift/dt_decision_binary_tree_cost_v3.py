@@ -128,11 +128,11 @@ class DTDecisionBinaryTreeCostV3(DTDecisionTreeCostV3):
                 # grouping to 2 parts
                 cost += KWStat.LnBellNumber(n_values, 2)
             else:
-                # safe fallback
-                cost += math.log(n_instances + 1.0)
+                # cannot get number of distinct values
+                raise RuntimeError("could not get number of distinct values for variable {!r}".format(split_var))
         else:
-            # unknown type fallback
-            cost += math.log(n_instances + 1.0)
+            # unknown variable type
+            raise ValueError("unsupported variable type {!r}".format(split_var_type))
 
         return float(cost)
 
