@@ -19,6 +19,8 @@ class DTDecisionBinaryTreeCostV3(DTDecisionTreeCostV3):
     - The tree structure remains binary (left/right split).
     - This cost model is robust to multi-treatment datasets as long as node-level
       class/treatment counts can be accessed via generic NodeV3 methods.
+    - Hypothetical split simulation is STRICT: the candidate split must provide
+      simulated children and split metadata; no hidden split recomputation here.
     """
 
     def __init__(self):
@@ -121,16 +123,16 @@ class DTDecisionBinaryTreeCostV3(DTDecisionTreeCostV3):
         if split_var_type == "Numerical":
             cost += math.log(n_instances + 1.0)
         elif split_var_type == "Categorical":
-            # We estimate number of values from node dataset
-            dataset = getattr(node, "dataset", None)
-            if dataset is not None and split_var in dataset.columns:
-                n_values = int(dataset[split_var].nunique(dropna=False))
-                n_values = max(n_values, 1)
-                # grouping to 2 parts
-                cost += KWStat.LnBellNumber(n_values, 2)
-            else:
-                # cannot get number of distinct values
-                raise RuntimeError("could not get number of distinct values for variable {!r}".format(split_var))
+            n_values = getattr(node, "n_values_of_categorical_split_var", None)
+            if n_values is None:
+                raise RuntimeError(
+                    f"Missing n_values_of_categorical_split_var for categorical split variable {split_var!r}"
+                )
+            if int(n_values) <= 0:
+                raise ValueError(
+                    f"Invalid n_values_of_categorical_split_var={n_values} for variable {split_var!r}"
+                )
+            cost += KWStat.LnBellNumber(int(n_values), 2)
         else:
             # unknown variable type
             raise ValueError("unsupported variable type {!r}".format(split_var_type))
@@ -206,26 +208,33 @@ class DTDecisionBinaryTreeCostV3(DTDecisionTreeCostV3):
     ) -> float:
         """
         Compute hypothetical tree cost if node_split is applied.
-        The candidate split must provide:
+        The candidate split MUST provide:
           - node_split.get_splittable_node()
           - node_split.get_split_var()
-        NodeV3 is expected to support:
-          - simulate_split(split_var) -> (left_node, right_node, split_value, split_var_type)
+          - node_split.get_left_node()
+          - node_split.get_right_node()
+          - node_split.get_split_var_type()
+          - node_split.get_n_values_of_categorical_split_var()  (if categorical)
         """
         source_node = node_split.get_splittable_node()
         split_var = node_split.get_split_var()
 
         if source_node is None or split_var is None:
-            node_split.set_tree_cost(float(previous_cost))
-            return float(previous_cost)
+            raise ValueError("node_split must provide splittable_node and split_var")
 
-        # Simulate split without mutating the original tree
-        simulated = source_node.simulate_split(split_var)
-        if simulated is None:
-            node_split.set_tree_cost(float(previous_cost))
-            return float(previous_cost)
+        left_node = node_split.get_left_node()
+        right_node = node_split.get_right_node()
+        split_var_type = node_split.get_split_var_type()
+        n_values_cat = node_split.get_n_values_of_categorical_split_var()
 
-        left_node, right_node, split_value, split_var_type = simulated
+        if left_node is None or right_node is None:
+            raise ValueError("node_split must provide simulated left_node and right_node")
+        if split_var_type is None:
+            raise ValueError("node_split must provide split_var_type")
+        if split_var_type == "Categorical" and n_values_cat is None:
+            raise ValueError(
+                "node_split must provide n_values_of_categorical_split_var for categorical splits"
+            )
 
         # Build incremental update from previous cost:
         # + possible attribute-choice delta
@@ -255,7 +264,7 @@ class DTDecisionBinaryTreeCostV3(DTDecisionTreeCostV3):
         proxy.split_var = split_var
         proxy.split_var_type = split_var_type
         proxy.sample_size = source_node.sample_size
-        proxy.dataset = source_node.dataset
+        proxy.n_values_of_categorical_split_var = n_values_cat
 
         cost += self.compute_internal_node_cost(tree, proxy)
         cost -= self.compute_leaf_cost(source_node, tree)

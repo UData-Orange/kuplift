@@ -1,4 +1,3 @@
-# kuplift/multi_treatment_decision_tree_v3.py
 # Copyright (c) 2026 Orange. All rights reserved.
 # This software is distributed under the MIT License, the text of which is available
 # at https://spdx.org/licenses/MIT.html or see the "LICENSE" file for more details.
@@ -10,8 +9,8 @@ import logging
 import numpy as np
 import pandas as pd
 
-from kuplift.tree_v3 import TreeV3
-from kuplift.node_v3 import NodeV3, IncomingSplit
+from kuplift.tree_v3_global import TreeV3Global
+from kuplift.node_v3_global import NodeV3Global, IncomingSplit
 from kuplift.dt_decision_binary_tree_cost_v3 import DTDecisionBinaryTreeCostV3
 from kuplift.dt_decision_tree_node_split_v3 import DTDecisionTreeNodeSplitV3
 from kuplift.leaf_selection_strategies_v3 import (
@@ -24,18 +23,18 @@ from kuplift.utils import transform_variable
 logger = logging.getLogger(__name__)
 
 
-class MultiTreatmentDecisionTreeV3:
+class MultiTreatmentDecisionTreeV3Global:
     """
-    Local-partition version (base implementation):
-      - for each candidate (node, variable), fit OUE/MTUE on node raw dataset
-      - use resulting local partition to create split mask
+    Global-partition version:
+      - fit encoder once on full train set
+      - split masks at nodes are computed by applying learned partition to node raw dataset
       - raw node datasets are preserved
       - no silent fallback
     """
 
     def __init__(
         self,
-        max_depth: int = 7,
+        max_depth: int = 15,
         min_samples_leaf: int = 20,
         leaf_selection: str = "best_leaf",
         random_state: Optional[int] = None,
@@ -58,20 +57,19 @@ class MultiTreatmentDecisionTreeV3:
 
         self.cost_model = cost_model if cost_model is not None else DTDecisionBinaryTreeCostV3()
 
-        # selector info (OUE/MTUE family)
+        self.encoder = None
         self.encoder_type = None
 
-        self.tree: TreeV3 | None = None
+        self.tree: TreeV3Global | None = None
         self.tree_criterion: float = 0.0
 
-        self.features: list[str] = []
+        self.features: list[str] = []          # raw features
+        self.encoded_features: list[str] = []  # informative encoded vars
         self.treatment_col_name: str | None = None
         self.target_col_name: str | None = None
 
-        # Cache for local partition fits:
-        # key = (node_id, variable_name)
-        # value = dict returned by _fit_local_partition_for_var
-        self._local_fit_cache: dict[tuple[int, str], dict] = {}
+        # strict metadata: encoded var -> source partition details
+        self.partition_map: dict[str, dict] = {}
 
     @property
     def used_variable_count(self) -> int:
@@ -101,12 +99,28 @@ class MultiTreatmentDecisionTreeV3:
     def treatment_modality_count(self) -> int:
         return self.tree.treatment_modality_count if self.tree is not None else 0
 
-    def fit(self, data: pd.DataFrame, treatment_col, y_col) -> "MultiTreatmentDecisionTreeV3":
+    def _build_partition_map(self) -> dict[str, dict]:
+        if self.encoder is None:
+            raise RuntimeError("encoder is not initialized")
+        if not hasattr(self.encoder, "get_partitions"):
+            raise RuntimeError("encoder does not expose get_partitions()")
+        if not hasattr(self.encoder, "get_variable_type"):
+            raise RuntimeError("encoder does not expose get_variable_type()")
+
+        partitions = self.encoder.get_partitions()
+        result = {}
+        for var, parts in partitions.items():
+            vtype = self.encoder.get_variable_type(var)
+            result[var] = {
+                "source_var": var,
+                "source_type": vtype,
+                "parts": parts,
+            }
+        return result
+
+    def fit(self, data: pd.DataFrame, treatment_col, y_col) -> "MultiTreatmentDecisionTreeV3Global":
         if data is None or len(data) == 0:
             raise ValueError("data must be a non-empty DataFrame")
-
-        # reset local fit cache for this training run
-        self._local_fit_cache = {}
 
         X = data.reset_index(drop=True)
         t = pd.Series(treatment_col).reset_index(drop=True)
@@ -122,16 +136,39 @@ class MultiTreatmentDecisionTreeV3:
         if not self.features:
             raise ValueError("No feature column available for training")
 
-        _, encoding_info = select_univariate_encoder_v3(t)
+        self.encoder, encoding_info = select_univariate_encoder_v3(t)
         self.encoder_type = encoding_info.encoder_name
 
+        if self.encoder_type == "OUE":
+            X_enc = self.encoder.fit_transform(X, t, y, maxparts=self.maxparts)
+        else:
+            if self.maxtreatmentgroups is not None:
+                X_enc = self.encoder.fit_transform(
+                    X, t, y, maxparts=self.maxparts, maxtreatmentgroups=self.maxtreatmentgroups
+                )
+            else:
+                X_enc = self.encoder.fit_transform(X, t, y, maxparts=self.maxparts)
+
+        if not isinstance(X_enc, pd.DataFrame):
+            raise RuntimeError("encoder.fit_transform must return a DataFrame")
+
+        self.encoded_features = list(X_enc.columns)
+        if not self.encoded_features:
+            raise RuntimeError("No informative encoded feature returned by encoder")
+
+        self.partition_map = self._build_partition_map()
+        for f in self.encoded_features:
+            if f not in self.partition_map:
+                raise RuntimeError(f"Missing partition metadata for encoded feature {f!r}")
+
+        # tree nodes keep RAW data only
         raw_train_df = X.copy()
         raw_train_df[self.treatment_col_name] = t.values
         raw_train_df[self.target_col_name] = y.values
 
-        self.tree = TreeV3(
+        self.tree = TreeV3Global(
             dataset=raw_train_df,
-            features=self.features,
+            features=self.encoded_features,
             treatment_col_name=self.treatment_col_name,
             target_col_name=self.target_col_name,
         )
@@ -142,97 +179,26 @@ class MultiTreatmentDecisionTreeV3:
         self.tree_criterion = float(self.cost_model.compute_total_tree_cost(self.tree))
         return self
 
-    def _new_local_encoder(self, t_series: pd.Series):
-        encoder, info = select_univariate_encoder_v3(t_series)
-        return encoder, info.encoder_name
-
-    def _fit_local_partition_for_var(self, node: NodeV3, var: str) -> dict:
-        cache_key = (int(node.id), str(var))
-        cached = self._local_fit_cache.get(cache_key)
-        if cached is not None:
-            return cached
-
-        if var not in node.dataset.columns:
-            raise RuntimeError(f"Variable {var!r} missing in node dataset")
-
-        local_X = node.dataset[[var]].copy()
-
-        # force categorical dtype once locally to avoid repeated OUE warning
-        local_t = node.dataset[self.treatment_col_name].astype(object)
-        local_y = node.dataset[self.target_col_name]
-
-        encoder, enc_name = self._new_local_encoder(local_t)
-
-        if enc_name == "OUE":
-            X_enc = encoder.fit_transform(local_X, local_t, local_y, maxparts=self.maxparts)
-        else:
-            if self.maxtreatmentgroups is not None:
-                X_enc = encoder.fit_transform(
-                    local_X,
-                    local_t,
-                    local_y,
-                    maxparts=self.maxparts,
-                    maxtreatmentgroups=self.maxtreatmentgroups,
-                )
-            else:
-                X_enc = encoder.fit_transform(local_X, local_t, local_y, maxparts=self.maxparts)
-
-        if not isinstance(X_enc, pd.DataFrame):
-            raise RuntimeError("local encoder.fit_transform must return a DataFrame")
-
-        informative = list(X_enc.columns)
-        if len(informative) == 0:
-            result = {"is_informative": False}
-            self._local_fit_cache[cache_key] = result
-            return result
-
-        if var not in informative:
-            raise RuntimeError(
-                f"Unexpected local informative columns {informative}; expected to contain {var!r}"
-            )
-
-        if not hasattr(encoder, "get_partition"):
-            raise RuntimeError("local encoder missing get_partition()")
-        if not hasattr(encoder, "get_variable_type"):
-            raise RuntimeError("local encoder missing get_variable_type()")
-
-        parts = encoder.get_partition(var)
-        vtype = encoder.get_variable_type(var)
-
-        result = {
-            "is_informative": True,
-            "source_var": var,
-            "source_type": vtype,
-            "parts": parts,
-            "encoder_type": enc_name,
-        }
-
-        # cache local fit result
-        self._local_fit_cache[cache_key] = result
-        return result
-
-    def _simulate_split_on_var_local(self, node: NodeV3, var: str):
-        try:
-            info = self._fit_local_partition_for_var(node, var)
-        except RuntimeError as e:
-            logger.debug(
-                "Local fit failed for node_id=%s, var=%s: %s",
-                node.id, var, str(e)
-            )
-            return None
-
-        if not info["is_informative"]:
-            return None
-
+    def _encode_single_variable_on_node(self, node: NodeV3Global, encoded_var: str) -> pd.Series:
+        if encoded_var not in self.partition_map:
+            raise RuntimeError(f"Missing partition metadata for {encoded_var!r}")
+        info = self.partition_map[encoded_var]
+        source_var = info["source_var"]
         parts = info["parts"]
-        encoded_values = transform_variable(parts, node.dataset[var])
-        observed_parts = sorted(list(pd.Series(encoded_values).dropna().unique()))
 
+        if source_var not in node.dataset.columns:
+            raise RuntimeError(f"Source variable {source_var!r} missing from node dataset")
+
+        return transform_variable(parts, node.dataset[source_var])
+
+    def _simulate_split_on_encoded_var(self, node: NodeV3Global, encoded_var: str):
+        encoded_values = self._encode_single_variable_on_node(node, encoded_var)
+        observed_parts = sorted(list(pd.Series(encoded_values).dropna().unique()))
         if len(observed_parts) <= 1:
             return None
         if len(observed_parts) > 2:
             raise RuntimeError(
-                f"Expected <=2 observed encoded parts for local variable {var!r}, got {observed_parts}"
+                f"Expected <=2 observed encoded parts for {encoded_var!r}, got {observed_parts}"
             )
 
         left_part = observed_parts[0]
@@ -246,27 +212,29 @@ class MultiTreatmentDecisionTreeV3:
         if len(left_df) == 0 or len(right_df) == 0:
             return None
 
+        info = self.partition_map[encoded_var]
         split_var_type = info["source_type"]
-        split_value = 0.5
+        split_value = 0.5  # encoded threshold between part 0 and 1
 
-        left_node = NodeV3(
+        left_node = NodeV3Global(
             dataset=left_df,
             treatment_col_name=node.treatment_col_name,
             target_col_name=node.target_col_name,
             parent=node,
-            incoming_split=IncomingSplit(var=var, op="<=", value=split_value),
+            incoming_split=IncomingSplit(var=encoded_var, op="<=", value=split_value),
         )
-        right_node = NodeV3(
+        right_node = NodeV3Global(
             dataset=right_df,
             treatment_col_name=node.treatment_col_name,
             target_col_name=node.target_col_name,
             parent=node,
-            incoming_split=IncomingSplit(var=var, op=">", value=split_value),
+            incoming_split=IncomingSplit(var=encoded_var, op=">", value=split_value),
         )
 
         n_values_cat = None
         if split_var_type == "Categorical":
-            n_values_cat = int(node.dataset[var].nunique(dropna=False))
+            source_var = info["source_var"]
+            n_values_cat = int(node.dataset[source_var].nunique(dropna=False))
             n_values_cat = max(n_values_cat, 1)
 
         return left_node, right_node, split_value, split_var_type, info, n_values_cat
@@ -292,11 +260,12 @@ class MultiTreatmentDecisionTreeV3:
                 best_split_desc = None
 
                 for split_var in self.tree.features:
-                    simulated = self._simulate_split_on_var_local(leaf, split_var)
+                    simulated = self._simulate_split_on_encoded_var(leaf, split_var)
                     if simulated is None:
                         continue
 
                     left_node, right_node, split_value, split_var_type, source_info, n_values_cat = simulated
+
                     if left_node.sample_size < self.min_samples_leaf or right_node.sample_size < self.min_samples_leaf:
                         continue
 
@@ -362,10 +331,8 @@ class MultiTreatmentDecisionTreeV3:
             info = node.source_partition_info
             if info is None:
                 raise RuntimeError(f"Missing source_partition_info on internal node id={node.id}")
-
             source_var = info["source_var"]
             parts = info["parts"]
-
             if source_var not in row.index:
                 raise RuntimeError(f"Input row missing source variable {source_var!r}")
 
@@ -383,16 +350,6 @@ class MultiTreatmentDecisionTreeV3:
             leaf = self._descend_to_leaf(row)
             out.append(leaf.id if leaf is not None else -1)
         return np.array(out, dtype=int)
-
-    def get_node_by_id(self, node_id: int):
-        if self.tree is None:
-            return None
-        return self.tree.get_node_by_id(node_id)
-
-    def get_node_path_str(self, node_id: int, separator: str = " AND ") -> str:
-        if self.tree is None:
-            raise RuntimeError("Model is not fitted")
-        return self.tree.get_node_path_str(node_id=node_id, separator=separator)
 
     def predict(self, X: pd.DataFrame) -> pd.Series:
         if self.tree is None:
@@ -434,10 +391,19 @@ class MultiTreatmentDecisionTreeV3:
                 if rate > best_rate:
                     best_rate = rate
                     best_t = t
-
             preds.append(best_t)
 
         return pd.Series(preds, index=X.index, name="prediction")
+
+    def get_node_by_id(self, node_id: int):
+        if self.tree is None:
+            return None
+        return self.tree.get_node_by_id(node_id)
+
+    def get_node_path_str(self, node_id: int, separator: str = " AND ") -> str:
+        if self.tree is None:
+            raise RuntimeError("Model is not fitted")
+        return self.tree.get_node_path_str(node_id=node_id, separator=separator)
 
     # ------------------------------------------------------------------
     # Display helpers
@@ -446,12 +412,12 @@ class MultiTreatmentDecisionTreeV3:
     def __str__(self) -> str:
         if self.tree is None:
             return (
-                "MultiTreatmentDecisionTreeV3(unfitted, "
+                "MultiTreatmentDecisionTreeV3Global(unfitted, "
                 f"leaf_selection={self.leaf_selection}, "
                 f"encoder_type={self.encoder_type})"
             )
         return (
-            "MultiTreatmentDecisionTreeV3("
+            "MultiTreatmentDecisionTreeV3Global("
             f"encoder_type={self.encoder_type}, "
             f"leaf_selection={self.leaf_selection}, "
             f"used_variable_count={self.used_variable_count}, "
@@ -501,7 +467,7 @@ class MultiTreatmentDecisionTreeV3:
 
     def tree_to_string(self, show_path: bool = False, max_depth: int | None = None) -> str:
         if self.tree is None or self.root_node is None:
-            return "MultiTreatmentDecisionTreeV3: tree is not fitted."
+            return "MultiTreatmentDecisionTreeV3Global: tree is not fitted."
 
         lines: list[str] = []
 
@@ -512,6 +478,7 @@ class MultiTreatmentDecisionTreeV3:
             parent = node.parent
             left_rule, right_rule = self._split_rule_from_info(parent)
 
+            # incoming op convention: "<=" means left, ">" means right
             if node.incoming_split.op == "<=":
                 return left_rule
             if node.incoming_split.op == ">":
@@ -535,8 +502,7 @@ class MultiTreatmentDecisionTreeV3:
             if node.is_leaf:
                 return ""
             left_rule, right_rule = self._split_rule_from_info(node)
-            enc_type = node.source_partition_info.get("encoder_type", "NA")
-            return f" | split_rule: left [{left_rule}], right [{right_rule}] | local_encoder={enc_type}"
+            return f" | split_rule: left [{left_rule}], right [{right_rule}]"
 
         def _fmt_node(node):
             base = f"id={node.id} | type={node.type} | n={node.sample_size}"
@@ -574,7 +540,7 @@ class MultiTreatmentDecisionTreeV3:
             for i, child in enumerate(children):
                 _walk(child, next_prefix, i == len(children) - 1, depth + 1)
 
-        lines.append("Decision tree structure (Local partitions)")
+        lines.append("Decision tree structure (Global partitions)")
         lines.append(
             f"criterion={self.tree_criterion:.6f} | "
             f"internal={len(self.internal_nodes)} | leaves={len(self.leaf_nodes)}"
@@ -618,11 +584,9 @@ class MultiTreatmentDecisionTreeV3:
                 raise RuntimeError(f"Missing source_partition_info on node id={node.id}")
 
             left_rule, right_rule = _split_rule_pair(node)
-            enc_type = src.get("encoder_type", "NA")
             return (
                 f"id={node.id}<br/>internal<br/>n={node.sample_size}"
                 f"<br/>{src['source_var']} ({src['source_type']})"
-                f"<br/>local encoder: {enc_type}"
                 f"<br/>left: {left_rule}"
                 f"<br/>right: {right_rule}"
             )
@@ -674,6 +638,7 @@ class MultiTreatmentDecisionTreeV3:
 
                 elabel = _escape(_edge_label(node, child))
                 lines.append(f'    {nk} -->|"{elabel}"| {ck}')
+
                 _walk(child, depth + 1)
 
         _walk(self.root_node, 0)

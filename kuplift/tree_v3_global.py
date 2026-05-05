@@ -7,19 +7,19 @@ from __future__ import annotations
 from typing import Any
 import pandas as pd
 
-from kuplift.node_v3 import NodeV3
+from kuplift.node_v3_global import NodeV3Global
 
 
-class TreeV3:
+class TreeV3Global:
     def __init__(
         self,
         dataset: pd.DataFrame,
-        features: list[str],  # raw features
+        features: list[str],
         treatment_col_name: str,
         target_col_name: str,
     ):
         self.dataset = dataset
-        self.features = list(features)
+        self.features = list(features)  # encoded informative vars only
         self.treatment_col_name = treatment_col_name
         self.target_col_name = target_col_name
 
@@ -28,15 +28,15 @@ class TreeV3:
         self.target_modalities = sorted(list(dataset[target_col_name].dropna().unique()), key=lambda x: str(x))
         self.treatment_modalities = sorted(list(dataset[treatment_col_name].dropna().unique()), key=lambda x: str(x))
 
-        self.root_node = NodeV3(
+        self.root_node = NodeV3Global(
             dataset=dataset.copy(),
             treatment_col_name=treatment_col_name,
             target_col_name=target_col_name,
             parent=None,
         )
 
-        self.internal_nodes: list[NodeV3] = []
-        self.leaf_nodes: list[NodeV3] = [self.root_node]
+        self.internal_nodes: list[NodeV3Global] = []
+        self.leaf_nodes: list[NodeV3Global] = [self.root_node]
 
     @property
     def used_variable_count(self) -> int:
@@ -64,10 +64,10 @@ class TreeV3:
 
     def apply_split(
         self,
-        node: NodeV3,
+        node: NodeV3Global,
         split_var: str,
-        left_node: NodeV3,
-        right_node: NodeV3,
+        left_node: NodeV3Global,
+        right_node: NodeV3Global,
         split_value,
         split_var_type: str,
         source_partition_info: dict | None,
