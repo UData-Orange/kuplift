@@ -20,11 +20,11 @@ if __name__ == "__main__":
     tree.print_tree(show_path=True)
     print()
     print()
-    # print(tree.predict(dataset[dataset.columns[:-2]]))
+    print(tree.predict(dataset[dataset.columns[:-2]]))
 
-    # # 4 treatments
+    # 4 treatments
     dataset = pandas.read_csv("./data/dataset.csv").astype({"VAR2": object, TREATMENT_NAME: object, TARGET_NAME: object})
     tree = MultiTreatmentDecisionTreeV3()
     tree.fit(dataset[dataset.columns[:-2]], dataset[TREATMENT_NAME], dataset[TARGET_NAME])
     tree.print_tree(show_path=True)
-    # print(tree.predict(dataset[dataset.columns[:-2]]))
+    print(tree.predict(dataset[dataset.columns[:-2]]))
