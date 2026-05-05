@@ -34,6 +34,7 @@ class DTDecisionBinaryTreeCostV3(DTDecisionTreeCostV3):
         We reuse the general "total-tree" formula; with no internal node and one leaf,
         it naturally gives the null model cost.
         """
+        # TODO: Re-implement.
         return self.compute_total_tree_cost(tree)
 
     # ------------------------------------------------------------------
