@@ -9,7 +9,7 @@ Multi-treatment univariate encoding
 - [x] `get_target_probabilities` must compute probabilities for all j|t.
 - [x] In *helperfunctions.py* -> `preprocess_data`: fix computations (`t0j1 + t0j1` -> `t0j1 + t0j0`).
 - [x] Fix MultiTreatmentUnivariateEncoding output tables (transpose them).
-- [ ] Fix behaviour when dataset is too small and all levels are 0.
+- [x] Fix behaviour when dataset is too small and all levels are 0.
 - [ ] Merge files (replace files + fix imports) after verification:
   - *bayesian_decision_tree_v2.py* into *bayesian_decision_tree.py*;
   - *tree_v2.py* into *tree.py*;
@@ -20,7 +20,7 @@ Multi-treatment univariate encoding
 Decision Tree
 -------------
 
-- [ ] Create a new decision tree algorithm based on the BayesianDecisionTree class but using either OptimizedUnivariateEncoding or MultiTreatmentUnivariateEncoding.
+- [?] Create a new decision tree algorithm based on the BayesianDecisionTree class but using either OptimizedUnivariateEncoding or MultiTreatmentUnivariateEncoding.
   The new class must be named `MultiTreatmentDecisionTree`.
   The UnivariateEncoding class must be chosen automatically depending on the number of treatments in the dataset:
   - 2 treatments => OptimizedUnivariateEncoding
@@ -28,7 +28,7 @@ Decision Tree
   The decision tree must be binary. As such, any use of MultiTreatmentUnivariateEncoding must limit the number of treatment groups to 2.
   The choice of the variable is random with equal chances for all variables.
 
-- [ ] Allow the choice of the variable to be configured to any of these algorithms:
+- [?] Allow the choice of the variable to be configured to any of these algorithms:
   - Always choose the variable with the highest level.
   - Choose randomly with equal chances for all variables.
   - Choose randomly with chances proportional to the levels of the variables.
