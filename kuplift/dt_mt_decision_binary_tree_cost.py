@@ -6,19 +6,19 @@ from __future__ import annotations
 
 import math
 
-from kuplift.dt_decision_tree_cost_v3 import DTDecisionTreeCostV3
-from kuplift.kwstat_v3 import KWStat
+from kuplift.dt_mt_decision_tree_cost import DTDecisionTreeCost
+from kuplift.mt_kwstat import KWStat
 
 
-class DTDecisionBinaryTreeCostV3(DTDecisionTreeCostV3):
+class DTDecisionBinaryTreeCost(DTDecisionTreeCost):
     """
-    Default binary-tree cost model for MultiTreatmentDecisionTreeV3.
+    Default binary-tree cost model for multi-treatment DecisionTree.
 
     Notes
     -----
     - The tree structure remains binary (left/right split).
     - This cost model is robust to multi-treatment datasets as long as node-level
-      class/treatment counts can be accessed via generic NodeV3 methods.
+      class/treatment counts can be accessed via generic multi-treatment Node methods.
     - Hypothetical split simulation is STRICT: the candidate split must provide
       simulated children and split metadata; no hidden split recomputation here.
     """
@@ -147,7 +147,7 @@ class DTDecisionBinaryTreeCostV3(DTDecisionTreeCostV3):
         """
         Generic leaf likelihood/prior coding from treatment-target contingency table.
 
-        NodeV3 is expected to expose:
+        Node is expected to expose:
           - get_treatments()
           - get_targets()
           - get_count(treatment, target)

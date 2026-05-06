@@ -24,7 +24,7 @@ def validate_leaf_selection_strategy(strategy: str) -> None:
         )
 
 
-def select_leaf_v3(
+def select_leaf(
     strategy: str,
     node_vs_cost: dict[Any, float],
     rng: np.random.Generator,

@@ -7,9 +7,9 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 
 
-class DTDecisionTreeCostV3(ABC):
+class DTDecisionTreeCost(ABC):
     """
-    Abstract cost-model interface for MultiTreatmentDecisionTreeV3.
+    Abstract cost-model interface for multi-treatment DecisionTree.
 
     A concrete implementation must provide:
       - null tree cost

@@ -20,11 +20,11 @@ class IncomingSplit:
     value: Any = None
 
 
-class NodeV3Global:
+class Node:
     """
-    Node for global-partition tree:
+    Node for local-partition tree:
       - datasets are always raw values
-      - split mask comes from encoded part indices
+      - each candidate split uses partitions fitted on the current node dataset
     """
 
     def __init__(
@@ -32,7 +32,7 @@ class NodeV3Global:
         dataset: pd.DataFrame,
         treatment_col_name: str,
         target_col_name: str,
-        parent: "NodeV3Global | None" = None,
+        parent: "Node | None" = None,
         incoming_split: IncomingSplit | None = None,
     ):
         self.id: int = next(_NODE_ID_SEQ)
@@ -45,17 +45,17 @@ class NodeV3Global:
         self.target_col_name = target_col_name
 
         self.is_leaf = True
-        self.left_node: NodeV3Global | None = None
-        self.right_node: NodeV3Global | None = None
+        self.left_node: Node | None = None
+        self.right_node: Node | None = None
 
-        self.split_var: str | None = None                 # encoded variable name
-        self.split_var_type: str | None = None            # "Numerical" / "Categorical"
-        self.split_value: Any = None                      # threshold or left-set of encoded part indices
+        self.split_var: str | None = None
+        self.split_var_type: str | None = None
+        self.split_value: Any = None
 
         self.n_values_of_categorical_split_var: int | None = None
         self.treatment_groups: list[tuple[Any, ...]] | None = None
 
-        # source partition metadata for display/debug
+        # local fitted partition metadata on this split
         self.source_partition_info: dict | None = None
 
         self._counts_by_treatment_target: dict[Any, dict[Any, int]] = {}
@@ -113,8 +113,8 @@ class NodeV3Global:
     def apply_split(
         self,
         split_var: str,
-        left_node: "NodeV3Global",
-        right_node: "NodeV3Global",
+        left_node: "Node",
+        right_node: "Node",
         split_value: Any,
         split_var_type: str,
         source_partition_info: dict | None,
@@ -131,7 +131,7 @@ class NodeV3Global:
 
     def __str__(self) -> str:
         return (
-            f"NodeV3Global(id={self.id}, type={self.type}, sample_size={self.sample_size}, "
+            f"Node(id={self.id}, type={self.type}, sample_size={self.sample_size}, "
             f"split_var={self.split_var!r}, split_var_type={self.split_var_type!r}, "
             f"path='{self.get_path_str()}')"
         )

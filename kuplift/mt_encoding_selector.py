@@ -8,11 +8,11 @@ from dataclasses import dataclass
 import pandas as pd
 
 from kuplift.optimized_univariate_encoding import OptimizedUnivariateEncoding
-from kuplift.multi_treatment_univariate_encoding import MultiTreatmentUnivariateEncoding
+from kuplift.mt_univariate_encoding import MultiTreatmentUnivariateEncoding
 
 
 @dataclass(frozen=True)
-class EncodingSelectionResultV3:
+class EncodingSelectionResult:
     encoder_name: str
     treatment_modality_count: int
 
@@ -23,7 +23,7 @@ def count_treatment_modalities(treatment_col: pd.Series) -> int:
     return int(treatment_col.nunique(dropna=False))
 
 
-def select_univariate_encoder_v3(treatment_col: pd.Series):
+def select_univariate_encoder(treatment_col: pd.Series):
     """
     Select univariate encoder according to treatment modality count.
 
@@ -41,13 +41,13 @@ def select_univariate_encoder_v3(treatment_col: pd.Series):
 
     if n_modalities == 2:
         encoder = OptimizedUnivariateEncoding()
-        info = EncodingSelectionResultV3(
+        info = EncodingSelectionResult(
             encoder_name="OUE",
             treatment_modality_count=n_modalities,
         )
     else:
         encoder = MultiTreatmentUnivariateEncoding()
-        info = EncodingSelectionResultV3(
+        info = EncodingSelectionResult(
             encoder_name="MTUE",
             treatment_modality_count=n_modalities,
         )

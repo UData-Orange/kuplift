@@ -5,9 +5,9 @@
 from __future__ import annotations
 
 
-class DTDecisionTreeNodeSplitV3:
+class DTDecisionTreeNodeSplit:
     """
-    Container for a hypothetical split evaluation in MultiTreatmentDecisionTreeV3.
+    Container for a hypothetical split evaluation in multi-treatment DecisionTree.
 
     It stores:
       - the splittable node
@@ -98,7 +98,7 @@ class DTDecisionTreeNodeSplitV3:
     def __str__(self) -> str:
         node_id = getattr(self._splittable_node, "id", None)
         return (
-            f"DTDecisionTreeNodeSplitV3("
+            f"DTDecisionTreeNodeSplit("
             f"node_id={node_id}, split_var={self._split_var!r}, "
             f"split_var_type={self._split_var_type!r}, tree_cost={self._tree_cost:.6f})"
         )

@@ -9,7 +9,7 @@ import math
 
 class KWStat:
     """
-    Minimal KWStat subset used by MultiTreatmentDecisionTreeV3 cost models.
+    Minimal KWStat subset used by multi-treatment DecisionTree cost models.
     """
 
     _ln_factorial_cache = [0.0]  # ln(0!) = 0

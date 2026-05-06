@@ -1,4 +1,4 @@
-# kuplift/multi_treatment_decision_tree_v3.py
+# kuplift/mt_decision_tree.py
 # Copyright (c) 2026 Orange. All rights reserved.
 # This software is distributed under the MIT License, the text of which is available
 # at https://spdx.org/licenses/MIT.html or see the "LICENSE" file for more details.
@@ -10,21 +10,21 @@ import logging
 import numpy as np
 import pandas as pd
 
-from kuplift.tree_v3 import TreeV3
-from kuplift.node_v3 import NodeV3, IncomingSplit
-from kuplift.dt_decision_binary_tree_cost_v3 import DTDecisionBinaryTreeCostV3
-from kuplift.dt_decision_tree_node_split_v3 import DTDecisionTreeNodeSplitV3
-from kuplift.leaf_selection_strategies_v3 import (
-    select_leaf_v3,
+from kuplift.mt_tree import Tree
+from kuplift.mt_node import Node, IncomingSplit
+from kuplift.dt_mt_decision_binary_tree_cost import DTDecisionBinaryTreeCost
+from kuplift.dt_mt_decision_tree_node_split import DTDecisionTreeNodeSplit
+from kuplift.mt_leaf_selection_strategies import (
+    select_leaf,
     validate_leaf_selection_strategy,
 )
-from kuplift.encoding_selector_v3 import select_univariate_encoder_v3
+from kuplift.mt_encoding_selector import select_univariate_encoder
 from kuplift.utils import transform_variable
 
 logger = logging.getLogger(__name__)
 
 
-class MultiTreatmentDecisionTreeV3:
+class DecisionTree:
     """
     Local-partition version (base implementation):
       - for each candidate split at a node, partitions are fitted on node raw dataset
@@ -69,12 +69,12 @@ class MultiTreatmentDecisionTreeV3:
 
         self.local_fit_mode = local_fit_mode
 
-        self.cost_model = cost_model if cost_model is not None else DTDecisionBinaryTreeCostV3()
+        self.cost_model = cost_model if cost_model is not None else DTDecisionBinaryTreeCost()
 
         # selector info (OUE/MTUE family)
         self.encoder_type = None
 
-        self.tree: TreeV3 | None = None
+        self.tree: Tree | None = None
         self.tree_criterion: float = 0.0
 
         self.features: list[str] = []
@@ -114,7 +114,7 @@ class MultiTreatmentDecisionTreeV3:
     def treatment_modality_count(self) -> int:
         return self.tree.treatment_modality_count if self.tree is not None else 0
 
-    def fit(self, data: pd.DataFrame, treatment_col, y_col) -> "MultiTreatmentDecisionTreeV3":
+    def fit(self, data: pd.DataFrame, treatment_col, y_col) -> "DecisionTree":
         if data is None or len(data) == 0:
             raise ValueError("data must be a non-empty DataFrame")
 
@@ -135,14 +135,14 @@ class MultiTreatmentDecisionTreeV3:
         if not self.features:
             raise ValueError("No feature column available for training")
 
-        _, encoding_info = select_univariate_encoder_v3(t)
+        _, encoding_info = select_univariate_encoder(t)
         self.encoder_type = encoding_info.encoder_name
 
         raw_train_df = X.copy()
         raw_train_df[self.treatment_col_name] = t.values
         raw_train_df[self.target_col_name] = y.values
 
-        self.tree = TreeV3(
+        self.tree = Tree(
             dataset=raw_train_df,
             features=self.features,
             treatment_col_name=self.treatment_col_name,
@@ -156,7 +156,7 @@ class MultiTreatmentDecisionTreeV3:
         return self
 
     def _new_local_encoder(self, t_series: pd.Series):
-        encoder, info = select_univariate_encoder_v3(t_series)
+        encoder, info = select_univariate_encoder(t_series)
         return encoder, info.encoder_name
 
     def _fit_local_encoder(self, local_X: pd.DataFrame, local_t: pd.Series, local_y: pd.Series):
@@ -184,7 +184,7 @@ class MultiTreatmentDecisionTreeV3:
 
         return encoder, enc_name, X_enc
 
-    def _fit_local_partitions_for_leaf(self, node: NodeV3) -> dict[str, dict]:
+    def _fit_local_partitions_for_leaf(self, node: Node) -> dict[str, dict]:
         """
         Per-leaf mode:
         one local fit on all raw features of this node, then build per-variable info map.
@@ -251,7 +251,7 @@ class MultiTreatmentDecisionTreeV3:
         self._local_fit_cache[cache_key] = result_map
         return result_map
 
-    def _fit_local_partition_for_var(self, node: NodeV3, var: str) -> dict:
+    def _fit_local_partition_for_var(self, node: Node, var: str) -> dict:
         """
         Return local partition info for a (node, var), depending on local_fit_mode.
         """
@@ -318,7 +318,7 @@ class MultiTreatmentDecisionTreeV3:
         self._local_fit_cache[cache_key] = result
         return result
 
-    def _simulate_split_on_var_local(self, node: NodeV3, var: str):
+    def _simulate_split_on_var_local(self, node: Node, var: str):
         try:
             info = self._fit_local_partition_for_var(node, var)
         except RuntimeError as e:
@@ -356,14 +356,14 @@ class MultiTreatmentDecisionTreeV3:
         split_var_type = info["source_type"]
         split_value = 0.5
 
-        left_node = NodeV3(
+        left_node = Node(
             dataset=left_df,
             treatment_col_name=node.treatment_col_name,
             target_col_name=node.target_col_name,
             parent=node,
             incoming_split=IncomingSplit(var=var, op="<=", value=split_value),
         )
-        right_node = NodeV3(
+        right_node = Node(
             dataset=right_df,
             treatment_col_name=node.treatment_col_name,
             target_col_name=node.target_col_name,
@@ -407,7 +407,7 @@ class MultiTreatmentDecisionTreeV3:
                     if left_node.sample_size < self.min_samples_leaf or right_node.sample_size < self.min_samples_leaf:
                         continue
 
-                    node_split = DTDecisionTreeNodeSplitV3(
+                    node_split = DTDecisionTreeNodeSplit(
                         splittable_node=leaf,
                         split_var=split_var,
                     )
@@ -438,7 +438,7 @@ class MultiTreatmentDecisionTreeV3:
             if not node_vs_best_cost:
                 break
 
-            selected_leaf = select_leaf_v3(
+            selected_leaf = select_leaf(
                 strategy=self.leaf_selection,
                 node_vs_cost=node_vs_best_cost,
                 rng=self.rng,
@@ -553,13 +553,13 @@ class MultiTreatmentDecisionTreeV3:
     def __str__(self) -> str:
         if self.tree is None:
             return (
-                "MultiTreatmentDecisionTreeV3(unfitted, "
+                "DecisionTree(unfitted, "
                 f"leaf_selection={self.leaf_selection}, "
                 f"encoder_type={self.encoder_type}, "
                 f"local_fit_mode={self.local_fit_mode})"
             )
         return (
-            "MultiTreatmentDecisionTreeV3("
+            "DecisionTree("
             f"encoder_type={self.encoder_type}, "
             f"leaf_selection={self.leaf_selection}, "
             f"local_fit_mode={self.local_fit_mode}, "
@@ -610,7 +610,7 @@ class MultiTreatmentDecisionTreeV3:
 
     def tree_to_string(self, show_path: bool = False, max_depth: int | None = None) -> str:
         if self.tree is None or self.root_node is None:
-            return "MultiTreatmentDecisionTreeV3: tree is not fitted."
+            return "DecisionTree: tree is not fitted."
 
         lines: list[str] = []
 
