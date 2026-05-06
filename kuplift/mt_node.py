@@ -110,13 +110,59 @@ class Node:
     def get_path_str(self, separator: str = " AND ") -> str:
         if self.parent is None:
             return "ROOT"
+
+        def _part_to_text(part) -> str:
+            ptype = part.part_type()
+            if ptype == "Interval":
+                if getattr(part, "is_missing", False):
+                    return "MISSING"
+                lb = "-∞" if getattr(part, "is_left_open", False) else str(part.lower_bound)
+                rb = "+∞" if getattr(part, "is_right_open", False) else str(part.upper_bound)
+                return f"({lb}, {rb}]"
+            if ptype == "Value group":
+                vals = list(getattr(part, "values", []))
+                return "{" + ", ".join(map(str, vals)) + "}"
+            return str(part)
+
         parts = []
         node = self
+
         while node is not None and node.parent is not None:
-            inc = node.incoming_split
-            if inc.var is not None and inc.op is not None:
-                parts.append(f"{inc.var} {inc.op} {inc.value}")
+            parent = node.parent
+            info = getattr(parent, "source_partition_info", None)
+
+            # Preferred path rendering: human-readable split rule from local partition
+            if info is not None:
+                source_var = info.get("source_var")
+                source_type = info.get("source_type")
+                p = info.get("parts")
+
+                if p is not None and len(p) >= 2 and source_var is not None:
+                    left_txt = _part_to_text(p[0])
+                    right_txt = _part_to_text(p[1])
+
+                    if node.incoming_split.op == "<=":
+                        parts.append(f"{source_var} in {left_txt}")
+                    elif node.incoming_split.op == ">":
+                        parts.append(f"{source_var} in {right_txt}")
+                    else:
+                        # fallback on raw incoming split if unexpected op
+                        inc = node.incoming_split
+                        if inc.var is not None and inc.op is not None:
+                            parts.append(f"{inc.var} {inc.op} {inc.value}")
+                else:
+                    # fallback if partition info is incomplete
+                    inc = node.incoming_split
+                    if inc.var is not None and inc.op is not None:
+                        parts.append(f"{inc.var} {inc.op} {inc.value}")
+            else:
+                # fallback legacy behavior
+                inc = node.incoming_split
+                if inc.var is not None and inc.op is not None:
+                    parts.append(f"{inc.var} {inc.op} {inc.value}")
+
             node = node.parent
+
         parts.reverse()
         return separator.join(parts) if parts else "ROOT"
 
