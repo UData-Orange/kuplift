@@ -35,7 +35,7 @@ class MultiTreatmentDecisionTreeV3:
 
     def __init__(
         self,
-        max_depth: int = 7,
+        max_depth: int = 15,
         min_samples_leaf: int = 20,
         leaf_selection: str = "best_leaf",
         random_state: Optional[int] = None,
