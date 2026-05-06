@@ -11,6 +11,7 @@ from kuplift.multi_treatment_univariate_encoding import MultiTreatmentUnivariate
 
 # V3
 from kuplift.multi_treatment_decision_tree_v3 import MultiTreatmentDecisionTreeV3
+from kuplift.multi_treatment_decision_tree_v3_global import MultiTreatmentDecisionTreeV3Global
 from kuplift.dt_decision_tree_cost_v3 import DTDecisionTreeCostV3
 from kuplift.dt_decision_binary_tree_cost_v3 import DTDecisionBinaryTreeCostV3
 
@@ -23,6 +24,7 @@ __all__ = [
     "MultiTreatmentUnivariateEncoding",
     # V3
     "MultiTreatmentDecisionTreeV3",
+    "MultiTreatmentDecisionTreeV3Global",
     "DTDecisionTreeCostV3",
     "DTDecisionBinaryTreeCostV3",
 ]
