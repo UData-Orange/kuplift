@@ -249,6 +249,12 @@ class DecisionTree:
             # cache as non-informative to avoid repeated failures
             self._local_fit_cache[cache_key] = result_map
             raise RuntimeError("local encoder missing get_variable_type()")
+        if not hasattr(encoder, "get_treatment_groups"):
+            # strict requirement (no fallback)
+            self._local_fit_cache[cache_key] = result_map
+            raise RuntimeError("local encoder missing get_treatment_groups()")
+
+        treatment_groups_full = encoder.get_treatment_groups()
 
         for var in informative:
             if var not in self.features:
@@ -264,6 +270,7 @@ class DecisionTree:
                 "source_type": vtype,
                 "parts": parts,
                 "encoder_type": enc_name,
+                "treatment_groups_full": treatment_groups_full,
             }
 
         self._local_fit_cache[cache_key] = result_map
@@ -321,9 +328,14 @@ class DecisionTree:
             result = {"is_informative": False}
             self._local_fit_cache[cache_key] = result
             raise RuntimeError("local encoder missing get_variable_type()")
+        if not hasattr(encoder, "get_treatment_groups"):
+            result = {"is_informative": False}
+            self._local_fit_cache[cache_key] = result
+            raise RuntimeError("local encoder missing get_treatment_groups()")
 
         parts = encoder.get_partition(var)
         vtype = encoder.get_variable_type(var)
+        treatment_groups_full = encoder.get_treatment_groups()
 
         result = {
             "is_informative": True,
@@ -331,10 +343,38 @@ class DecisionTree:
             "source_type": vtype,
             "parts": parts,
             "encoder_type": enc_name,
+            "treatment_groups_full": treatment_groups_full,
         }
 
         self._local_fit_cache[cache_key] = result
         return result
+
+    @staticmethod
+    def _normalize_treatment_groups(groups) -> list[tuple]:
+        """
+        Normalize encoder-provided groups to list[tuple[...]].
+        """
+        normalized = []
+        if groups is None:
+            return normalized
+        for g in groups:
+            normalized.append(tuple(g))
+        return normalized
+
+    def _extract_groups_for_var_part(self, treatment_groups_full: dict, var: str, part):
+        """
+        Extract groups for (var, part) from full dictionary returned by get_treatment_groups().
+        """
+        if not treatment_groups_full:
+            return None
+        if var not in treatment_groups_full:
+            return None
+
+        groups_by_part = treatment_groups_full[var]
+        if part not in groups_by_part:
+            return None
+
+        return self._normalize_treatment_groups(groups_by_part[part])
 
     def _simulate_split_on_var_local(self, node: Node, var: str):
         try:
@@ -387,6 +427,23 @@ class DecisionTree:
             target_col_name=node.target_col_name,
             parent=node,
             incoming_split=IncomingSplit(var=var, op=">", value=split_value),
+        )
+
+        # Full groups for all vars/parts on this leaf dataset
+        treatment_groups_full = info.get("treatment_groups_full", None)
+        left_node.treatment_groups_full = treatment_groups_full
+        right_node.treatment_groups_full = treatment_groups_full
+
+        # Cost-facing groups for this split var + specific side part
+        left_node.treatment_groups = self._extract_groups_for_var_part(
+            treatment_groups_full=treatment_groups_full,
+            var=var,
+            part=parts[left_part],
+        )
+        right_node.treatment_groups = self._extract_groups_for_var_part(
+            treatment_groups_full=treatment_groups_full,
+            var=var,
+            part=parts[right_part],
         )
 
         n_values_cat = None

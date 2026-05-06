@@ -53,7 +53,14 @@ class Node:
         self.split_value: Any = None
 
         self.n_values_of_categorical_split_var: int | None = None
+
+        # Cost-facing groups for this node (list of treatment groups)
+        # Expected format by cost model: list[tuple[Any, ...]]
         self.treatment_groups: list[tuple[Any, ...]] | None = None
+
+        # Full encoder output for this node:
+        # dict[var_name -> dict[part -> tuple[tuple[treatment,...], ...]]]
+        self.treatment_groups_full: dict | None = None
 
         # local fitted partition metadata on this split
         self.source_partition_info: dict | None = None
@@ -96,6 +103,9 @@ class Node:
 
     def get_treatment_groups(self):
         return self.treatment_groups
+
+    def get_treatment_groups_full(self):
+        return self.treatment_groups_full
 
     def get_path_str(self, separator: str = " AND ") -> str:
         if self.parent is None:
