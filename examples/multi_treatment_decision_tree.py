@@ -11,6 +11,9 @@ TREATMENT_NAME = "TRAITEMENT"
 TARGET_NAME = "CIBLE"
 CATEGORICAL_VAR_NAME = "VAR2"
 
+# You can print `tree.tree_to_mermaid()` to stdout and copy-paste the output to https://mermaid.live/ to see the tree as a diagram.
+# `tree.print_tree(show_path=True)` also works but it prints the tree to the console and the result is less readable.
+
 if __name__ == "__main__":
     logging.basicConfig(level=LOGLEVEL)
 
