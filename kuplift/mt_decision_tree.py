@@ -7,6 +7,8 @@ from __future__ import annotations
 
 from typing import Optional
 import logging
+import warnings
+import re
 import numpy as np
 import pandas as pd
 
@@ -20,6 +22,7 @@ from kuplift.mt_leaf_selection_strategies import (
 )
 from kuplift.mt_encoding_selector import select_univariate_encoder
 from kuplift.utils import transform_variable
+import khiops.core  # For warning handling
 
 logger = logging.getLogger(__name__)
 
@@ -168,16 +171,31 @@ class DecisionTree:
         if enc_name == "OUE":
             X_enc = encoder.fit_transform(local_X, local_t, local_y, maxparts=self.maxparts)
         else:
-            if self.maxtreatmentgroups is not None:
-                X_enc = encoder.fit_transform(
-                    local_X,
-                    local_t,
-                    local_y,
-                    maxparts=self.maxparts,
-                    maxtreatmentgroups=self.maxtreatmentgroups,
+            with warnings.catch_warnings():
+                warnings.filterwarnings(
+                    "ignore",
+                    "".join([
+                        r"^",
+                        re.escape(
+                            r"""Khiops ended correctly but there were minor issues:""" "\n"
+                            r"""Warnings in log:""" "\n"
+                        ),
+                        r""".*The target variable [^ ]+ contains only one value""",
+                        r"$"
+                    ]),
+                    UserWarning,
+                    "^khiops\.core\.internals\.runner$"
                 )
-            else:
-                X_enc = encoder.fit_transform(local_X, local_t, local_y, maxparts=self.maxparts)
+                if self.maxtreatmentgroups is not None:
+                    X_enc = encoder.fit_transform(
+                        local_X,
+                        local_t,
+                        local_y,
+                        maxparts=self.maxparts,
+                        maxtreatmentgroups=self.maxtreatmentgroups,
+                    )
+                else:
+                    X_enc = encoder.fit_transform(local_X, local_t, local_y, maxparts=self.maxparts)
 
         if not isinstance(X_enc, pd.DataFrame):
             raise RuntimeError("local encoder.fit_transform must return a DataFrame")
