@@ -619,7 +619,7 @@ class DecisionTree:
             raise RuntimeError("Model is not fitted")
         return self.tree.get_leaf_paths(sort)
     
-    def predict(self, X: pd.DataFrame) -> pd.Series:
+    def predict_best_treatment(self, X: pd.DataFrame) -> pd.Series:
         if self.tree is None:
             raise RuntimeError("Model is not fitted")
 

@@ -23,7 +23,7 @@ if __name__ == "__main__":
     tree.fit(dataset[dataset.columns[:-2]], dataset[TREATMENT_NAME], dataset[TARGET_NAME])
     # print(tree.tree_to_mermaid())
     tree.print_tree(show_path=True)
-    print(tree.predict(dataset[dataset.columns[:-2]]))
+    print(tree.predict_best_treatment(dataset[dataset.columns[:-2]]))
 
     print()
     print()
@@ -34,4 +34,4 @@ if __name__ == "__main__":
     tree.fit(dataset[dataset.columns[:-2]], dataset[TREATMENT_NAME], dataset[TARGET_NAME])
     # print(tree.tree_to_mermaid())
     tree.print_tree(show_path=True)
-    print(tree.predict(dataset[dataset.columns[:-2]]))
+    print(tree.predict_best_treatment(dataset[dataset.columns[:-2]]))
