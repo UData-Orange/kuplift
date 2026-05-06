@@ -27,10 +27,17 @@ logger = logging.getLogger(__name__)
 class MultiTreatmentDecisionTreeV3:
     """
     Local-partition version (base implementation):
-      - for each candidate (node, variable), fit OUE/MTUE on node raw dataset
-      - use resulting local partition to create split mask
+      - for each candidate split at a node, partitions are fitted on node raw dataset
       - raw node datasets are preserved
       - no silent fallback
+
+    Local fitting modes
+    -------------------
+    - per_leaf (default):
+        one local fit_transform() per leaf on all raw features, then reuse partitions
+        for each variable of that leaf.
+    - per_variable:
+        one local fit_transform() per (leaf, variable) on a single-column dataset.
     """
 
     def __init__(
@@ -43,8 +50,12 @@ class MultiTreatmentDecisionTreeV3:
         control_name=None,
         maxparts: int = 2,
         maxtreatmentgroups: Optional[int] = None,
+        local_fit_mode: str = "per_leaf",
     ):
         validate_leaf_selection_strategy(leaf_selection)
+
+        if local_fit_mode not in {"per_leaf", "per_variable"}:
+            raise ValueError("local_fit_mode must be 'per_leaf' or 'per_variable'")
 
         self.max_depth = max_depth
         self.min_samples_leaf = min_samples_leaf
@@ -55,6 +66,8 @@ class MultiTreatmentDecisionTreeV3:
         self.maxparts = 2
         self.maxtreatmentgroups = maxtreatmentgroups
         self.control_name = control_name
+
+        self.local_fit_mode = local_fit_mode
 
         self.cost_model = cost_model if cost_model is not None else DTDecisionBinaryTreeCostV3()
 
@@ -69,9 +82,9 @@ class MultiTreatmentDecisionTreeV3:
         self.target_col_name: str | None = None
 
         # Cache for local partition fits:
-        # key = (node_id, variable_name)
-        # value = dict returned by _fit_local_partition_for_var
-        self._local_fit_cache: dict[tuple[int, str], dict] = {}
+        # per_variable key = ("var", node_id, variable_name) -> dict result for one var
+        # per_leaf key     = ("leaf", node_id)              -> dict[var] = dict result
+        self._local_fit_cache: dict[tuple, dict] = {}
 
     @property
     def used_variable_count(self) -> int:
@@ -146,21 +159,10 @@ class MultiTreatmentDecisionTreeV3:
         encoder, info = select_univariate_encoder_v3(t_series)
         return encoder, info.encoder_name
 
-    def _fit_local_partition_for_var(self, node: NodeV3, var: str) -> dict:
-        cache_key = (int(node.id), str(var))
-        cached = self._local_fit_cache.get(cache_key)
-        if cached is not None:
-            return cached
-
-        if var not in node.dataset.columns:
-            raise RuntimeError(f"Variable {var!r} missing in node dataset")
-
-        local_X = node.dataset[[var]].copy()
-
-        # force categorical dtype once locally to avoid repeated OUE warning
-        local_t = node.dataset[self.treatment_col_name].astype(object)
-        local_y = node.dataset[self.target_col_name]
-
+    def _fit_local_encoder(self, local_X: pd.DataFrame, local_t: pd.Series, local_y: pd.Series):
+        """
+        Fit local encoder on provided local_X and return (encoder, encoder_name, X_enc).
+        """
         encoder, enc_name = self._new_local_encoder(local_t)
 
         if enc_name == "OUE":
@@ -180,6 +182,108 @@ class MultiTreatmentDecisionTreeV3:
         if not isinstance(X_enc, pd.DataFrame):
             raise RuntimeError("local encoder.fit_transform must return a DataFrame")
 
+        return encoder, enc_name, X_enc
+
+    def _fit_local_partitions_for_leaf(self, node: NodeV3) -> dict[str, dict]:
+        """
+        Per-leaf mode:
+        one local fit on all raw features of this node, then build per-variable info map.
+
+        Important:
+        - both success and failure are cached per leaf to avoid repeated retries.
+        """
+        cache_key = ("leaf", int(node.id))
+        cached = self._local_fit_cache.get(cache_key)
+        if cached is not None:
+            return cached
+
+        missing = [v for v in self.features if v not in node.dataset.columns]
+        if missing:
+            raise RuntimeError(f"Missing variables in node dataset: {missing}")
+
+        local_X = node.dataset[self.features].copy()
+
+        # force categorical dtype once locally to avoid repeated OUE warning
+        local_t = node.dataset[self.treatment_col_name].astype(object)
+        local_y = node.dataset[self.target_col_name]
+
+        # default non-informative map for all features (used for failure fallback too)
+        result_map: dict[str, dict] = {v: {"is_informative": False} for v in self.features}
+
+        try:
+            encoder, enc_name, X_enc = self._fit_local_encoder(local_X, local_t, local_y)
+        except Exception as e:
+            # Cache failure sentinel to avoid refitting this leaf for each variable.
+            self._local_fit_cache[cache_key] = result_map
+            raise RuntimeError(f"could not fit: {e}")
+
+        informative = list(X_enc.columns)
+
+        if len(informative) == 0:
+            self._local_fit_cache[cache_key] = result_map
+            return result_map
+
+        if not hasattr(encoder, "get_partition"):
+            # cache as non-informative to avoid repeated failures
+            self._local_fit_cache[cache_key] = result_map
+            raise RuntimeError("local encoder missing get_partition()")
+        if not hasattr(encoder, "get_variable_type"):
+            # cache as non-informative to avoid repeated failures
+            self._local_fit_cache[cache_key] = result_map
+            raise RuntimeError("local encoder missing get_variable_type()")
+
+        for var in informative:
+            if var not in self.features:
+                # safety: ignore unexpected columns
+                continue
+
+            parts = encoder.get_partition(var)
+            vtype = encoder.get_variable_type(var)
+
+            result_map[var] = {
+                "is_informative": True,
+                "source_var": var,
+                "source_type": vtype,
+                "parts": parts,
+                "encoder_type": enc_name,
+            }
+
+        self._local_fit_cache[cache_key] = result_map
+        return result_map
+
+    def _fit_local_partition_for_var(self, node: NodeV3, var: str) -> dict:
+        """
+        Return local partition info for a (node, var), depending on local_fit_mode.
+        """
+        if var not in self.features:
+            raise RuntimeError(f"Unknown training feature {var!r}")
+
+        if self.local_fit_mode == "per_leaf":
+            per_leaf_map = self._fit_local_partitions_for_leaf(node)
+            return per_leaf_map.get(var, {"is_informative": False})
+
+        # per_variable mode (legacy behavior)
+        cache_key = ("var", int(node.id), str(var))
+        cached = self._local_fit_cache.get(cache_key)
+        if cached is not None:
+            return cached
+
+        if var not in node.dataset.columns:
+            raise RuntimeError(f"Variable {var!r} missing in node dataset")
+
+        local_X = node.dataset[[var]].copy()
+
+        # force categorical dtype once locally to avoid repeated OUE warning
+        local_t = node.dataset[self.treatment_col_name].astype(object)
+        local_y = node.dataset[self.target_col_name]
+
+        try:
+            encoder, enc_name, X_enc = self._fit_local_encoder(local_X, local_t, local_y)
+        except Exception as e:
+            result = {"is_informative": False}
+            self._local_fit_cache[cache_key] = result
+            raise RuntimeError(f"could not fit: {e}")
+
         informative = list(X_enc.columns)
         if len(informative) == 0:
             result = {"is_informative": False}
@@ -187,13 +291,17 @@ class MultiTreatmentDecisionTreeV3:
             return result
 
         if var not in informative:
-            raise RuntimeError(
-                f"Unexpected local informative columns {informative}; expected to contain {var!r}"
-            )
+            result = {"is_informative": False}
+            self._local_fit_cache[cache_key] = result
+            return result
 
         if not hasattr(encoder, "get_partition"):
+            result = {"is_informative": False}
+            self._local_fit_cache[cache_key] = result
             raise RuntimeError("local encoder missing get_partition()")
         if not hasattr(encoder, "get_variable_type"):
+            result = {"is_informative": False}
+            self._local_fit_cache[cache_key] = result
             raise RuntimeError("local encoder missing get_variable_type()")
 
         parts = encoder.get_partition(var)
@@ -207,7 +315,6 @@ class MultiTreatmentDecisionTreeV3:
             "encoder_type": enc_name,
         }
 
-        # cache local fit result
         self._local_fit_cache[cache_key] = result
         return result
 
@@ -448,12 +555,14 @@ class MultiTreatmentDecisionTreeV3:
             return (
                 "MultiTreatmentDecisionTreeV3(unfitted, "
                 f"leaf_selection={self.leaf_selection}, "
-                f"encoder_type={self.encoder_type})"
+                f"encoder_type={self.encoder_type}, "
+                f"local_fit_mode={self.local_fit_mode})"
             )
         return (
             "MultiTreatmentDecisionTreeV3("
             f"encoder_type={self.encoder_type}, "
             f"leaf_selection={self.leaf_selection}, "
+            f"local_fit_mode={self.local_fit_mode}, "
             f"used_variable_count={self.used_variable_count}, "
             f"treatment_modality_count={self.treatment_modality_count}, "
             f"internal_nodes={len(self.internal_nodes)}, "
