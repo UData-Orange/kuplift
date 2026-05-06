@@ -9,8 +9,8 @@ from kuplift.univariate_encoding import UnivariateEncoding
 from kuplift.optimized_univariate_encoding import OptimizedUnivariateEncoding
 from kuplift.mt_univariate_encoding import MultiTreatmentUnivariateEncoding
 from kuplift.mt_decision_tree import DecisionTree
-from kuplift.dt_mt_decision_tree_cost import DTDecisionTreeCost
-from kuplift.dt_mt_decision_binary_tree_cost import DTDecisionBinaryTreeCost
+from kuplift.mt_decision_tree_cost import DecisionTreeCost
+from kuplift.mt_decision_binary_tree_cost import DecisionBinaryTreeCost
 
 __all__ = [
     "BayesianDecisionTree",
@@ -20,6 +20,6 @@ __all__ = [
     "OptimizedUnivariateEncoding",
     "MultiTreatmentUnivariateEncoding",
     "DecisionTree",
-    "DTDecisionTreeCost",
-    "DTDecisionBinaryTreeCost",
+    "DecisionTreeCost",
+    "DecisionBinaryTreeCost",
 ]

@@ -6,11 +6,11 @@ from __future__ import annotations
 
 import math
 
-from kuplift.dt_mt_decision_tree_cost import DTDecisionTreeCost
+from kuplift.mt_decision_tree_cost import DecisionTreeCost
 from kuplift.mt_kwstat import KWStat
 
 
-class DTDecisionBinaryTreeCost(DTDecisionTreeCost):
+class DecisionBinaryTreeCost(DecisionTreeCost):
     """
     Default binary-tree cost model for multi-treatment DecisionTree.
 

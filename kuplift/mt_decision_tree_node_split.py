@@ -5,7 +5,7 @@
 from __future__ import annotations
 
 
-class DTDecisionTreeNodeSplit:
+class DecisionTreeNodeSplit:
     """
     Container for a hypothetical split evaluation in multi-treatment DecisionTree.
 
