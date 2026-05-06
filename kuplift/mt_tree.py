@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 from typing import Any
+from collections import deque
 import pandas as pd
 
 from kuplift.mt_node import Node
@@ -113,41 +114,83 @@ class Tree:
             raise ValueError(f"No node found with id={node_id}")
         return node.get_path_str(separator=separator)
 
-    def get_treatment_groups_of_leaves(self) -> pd.DataFrame:
+    def get_treatment_groups_of_leaves(self, sort=None) -> pd.DataFrame:
         ids, paths, groups = [], [], []
         for leaf in self.leaf_nodes:
             ids.append(leaf.id)
             paths.append(leaf.get_path_str())
             groups.append(leaf.treatment_groups)
-        return pd.DataFrame(index=ids, data={"Path": paths, "Treatment groups": groups})
+        return self._sort_nodes(pd.DataFrame(index=ids, data={"Path": paths, "Treatment groups": groups}), sort)
     
-    def get_target_frequencies(self) -> pd.DataFrame:
+    def get_target_frequencies(self, sort=None) -> pd.DataFrame:
         def frequency(id_index, id, jt_index, jt) -> int:
             leaf = self.get_node_by_id(id)
             j, t = split_jt(jt)
             return len(leaf.dataset[(leaf.dataset[self.target_col_name].astype(str) == j) & (leaf.dataset[self.treatment_col_name].astype(str) == t)])
-        return build_table_by_cell(
+        return self._sort_nodes(build_table_by_cell(
             rows=[leaf.id for leaf in self.leaf_nodes],
             columns=[join_jt(j, t) for j in self.target_modalities for t in self.treatment_modalities],
             func=frequency
-        )
+        ), sort)
     
-    def get_target_probabilities(self) -> pd.DataFrame:
+    def get_target_probabilities(self, sort=None) -> pd.DataFrame:
         frequencies = self.get_target_frequencies()
         def probability_(id_index, id, jt_index, jt) -> float:
             j, t = split_jt(jt)
             other_j = str(self.positive_target if j != str(self.positive_target) else self.negative_target)
             return probability(frequencies[jt][id], frequencies[join_jt(other_j, t)][id])
-        return build_table_by_cell(
+        return self._sort_nodes(build_table_by_cell(
             rows=[leaf.id for leaf in self.leaf_nodes],
             columns=[join_jt(j, t) for j in self.target_modalities for t in self.treatment_modalities],
             func=probability_
-        )
+        ), sort)
     
-    def get_uplift(self) -> pd.DataFrame:
+    def get_uplift(self, sort=None) -> pd.DataFrame:
         probabilities = self.get_target_probabilities()
-        return build_table_by_cell(
+        return self._sort_nodes(build_table_by_cell(
             rows=[leaf.id for leaf in self.leaf_nodes],
             columns=self.treatment_modalities,
             func=lambda id_index, id, t_index, t: probabilities[join_jt(self.positive_target, t)][id] - probabilities[join_jt(self.negative_target, t)][id]
-        )
+        ), sort)
+    
+    def node_ids_sorted_dfs(self) -> pd.Index:
+        nodes = deque([self.root_node])
+        node_ids = []
+        while nodes:
+            node = nodes.popleft()
+            node_ids.append(node.id)
+            if node.type == "internal":
+                nodes.appendleft(node.right_node)
+                nodes.appendleft(node.left_node)
+        return pd.Index(node_ids)
+
+    def leaf_ids_sorted_dfs(self) -> pd.Index:
+        nodes = deque([self.root_node])
+        node_ids = []
+        while nodes:
+            node = nodes.popleft()
+            if node.type == "internal":
+                nodes.appendleft(node.right_node)
+                nodes.appendleft(node.left_node)
+            else:
+                node_ids.append(node.id)
+        return pd.Index(node_ids)
+    
+    def node_ids_sorted_dfs_from(self, node_ids: pd.Index) -> pd.Index:
+        return pd.Index(node_id for node_id in self.node_ids_sorted_dfs() if node_id in node_ids)
+    
+    def get_leaf_paths(self, sort=None) -> pd.Series:
+        ids = []
+        paths = []
+        for leaf in self.leaf_nodes:
+            ids.append(leaf.id)
+            paths.append(leaf.get_path_str())
+        return self._sort_nodes(pd.Series(name="Path", index=[leaf.id for leaf in self.leaf_nodes], data=paths), sort)
+        
+    def _sort_nodes(self, data, sort=None):
+        if sort is None:
+            return data
+        elif sort == "dfs":
+            return data.sort_index(key=self.node_ids_sorted_dfs_from)
+        else:
+            raise ValueError("unsupported sorting algorithm {!r}".format(sort))

@@ -14,8 +14,8 @@ import pandas as pd
 
 from kuplift.mt_tree import Tree
 from kuplift.mt_node import Node, IncomingSplit
-from kuplift.dt_mt_decision_binary_tree_cost import DTDecisionBinaryTreeCost
-from kuplift.dt_mt_decision_tree_node_split import DTDecisionTreeNodeSplit
+from kuplift.mt_decision_binary_tree_cost import DecisionBinaryTreeCost
+from kuplift.mt_decision_tree_node_split import DecisionTreeNodeSplit
 from kuplift.mt_leaf_selection_strategies import (
     select_leaf,
     validate_leaf_selection_strategy,
@@ -72,7 +72,7 @@ class DecisionTree:
 
         self.local_fit_mode = local_fit_mode
 
-        self.cost_model = cost_model if cost_model is not None else DTDecisionBinaryTreeCost()
+        self.cost_model = cost_model if cost_model is not None else DecisionBinaryTreeCost()
 
         # selector info (OUE/MTUE family)
         self.encoder_type = None
@@ -485,7 +485,7 @@ class DecisionTree:
                     if left_node.sample_size < self.min_samples_leaf or right_node.sample_size < self.min_samples_leaf:
                         continue
 
-                    node_split = DTDecisionTreeNodeSplit(
+                    node_split = DecisionTreeNodeSplit(
                         splittable_node=leaf,
                         split_var=split_var,
                     )
@@ -579,26 +579,46 @@ class DecisionTree:
             raise RuntimeError("Model is not fitted")
         return self.tree.get_node_path_str(node_id=node_id, separator=separator)
 
-    def get_treatment_groups_of_leaves(self) -> pd.DataFrame:
+    def get_treatment_groups_of_leaves(self, sort=None) -> pd.DataFrame:
         if self.tree is None:
             raise RuntimeError("Model is not fitted")
-        return self.tree.get_treatment_groups_of_leaves()
+        return self.tree.get_treatment_groups_of_leaves(sort)
 
-    def get_target_frequencies(self) -> pd.DataFrame:
+    def get_target_frequencies(self, sort=None) -> pd.DataFrame:
         if self.tree is None:
             raise RuntimeError("Model is not fitted")
-        return self.tree.get_target_frequencies()
+        return self.tree.get_target_frequencies(sort)
     
-    def get_target_probabilities(self) -> pd.DataFrame:
+    def get_target_probabilities(self, sort=None) -> pd.DataFrame:
         if self.tree is None:
             raise RuntimeError("Model is not fitted")
-        return self.tree.get_target_probabilities()
+        return self.tree.get_target_probabilities(sort)
     
-    def get_uplift(self) -> pd.DataFrame:
+    def get_uplift(self, sort=None) -> pd.DataFrame:
         if self.tree is None:
             raise RuntimeError("Model is not fitted")
-        return self.tree.get_uplift()
+        return self.tree.get_uplift(sort)
+    
+    def node_ids_sorted_dfs(self) -> pd.Index:
+        if self.tree is None:
+            raise RuntimeError("Model is not fitted")
+        return self.tree.node_ids_sorted_dfs()
 
+    def leaf_ids_sorted_dfs(self) -> pd.Index:
+        if self.tree is None:
+            raise RuntimeError("Model is not fitted")
+        return self.tree.leaf_ids_sorted_dfs()
+    
+    def node_ids_sorted_dfs_from(self, node_ids: pd.Index) -> pd.Index:
+        if self.tree is None:
+            raise RuntimeError("Model is not fitted")
+        return self.tree.node_ids_sorted_dfs_from(node_ids)
+    
+    def get_leaf_paths(self, sort=None) -> pd.Series:
+        if self.tree is None:
+            raise RuntimeError("Model is not fitted")
+        return self.tree.get_leaf_paths(sort)
+    
     def predict(self, X: pd.DataFrame) -> pd.Series:
         if self.tree is None:
             raise RuntimeError("Model is not fitted")
