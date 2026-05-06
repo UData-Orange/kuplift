@@ -14,7 +14,7 @@ CATEGORICAL_VAR_NAME = "VAR2"
 if __name__ == "__main__":
     logging.basicConfig(level=LOGLEVEL)
 
-    # # 2 treatments
+    # 2 treatments
     dataset = pandas.read_csv("./data/data_uplift_missing.csv").astype({CATEGORICAL_VAR_NAME: object, TREATMENT_NAME: object, TARGET_NAME: object})
     tree = MultiTreatmentDecisionTreeV3()
     tree.fit(dataset[dataset.columns[:-2]], dataset[TREATMENT_NAME], dataset[TARGET_NAME])
