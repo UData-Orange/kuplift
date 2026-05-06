@@ -23,7 +23,7 @@ import khiops.core
 import pandas as pd
 from umodl import run_umodl
 from .typealiases import Partition, Part
-from .utils import join_jt, split_jt, transform_variable, probabilities
+from .utils import join_jt, split_jt, transform_variable, probability
 
 
 class OptimizedUnivariateEncoding:
@@ -380,7 +380,7 @@ class OptimizedUnivariateEncoding:
             other_j = js[1] if j == js[0] else js[0]
             jtcolumn = []
             for part in partition:
-                jtcolumn.append(probabilities(freqs[jt][part], freqs[join_jt(other_j, t)][part]))
+                jtcolumn.append(probability(freqs[jt][part], freqs[join_jt(other_j, t)][part]))
             jtcolumns[jt] = jtcolumn
         return pd.DataFrame(jtcolumns, index=partition)
 

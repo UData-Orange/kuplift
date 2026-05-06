@@ -2,7 +2,7 @@ import collections.abc
 import pandas
 from .treatment_grouping import ModelWithGroups, TreatmentGroups, get_treatment_groups_of_var, get_treatment_groups
 from .univariate_encoding_base import get_target_frequencies_of_var, get_other_target_modality, get_partition_of_var, UnivariateEncodingBase
-from .utils import split_jt, join_jt, probabilities, build_table_by_cell
+from .utils import split_jt, join_jt, probability, build_table_by_cell
 from .typealiases import Part
 
 
@@ -12,7 +12,7 @@ def get_target_probabilities_of_var_with_treatment_groups(model: ModelWithGroups
         return sum(frequencies[join_jt(j, treatment)][i] for treatment in model[variable].groups_by_treatments_by_parts[i][t].values)
     def cell(iindex, i, jtindex, jt):
         j, t = split_jt(jt)
-        return probabilities(get_frequencies_of_group(i, j, t), get_frequencies_of_group(i, get_other_target_modality(target_modalities, j), t))
+        return probability(get_frequencies_of_group(i, j, t), get_frequencies_of_group(i, get_other_target_modality(target_modalities, j), t))
     return build_table_by_cell(get_partition_of_var(model, variable), jts, cell)
 
 

@@ -8,6 +8,7 @@ from typing import Any
 import pandas as pd
 
 from kuplift.mt_node import Node
+from kuplift.utils import build_table_by_cell, join_jt, split_jt, probability
 
 
 class Tree:
@@ -17,16 +18,20 @@ class Tree:
         features: list[str],  # raw features
         treatment_col_name: str,
         target_col_name: str,
+        positive_target
     ):
         self.dataset = dataset
         self.features = list(features)
         self.treatment_col_name = treatment_col_name
         self.target_col_name = target_col_name
+        self.positive_target = positive_target
 
         self.feature_subset: set[str] = set()
 
         self.target_modalities = sorted(list(dataset[target_col_name].dropna().unique()), key=lambda x: str(x))
         self.treatment_modalities = sorted(list(dataset[treatment_col_name].dropna().unique()), key=lambda x: str(x))
+
+        self.negative_target = self.target_modalities[0] if self.target_modalities[0] != self.positive_target else self.target_modalities[1]
 
         self.root_node = Node(
             dataset=dataset.copy(),
@@ -107,3 +112,42 @@ class Tree:
         if node is None:
             raise ValueError(f"No node found with id={node_id}")
         return node.get_path_str(separator=separator)
+
+    def get_treatment_groups_of_leaves(self) -> pd.DataFrame:
+        ids, paths, groups = [], [], []
+        for leaf in self.leaf_nodes:
+            ids.append(leaf.id)
+            paths.append(leaf.get_path_str())
+            groups.append(leaf.treatment_groups)
+        return pd.DataFrame(index=ids, data={"Path": paths, "Treatment groups": groups})
+    
+    def get_target_frequencies(self) -> pd.DataFrame:
+        def frequency(id_index, id, jt_index, jt) -> int:
+            leaf = self.get_node_by_id(id)
+            j, t = split_jt(jt)
+            return len(leaf.dataset[(leaf.dataset[self.target_col_name].astype(str) == j) & (leaf.dataset[self.treatment_col_name].astype(str) == t)])
+        return build_table_by_cell(
+            rows=[leaf.id for leaf in self.leaf_nodes],
+            columns=[join_jt(j, t) for j in self.target_modalities for t in self.treatment_modalities],
+            func=frequency
+        )
+    
+    def get_target_probabilities(self) -> pd.DataFrame:
+        frequencies = self.get_target_frequencies()
+        def probability_(id_index, id, jt_index, jt) -> float:
+            j, t = split_jt(jt)
+            other_j = str(self.positive_target if j != str(self.positive_target) else self.negative_target)
+            return probability(frequencies[jt][id], frequencies[join_jt(other_j, t)][id])
+        return build_table_by_cell(
+            rows=[leaf.id for leaf in self.leaf_nodes],
+            columns=[join_jt(j, t) for j in self.target_modalities for t in self.treatment_modalities],
+            func=probability_
+        )
+    
+    def get_uplift(self) -> pd.DataFrame:
+        probabilities = self.get_target_probabilities()
+        return build_table_by_cell(
+            rows=[leaf.id for leaf in self.leaf_nodes],
+            columns=self.treatment_modalities,
+            func=lambda id_index, id, t_index, t: probabilities[join_jt(self.positive_target, t)][id] - probabilities[join_jt(self.negative_target, t)][id]
+        )

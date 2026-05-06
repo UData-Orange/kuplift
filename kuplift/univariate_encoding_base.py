@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 import collections.abc
 import pandas
 from .preparation_report import Model, Stats
-from .utils import transform_variable, split_jt, join_jt, probabilities, build_table_by_cell
+from .utils import transform_variable, split_jt, join_jt, probability, build_table_by_cell
 from .typealiases import Partition, VarType
 
 
@@ -42,7 +42,7 @@ def get_target_probabilities_of_var(model: Model, variable: str, target_modaliti
     frequencies = get_target_frequencies_of_var(model, variable)
     def cell(iindex, i, jtindex, jt):
         j, t = split_jt(jt)
-        return probabilities(frequencies[jt][i], frequencies[join_jt(get_other_target_modality(target_modalities, j), t)][i])
+        return probability(frequencies[jt][i], frequencies[join_jt(get_other_target_modality(target_modalities, j), t)][i])
     return build_table_by_cell(get_partition_of_var(model, variable), jts, cell)
 
 

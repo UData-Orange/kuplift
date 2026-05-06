@@ -121,5 +121,5 @@ def fix_valuegroups(valuegroups: list[khiops.core.PartValueGroup], all_values: c
             default_valuegroup.values.sort()
 
 
-def probabilities(frequency, *other_frequencies):
+def probability(frequency, *other_frequencies):
     return frequency / (frequency + sum(other_frequencies))

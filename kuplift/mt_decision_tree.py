@@ -53,7 +53,7 @@ class DecisionTree:
         control_name=None,
         maxparts: int = 2,
         maxtreatmentgroups: Optional[int] = None,
-        local_fit_mode: str = "per_leaf",
+        local_fit_mode: str = "per_leaf"
     ):
         validate_leaf_selection_strategy(leaf_selection)
 
@@ -117,9 +117,11 @@ class DecisionTree:
     def treatment_modality_count(self) -> int:
         return self.tree.treatment_modality_count if self.tree is not None else 0
 
-    def fit(self, data: pd.DataFrame, treatment_col, y_col) -> "DecisionTree":
+    def fit(self, data: pd.DataFrame, treatment_col, y_col, positive_target = None) -> "DecisionTree":
         if data is None or len(data) == 0:
             raise ValueError("data must be a non-empty DataFrame")
+        
+        self.positive_target = positive_target
 
         # reset local fit cache for this training run
         self._local_fit_cache = {}
@@ -150,6 +152,7 @@ class DecisionTree:
             features=self.features,
             treatment_col_name=self.treatment_col_name,
             target_col_name=self.target_col_name,
+            positive_target = self._autodetect_positive_target(y.to_list()) if self.positive_target is None else self.positive_target
         )
 
         self.cost_model.initialize(self)
@@ -184,7 +187,7 @@ class DecisionTree:
                         r"$"
                     ]),
                     UserWarning,
-                    "^khiops\.core\.internals\.runner$"
+                    "^" + khiops.core.internals.runner.__name__ + "$"
                 )
                 if self.maxtreatmentgroups is not None:
                     X_enc = encoder.fit_transform(
@@ -576,6 +579,26 @@ class DecisionTree:
             raise RuntimeError("Model is not fitted")
         return self.tree.get_node_path_str(node_id=node_id, separator=separator)
 
+    def get_treatment_groups_of_leaves(self) -> pd.DataFrame:
+        if self.tree is None:
+            raise RuntimeError("Model is not fitted")
+        return self.tree.get_treatment_groups_of_leaves()
+
+    def get_target_frequencies(self) -> pd.DataFrame:
+        if self.tree is None:
+            raise RuntimeError("Model is not fitted")
+        return self.tree.get_target_frequencies()
+    
+    def get_target_probabilities(self) -> pd.DataFrame:
+        if self.tree is None:
+            raise RuntimeError("Model is not fitted")
+        return self.tree.get_target_probabilities()
+    
+    def get_uplift(self) -> pd.DataFrame:
+        if self.tree is None:
+            raise RuntimeError("Model is not fitted")
+        return self.tree.get_uplift()
+
     def predict(self, X: pd.DataFrame) -> pd.Series:
         if self.tree is None:
             raise RuntimeError("Model is not fitted")
@@ -594,13 +617,7 @@ class DecisionTree:
                 preds.append(None)
                 continue
 
-            positive = None
-            for cand in [1, "1", True, "True"]:
-                if cand in targets:
-                    positive = cand
-                    break
-            if positive is None:
-                positive = targets[-1] if targets else None
+            positive = self._autodetect_positive_target(targets) if self.positive_target is None else self.positive_target
 
             best_t = None
             best_rate = -1.0
@@ -620,6 +637,16 @@ class DecisionTree:
             preds.append(best_t)
 
         return pd.Series(preds, index=X.index, name="prediction")
+    
+    def _autodetect_positive_target(self, targets):
+        positive = None
+        for cand in [1, "1", True, "True"]:
+            if cand in targets:
+                positive = cand
+                break
+        if positive is None:
+            positive = targets[-1] if targets else None
+        return positive
 
     # ------------------------------------------------------------------
     # Display helpers
