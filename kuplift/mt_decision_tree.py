@@ -935,3 +935,101 @@ class DecisionTree:
 
         _walk(self.root_node, 0)
         return "\n".join(lines)
+
+    def tree_to_dot(self, max_depth: int | None = None, show_node_stats: bool = True) -> str:
+        """
+        Export tree to Graphviz DOT format.
+        """
+        if self.tree is None or self.root_node is None:
+            return 'digraph Tree {\n  label="Tree is not fitted";\n}'
+
+        def _escape(s: str) -> str:
+            return str(s).replace('"', '\\"')
+
+        def _node_key(node) -> str:
+            return f"N{node.id}"
+
+        def _split_rule_pair(node) -> tuple[str, str]:
+            return self._split_rule_from_info(node)
+
+        def _node_label(node) -> str:
+            if not show_node_stats:
+                return f"node {node.id}"
+
+            if node.is_leaf:
+                t_count = len(list(node.get_treatments()))
+                y_count = len(list(node.get_targets()))
+                return f"id={node.id}\\nleaf\\nn={node.sample_size}\\nT={t_count}, Y={y_count}"
+
+            src = node.source_partition_info
+            if src is None:
+                raise RuntimeError(f"Missing source_partition_info on node id={node.id}")
+
+            left_rule, right_rule = _split_rule_pair(node)
+            enc_type = src.get("encoder_type", "NA")
+            return (
+                f"id={node.id}\\ninternal\\nn={node.sample_size}"
+                f"\\n{src['source_var']} ({src['source_type']})"
+                f"\\nlocal encoder: {enc_type}"
+                f"\\nleft: {left_rule}"
+                f"\\nright: {right_rule}"
+            )
+
+        def _edge_label(parent, child) -> str:
+            left_rule, right_rule = _split_rule_pair(parent)
+            if child.incoming_split.op == "<=":
+                return left_rule
+            if child.incoming_split.op == ">":
+                return right_rule
+            raise RuntimeError(
+                f"Unsupported incoming split operator {child.incoming_split.op!r} for node id={child.id}"
+            )
+
+        lines = [
+            "digraph Tree {",
+            '  graph [rankdir=TB, fontsize=10, fontname="Helvetica"];',
+            '  node  [shape=box, style="rounded,filled", fillcolor="#F8F8F8", color="#666666", fontname="Helvetica"];',
+            '  edge  [color="#666666", fontname="Helvetica"];',
+        ]
+
+        visited = set()
+
+        def _walk(node, depth: int):
+            if node is None:
+                return
+            if max_depth is not None and depth > max_depth:
+                return
+
+            nk = _node_key(node)
+            if nk not in visited:
+                visited.add(nk)
+                label = _escape(_node_label(node))
+                if node.is_leaf:
+                    lines.append(f'  {nk} [label="{label}", shape=ellipse, fillcolor="#E8F5E9"];')
+                else:
+                    lines.append(f'  {nk} [label="{label}", shape=box, fillcolor="#E3F2FD"];')
+
+            if node.is_leaf:
+                return
+
+            children = [c for c in [node.left_node, node.right_node] if c is not None]
+            for child in children:
+                if max_depth is not None and depth + 1 > max_depth:
+                    continue
+
+                ck = _node_key(child)
+                if ck not in visited:
+                    clabel = _escape(_node_label(child))
+                    if child.is_leaf:
+                        lines.append(f'  {ck} [label="{clabel}", shape=ellipse, fillcolor="#E8F5E9"];')
+                    else:
+                        lines.append(f'  {ck} [label="{clabel}", shape=box, fillcolor="#E3F2FD"];')
+                    visited.add(ck)
+
+                elabel = _escape(_edge_label(node, child))
+                lines.append(f'  {nk} -> {ck} [label="{elabel}"];')
+                _walk(child, depth + 1)
+
+        _walk(self.root_node, 0)
+        lines.append("}")
+        return "\n".join(lines)
