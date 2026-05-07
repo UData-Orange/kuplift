@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Optional, Literal
 import logging
 import warnings
 import re
@@ -21,7 +21,8 @@ from kuplift.mt_leaf_selection_strategies import (
     validate_leaf_selection_strategy,
 )
 from kuplift.mt_encoding_selector import select_univariate_encoder
-from kuplift.utils import transform_variable
+from kuplift.utils import transform_variable, join_jt
+
 import khiops.core  # For warning handling
 
 logger = logging.getLogger(__name__)
@@ -120,8 +121,6 @@ class DecisionTree:
     def fit(self, data: pd.DataFrame, treatment_col, y_col, positive_target = None) -> "DecisionTree":
         if data is None or len(data) == 0:
             raise ValueError("data must be a non-empty DataFrame")
-        
-        self.positive_target = positive_target
 
         # reset local fit cache for this training run
         self._local_fit_cache = {}
@@ -147,13 +146,18 @@ class DecisionTree:
         raw_train_df[self.treatment_col_name] = t.values
         raw_train_df[self.target_col_name] = y.values
 
+
+        self.positive_target = self._autodetect_positive_target(y) if positive_target is None else positive_target
+
         self.tree = Tree(
             dataset=raw_train_df,
             features=self.features,
             treatment_col_name=self.treatment_col_name,
             target_col_name=self.target_col_name,
-            positive_target = self._autodetect_positive_target(y.to_list()) if self.positive_target is None else self.positive_target
+            positive_target = self.positive_target
         )
+
+        self.negative_target = self.tree.negative_target
 
         self.cost_model.initialize(self)
         self.tree_criterion = float(self.cost_model.compute_null_tree_cost(self.tree))
@@ -657,6 +661,28 @@ class DecisionTree:
             preds.append(best_t)
 
         return pd.Series(preds, index=X.index, name="prediction")
+
+    def predict_probabilities(self, X: pd.DataFrame, result_type: Literal["df", "ndarray", "lists"] = "ndarray") -> pd.DataFrame:
+        if self.tree is None:
+            raise RuntimeError("Model is not fitted")
+        # Ensure the type is correct, so the caller can pass list of lists and the like.
+        if isinstance(X, pd.DataFrame):
+            if isinstance(X.columns, pd.RangeIndex):
+                # The columns are named using a RangeIndex if the caller passes a DataFrame without explicit column names.
+                X = X.rename(pd.Series(self.features), axis="columns")
+            elif set(X.columns) != set(self.features):
+                raise ValueError("passed column names do not match dataset input variable names")
+        else:
+            # Not a DataFrame => convert to DataFrame.
+            X = pd.DataFrame(X, columns=self.features)
+        leaf_ids = pd.Index(self.predict_leaf_id(X))
+        leaf_probabilities: pd.DataFrame = self.get_target_probabilities()[[join_jt(self.positive_target, t) for t in self.treatment_modalities]]
+        result_dataframe: pd.DataFrame = leaf_probabilities[leaf_probabilities.index.isin(leaf_ids)].sort_index(key=lambda _: leaf_ids)
+        match result_type:
+            case "df": return result_dataframe
+            case "ndarray": return result_dataframe.to_numpy()
+            case "lists": return result_dataframe.to_numpy().tolist()
+            case invalid: raise ValueError("invalid result type {!r}".format(invalid))
     
     def _autodetect_positive_target(self, targets):
         positive = None
