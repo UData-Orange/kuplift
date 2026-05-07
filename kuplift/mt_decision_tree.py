@@ -8,7 +8,9 @@ from __future__ import annotations
 from typing import Optional, Literal
 import logging
 import warnings
+from pathlib import Path
 import re
+from datetime import datetime, timezone
 import numpy as np
 import pandas as pd
 
@@ -945,3 +947,12 @@ class DecisionTree:
         _walk(self.root_node, 0)
         lines.append("}")
         return "\n".join(lines)
+    
+    def tree_to_image(self, dest: Path | str | None = None, img_format: str = "png", *args, **kwargs) -> str:
+        try:
+            import graphviz
+        except ImportError as exc:
+            raise RuntimeError("'graphviz' package is required to use this function") from exc
+        if dest is None:
+            dest = Path.cwd() / "tree_{:%Y%m%d_%H%M%S}.{}".format(datetime.now(timezone.utc), img_format)
+        return graphviz.Source(self.tree_to_dot(*args, **kwargs)).render(outfile=dest, format=img_format, cleanup=True)
