@@ -11,6 +11,7 @@ from kuplift.mt_univariate_encoding import MultiTreatmentUnivariateEncoding
 from kuplift.mt_decision_tree import DecisionTree
 from kuplift.mt_decision_tree_cost import DecisionTreeCost
 from kuplift.mt_decision_binary_tree_cost import DecisionBinaryTreeCost
+from kuplift.mt_random_forest import RandomForest
 
 __all__ = [
     "BayesianDecisionTree",
@@ -22,4 +23,5 @@ __all__ = [
     "DecisionTree",
     "DecisionTreeCost",
     "DecisionBinaryTreeCost",
+    "RandomForest"
 ]

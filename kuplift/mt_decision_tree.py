@@ -677,14 +677,21 @@ class DecisionTree:
         else:
             # Not a DataFrame => convert to DataFrame.
             X = pd.DataFrame(X, columns=self.features)
+
         leaf_ids = pd.Index(self.predict_leaf_id(X))
-        leaf_probabilities: pd.DataFrame = self.get_target_probabilities()[[join_jt(self.positive_target, t) for t in self.treatment_modalities]]
-        result_dataframe: pd.DataFrame = leaf_probabilities[leaf_probabilities.index.isin(leaf_ids)].sort_index(key=lambda _: leaf_ids)
+
+        cols = [join_jt(self.positive_target, t) for t in self.treatment_modalities]
+        leaf_probabilities: pd.DataFrame = self.get_target_probabilities()[cols]
+
+        # Align one row per input sample, in sample order
+        result_dataframe: pd.DataFrame = leaf_probabilities.reindex(leaf_ids)
+
         match result_type:
             case "df": return result_dataframe
             case "ndarray": return result_dataframe.to_numpy()
             case "lists": return result_dataframe.to_numpy().tolist()
             case invalid: raise ValueError("invalid result type {!r}".format(invalid))
+
     
     def _autodetect_positive_target(self, targets):
         positive = None
