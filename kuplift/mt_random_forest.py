@@ -47,6 +47,7 @@ class RandomForest:
         self.max_features = int(max_features)
         self.random_state = random_state
         self.rng = np.random.default_rng(random_state)
+        self.control_name = control_name
 
         # Stored DT hyperparameters
         self.dt_params = dict(
@@ -131,15 +132,77 @@ class RandomForest:
         # Forest-level metadata from first tree
         first = self.trees[0]
         self.positive_target = first.positive_target
+        self.negative_target = first.negative_target
         self.treatment_modalities = list(first.treatment_modalities)
 
         self._is_fitted = True
         return self
-
+    
     def predict(
         self,
         X: pd.DataFrame,
+        predict_probabilities: bool = True,
+        predict_best_treatment: bool = True,
+        predict_uplift: bool = True,
+    ) -> pd.DataFrame:
+        if not self._is_fitted or not self.trees:
+            raise RuntimeError("Model is not fitted")
+
+        if not (predict_probabilities or predict_best_treatment or predict_uplift):
+            raise ValueError("At least one output must be requested")
+
+        # normalize input once
+        if not isinstance(X, pd.DataFrame):
+            X = pd.DataFrame(X, columns=self.features)
+        else:
+            missing = [c for c in self.features if c not in X.columns]
+            if missing:
+                raise ValueError(f"Input X is missing training feature columns: {missing}")
+
+        # Always compute positive probs for best_treatment/uplift
+        pos_df = self.predict_probabilities(
+            X,
+            result_type="df",
+            include_negative_probabilities=False,
+        )
+
+        blocks = []
+
+        if predict_probabilities:
+            probs_df = self.predict_probabilities(
+                X,
+                result_type="df",
+                include_negative_probabilities=True,  # negative first, then positive
+            )
+            blocks.append(probs_df)
+
+        if predict_best_treatment:
+            best_idx = np.argmax(pos_df.to_numpy(), axis=1)
+            best_t = [self.treatment_modalities[i] for i in best_idx]
+            blocks.append(pd.DataFrame({"best_treatment": best_t}, index=X.index))
+
+        if predict_uplift:
+            if self.control_name is None:
+                raise ValueError("predict_uplift=True requires RandomForest.control_name to be set")
+            if self.control_name not in self.treatment_modalities:
+                raise ValueError(
+                    f"control_name={self.control_name!r} is not in treatment modalities: {self.treatment_modalities}"
+                )
+
+            pos_mat = pos_df.to_numpy()
+            max_pos = np.max(pos_mat, axis=1)
+            j_control = self.treatment_modalities.index(self.control_name)
+            p_control = pos_mat[:, j_control]
+            blocks.append(pd.DataFrame({"uplift": (max_pos - p_control)}, index=X.index))
+
+        return pd.concat(blocks, axis=1)
+
+
+    def predict_probabilities(
+        self,
+        X: pd.DataFrame,
         result_type: Literal["df", "ndarray", "lists"] = "ndarray",
+        include_negative_probabilities: bool = False,
     ):
         if not self._is_fitted or not self.trees:
             raise RuntimeError("Model is not fitted")
@@ -148,30 +211,39 @@ class RandomForest:
         if not isinstance(X, pd.DataFrame):
             X = pd.DataFrame(X, columns=self.features)
         else:
-            # only check availability; each tree will receive its own subset
             missing = [c for c in self.features if c not in X.columns]
             if missing:
                 raise ValueError(f"Input X is missing training feature columns: {missing}")
 
-        # Aggregate probabilities
+        # Aggregate positive probabilities from trees
         per_tree = []
         for tree, feat_subset in zip(self.trees, self.tree_features):
             probs = tree.predict_probabilities(
                 X[feat_subset],
                 result_type="ndarray",
-            )
+            )  # shape: (n_samples, n_treatments) for positive target
             per_tree.append(probs)
 
-        # shape: (n_trees, n_samples, n_treatments)
-        stack = np.stack(per_tree, axis=0)
-        mean_probs = np.mean(stack, axis=0)  # (n_samples, n_treatments)
+        stack = np.stack(per_tree, axis=0)      # (n_trees, n_samples, n_treatments)
+        mean_pos = np.mean(stack, axis=0)       # (n_samples, n_treatments)
 
-        if result_type == "ndarray":
-            return mean_probs
-        if result_type == "lists":
-            return mean_probs.tolist()
+        # Build DataFrame in canonical order
+        pos_cols = [join_jt(self.positive_target, t) for t in self.treatment_modalities]
+        pos_df = pd.DataFrame(mean_pos, index=X.index, columns=pos_cols)
+
+        if include_negative_probabilities:
+            neg_cols = [join_jt(self.negative_target, t) for t in self.treatment_modalities]
+            neg_df = pd.DataFrame(1.0 - mean_pos, index=X.index, columns=neg_cols)
+            result_df = pd.concat([neg_df, pos_df], axis=1)  # P(Y=0) before P(Y=1)
+        else:
+            result_df = pos_df
+
         if result_type == "df":
-            cols = [join_jt(self.positive_target, t) for t in self.treatment_modalities]
-            return pd.DataFrame(mean_probs, index=X.index, columns=cols)
+            return result_df
+        if result_type == "ndarray":
+            return result_df.to_numpy()
+        if result_type == "lists":
+            return result_df.to_numpy().tolist()
 
         raise ValueError(f"invalid result type {result_type!r}")
+

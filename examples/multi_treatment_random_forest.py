@@ -16,8 +16,9 @@ if __name__ == "__main__":
 
     # 2 treatments
     dataset = pandas.read_csv("./data/data_uplift_missing.csv").astype({CATEGORICAL_VAR_NAME: object, TREATMENT_NAME: object, TARGET_NAME: object})
-    forest = RandomForest(n_trees=5, max_depth=5)
+    forest = RandomForest(n_trees=5, max_depth=5, control_name="T0")
     forest.fit(dataset[dataset.columns[:-2]], dataset[TREATMENT_NAME], dataset[TARGET_NAME])
+    print(forest.predict(pandas.DataFrame([[0.2, 0.4, 0.2, 0.3], [0.6, 0.8, 0.1, 0.1]], columns=["VAR1", "VAR2", "VAR3", "VAR4"])))
 
     # print()
     # print()
