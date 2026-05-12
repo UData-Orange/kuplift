@@ -10,6 +10,8 @@ Multi-treatment univariate encoding
 - [x] In *helperfunctions.py* -> `preprocess_data`: fix computations (`t0j1 + t0j1` -> `t0j1 + t0j0`).
 - [x] Fix MultiTreatmentUnivariateEncoding output tables (transpose them).
 - [x] Fix behaviour when dataset is too small and all levels are 0.
+- [ ] In `mt_leaf_selection_strategies.select_leaf`, weights (for weighted_random algorithm) should be the levels.
+  level = (1 - cost) / null_cost
 - [ ] Merge files (replace files + fix imports) after verification:
   - *bayesian_decision_tree_v2.py* into *bayesian_decision_tree.py*;
   - *tree_v2.py* into *tree.py*;

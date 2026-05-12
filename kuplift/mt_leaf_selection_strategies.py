@@ -78,6 +78,7 @@ def select_leaf(
 
     # Convert "lower is better" costs to positive weights
     # w_i = exp(-(c_i - cmin)/temperature)
+    # TODO: Use levels instead of this computation. See TODO.md.
     weights = np.array([exp(-(c - cmin) / temperature) for c in costs], dtype=float)
     wsum = float(np.sum(weights))
 
