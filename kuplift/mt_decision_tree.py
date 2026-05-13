@@ -25,7 +25,7 @@ from kuplift.mt_leaf_selection_strategies import (
 from kuplift.mt_encoding_selector import select_univariate_encoder
 from kuplift.utils import transform_variable, join_jt
 
-import khiops.core  # For warning handling
+import khiops.core  # For warning handling and handling of khiops.core.exceptions.KhiopsEnvironmentError (for example when the Khiops executable is not installed).
 
 logger = logging.getLogger(__name__)
 
@@ -239,6 +239,8 @@ class DecisionTree:
 
         try:
             encoder, enc_name, X_enc = self._fit_local_encoder(local_X, local_t, local_y)
+        except khiops.core.exceptions.KhiopsEnvironmentError:
+            raise
         except Exception as e:
             # Cache failure sentinel to avoid refitting this leaf for each variable.
             self._local_fit_cache[cache_key] = result_map
@@ -313,6 +315,8 @@ class DecisionTree:
 
         try:
             encoder, enc_name, X_enc = self._fit_local_encoder(local_X, local_t, local_y)
+        except khiops.core.exceptions.KhiopsEnvironmentError:
+            raise
         except Exception as e:
             result = {"is_informative": False}
             self._local_fit_cache[cache_key] = result
