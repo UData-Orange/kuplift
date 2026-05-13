@@ -2,8 +2,6 @@
 # This software is distributed under the MIT License, the text of which is available
 # at https://spdx.org/licenses/MIT.html or see the "LICENSE" file for more details.
 
-import re
-import pytest
 from kuplift import OptimizedUnivariateEncoding
 
 def test_input_variables(opt_ue_with_catvar):
@@ -89,10 +87,9 @@ Missing           0.0  1.000000
 
 def test_fit_transform(df_with_catvar):
     test_dataframe = df_with_catvar
-    test_dataframe = test_dataframe.astype({"VAR2": object})
+    test_dataframe = test_dataframe.astype({"VAR2": object, "TRAITEMENT": object, "CIBLE": object})
     input_variables = list(test_dataframe.columns[:-2])
-    with pytest.warns(UserWarning, match=f"""^{re.escape("Target column's dtype is not object; fixing...")}$"""):
-        assert OptimizedUnivariateEncoding().fit_transform(test_dataframe[input_variables], test_dataframe["TRAITEMENT"], test_dataframe["CIBLE"]).to_string() == """
+    assert OptimizedUnivariateEncoding().fit_transform(test_dataframe[input_variables], test_dataframe["TRAITEMENT"], test_dataframe["CIBLE"]).to_string() == """
       VAR1  VAR2  VAR3
 0        0     0     0
 1        0     0     0

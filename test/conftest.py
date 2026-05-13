@@ -22,7 +22,7 @@ def df_with_catvar():
 
 @pytest.fixture
 def opt_ue_with_catvar(df_with_catvar):
-    df = df_with_catvar.astype({"VAR2": object, "CIBLE": object})
+    df = df_with_catvar.astype({"VAR2": object, "TRAITEMENT": object, "CIBLE": object})
     ue = OptimizedUnivariateEncoding()
     ue.fit(df[df.columns[:-2]], df["TRAITEMENT"], df["CIBLE"])
     return ue
