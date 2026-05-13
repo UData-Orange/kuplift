@@ -18,6 +18,17 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
 
+    - name: Install Khiops executable
+      run: |
+        sudo apt-get update -y && sudo apt-get install wget -y && \
+        source /etc/os-release && \
+        ARCH=$(dpkg --print-architecture) && \
+        TEMP_DEB="$(mktemp)" && \
+        wget -O "$TEMP_DEB" "https://github.com/KhiopsML/khiops/releases/download/11.0.0/khiops-core-openmpi_11.0.0-1-${VERSION_CODENAME}.${ARCH}.deb" && \
+        sudo dpkg -i "$TEMP_DEB" || sudo apt-get -f -y install && \
+        rm -f $TEMP_DEB && \
+        pip install khiops==11.0.0.3
+
     - name: Build wheel
       run: pipx run build --wheel
 
