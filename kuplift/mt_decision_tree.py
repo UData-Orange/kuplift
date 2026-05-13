@@ -56,7 +56,9 @@ class DecisionTree:
         control_name=None,
         maxparts: int = 2,
         maxtreatmentgroups: Optional[int] = None,
-        local_fit_mode: str = "per_leaf"
+        local_fit_mode: str = "per_leaf",
+        max_cores = None,
+        memory_limit_mb = None
     ):
         validate_leaf_selection_strategy(leaf_selection)
 
@@ -72,6 +74,9 @@ class DecisionTree:
         self.maxparts = 2
         self.maxtreatmentgroups = maxtreatmentgroups
         self.control_name = control_name
+
+        self.max_cores = max_cores
+        self.memory_limit_mb = memory_limit_mb
 
         self.local_fit_mode = local_fit_mode
 
@@ -202,9 +207,13 @@ class DecisionTree:
                         local_y,
                         maxparts=self.maxparts,
                         maxtreatmentgroups=self.maxtreatmentgroups,
+                        max_cores=self.max_cores,
+                        memory_limit_mb=self.memory_limit_mb
                     )
                 else:
-                    X_enc = encoder.fit_transform(local_X, local_t, local_y, maxparts=self.maxparts)
+                    X_enc = encoder.fit_transform(local_X, local_t, local_y, maxparts=self.maxparts,
+                        max_cores=self.max_cores,
+                        memory_limit_mb=self.memory_limit_mb)
 
         if not isinstance(X_enc, pd.DataFrame):
             raise RuntimeError("local encoder.fit_transform must return a DataFrame")

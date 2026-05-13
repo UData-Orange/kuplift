@@ -37,6 +37,8 @@ class RandomForest:
         maxparts: int = 2,
         maxtreatmentgroups: Optional[int] = None,
         local_fit_mode: str = "per_leaf",
+        max_cores = None,
+        memory_limit_mb = None
     ):
         if n_trees <= 0:
             raise ValueError("n_trees must be >= 1")
@@ -48,6 +50,9 @@ class RandomForest:
         self.random_state = random_state
         self.rng = np.random.default_rng(random_state)
         self.control_name = control_name
+        
+        self.max_cores = max_cores
+        self.memory_limit_mb = memory_limit_mb
 
         # Stored DT hyperparameters
         self.dt_params = dict(
@@ -60,6 +65,8 @@ class RandomForest:
             maxparts=maxparts,
             maxtreatmentgroups=maxtreatmentgroups,
             local_fit_mode=local_fit_mode,
+            max_cores=self.max_cores,
+            memory_limit_mb=self.memory_limit_mb
         )
 
         # Fitted attributes

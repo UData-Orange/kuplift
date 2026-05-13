@@ -32,7 +32,7 @@ class MultiTreatmentUnivariateEncoding(UnivariateEncodingWithGroupsBase):
     and enables one to fit and transform data while grouping treatments giving similar
     outcome.
     """
-    def fit(self, data: pandas.DataFrame, treatment_col: pandas.Series, target_col: pandas.Series, maxparts: int | None = None, maxtreatmentgroups: int | None = None, outputdir: Path | str | None = None) -> None:
+    def fit(self, data: pandas.DataFrame, treatment_col: pandas.Series, target_col: pandas.Series, maxparts: int | None = None, maxtreatmentgroups: int | None = None, outputdir: Path | str | None = None, max_cores = None, memory_limit_mb = None) -> None:
         """Learn a discretization model using Khiops.
 
         Parameters
@@ -64,7 +64,7 @@ class MultiTreatmentUnivariateEncoding(UnivariateEncodingWithGroupsBase):
         dataset = pandas.DataFrame(data).join([treatment_col, target_col])
         datasetinfo = DatasetInfo(target_col.name, treatment_col.name, data.columns.to_list(), len(dataset))
 
-        stats, upliftdict = compute_stats(dataset, datasetinfo, fileoutput, maxparts)
+        stats, upliftdict = compute_stats(dataset, datasetinfo, fileoutput, maxparts, max_cores=max_cores, memory_limit_mb=memory_limit_mb)
 
         # Disable all input variables since we will create a selection variable for each one in turn
         # and it is that selection variable that will be enabled.
@@ -73,7 +73,7 @@ class MultiTreatmentUnivariateEncoding(UnivariateEncodingWithGroupsBase):
 
         xstats_with_groups = {}
         for xname in stats.model:
-            xstats_with_groups[xname] = group_treatments_for_variable(xname, datasetinfo, stats, upliftdict, fileoutput, maxtreatmentgroups)
+            xstats_with_groups[xname] = group_treatments_for_variable(xname, datasetinfo, stats, upliftdict, fileoutput, maxtreatmentgroups, max_cores=max_cores, memory_limit_mb=memory_limit_mb)
 
         self._variable_cols = data
         self._treatment_col = treatment_col
@@ -122,7 +122,7 @@ class FileOutput:
             )
 
 
-def compute_stats(dataset: pandas.DataFrame, datasetinfo: DatasetInfo, fileoutput: FileOutput, maxparts: int | None = None) -> tuple[Stats, Dictionary]:
+def compute_stats(dataset: pandas.DataFrame, datasetinfo: DatasetInfo, fileoutput: FileOutput, maxparts: int | None = None, max_cores = None, memory_limit_mb = None) -> tuple[Stats, Dictionary]:
     logger.info("Computing stats with %r...", datasetinfo)
 
     logger.debug("Writing to data file...")
@@ -134,7 +134,7 @@ def compute_stats(dataset: pandas.DataFrame, datasetinfo: DatasetInfo, fileoutpu
     logger.debug("Training recoder...")
     analysis_result_files = khiops.core.train_recoder(
         upliftdict.domain, upliftdict.dict.name, str(fileoutput.datasetfile), upliftdict.jtname, str(fileoutput.predictor_analysisresultfile),
-        sample_percentage=100, max_trees=0, max_pairs=0, max_parts=maxparts or 0)
+        sample_percentage=100, max_trees=0, max_pairs=0, max_parts=maxparts or 0, max_cores=max_cores, memory_limit_mb=memory_limit_mb)
     logger.debug("Done training.")
     logger.debug("Analysis result files: %s, %s.", analysis_result_files[0], analysis_result_files[1])
 
@@ -149,7 +149,7 @@ def compute_stats(dataset: pandas.DataFrame, datasetinfo: DatasetInfo, fileoutpu
     return stats, upliftdict
 
 
-def group_treatments_for_variable(variable: str, datasetinfo: DatasetInfo, stats: Stats, upliftdict: Dictionary, fileoutput: FileOutput, maxtreatmentgroups: int | None = None) -> VarStatsWithGroups:
+def group_treatments_for_variable(variable: str, datasetinfo: DatasetInfo, stats: Stats, upliftdict: Dictionary, fileoutput: FileOutput, maxtreatmentgroups: int | None = None, max_cores = None, memory_limit_mb = None) -> VarStatsWithGroups:
     """Create groups of treatments for a variable.
 
     Create groups of treatments so that all treatments in each group give similar outcomes given the same values of the specified variable.
@@ -191,7 +191,7 @@ def group_treatments_for_variable(variable: str, datasetinfo: DatasetInfo, stats
         analysis_result_files = khiops.core.train_recoder(
             upliftdict.domain, upliftdict.dict.name, str(fileoutput.datasetfile), datasetinfo.jname, str(fileoutput.xi_analysisresultfile(xname, partname)),
             sample_percentage=100, selection_variable=selectionvarname, selection_value=partname,
-            max_trees=0, max_pairs=0, max_constructed_variables=0, max_text_features=0, max_parts=maxtreatmentgroups or 0)
+            max_trees=0, max_pairs=0, max_constructed_variables=0, max_text_features=0, max_parts=maxtreatmentgroups or 0, max_cores=max_cores, memory_limit_mb=memory_limit_mb)
         logger.debug("Done training.")
         logger.debug("Analysis result files: %s, %s.", analysis_result_files[0], analysis_result_files[1])
 
