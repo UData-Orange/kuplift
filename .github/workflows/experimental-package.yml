@@ -44,7 +44,7 @@ jobs:
           mkdir $FULL_OUTPUT_PATH/data
           cp data/* $FULL_OUTPUT_PATH/data
         
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: ${{ env.OUTPUT }}
           path: ${{ env.OUTPUT_ROOT }}

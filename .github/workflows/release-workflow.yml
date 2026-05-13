@@ -36,7 +36,7 @@ jobs:
       - name: Build
         run: pipx run build
 
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: packagefiles
           path: |
@@ -52,7 +52,7 @@ jobs:
     permissions:
       id-token: write
     steps:
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v8
         with:
           name: packagefiles
           path: dist
