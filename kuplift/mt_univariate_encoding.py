@@ -131,7 +131,7 @@ def compute_stats(dataset: pandas.DataFrame, datasetinfo: DatasetInfo, fileoutpu
 
     upliftdict = build_khiops_dict_from_dataset_file(fileoutput.dictfile, fileoutput.datasetfile, datasetinfo)
 
-    logger.debug("Training recoder...")
+    logger.debug("Training recoder with max %s cores and max %s MB of memory...", max_cores, memory_limit_mb)
     analysis_result_files = khiops.core.train_recoder(
         upliftdict.domain, upliftdict.dict.name, str(fileoutput.datasetfile), upliftdict.jtname, str(fileoutput.predictor_analysisresultfile),
         sample_percentage=100, max_trees=0, max_pairs=0, max_parts=maxparts or 0, max_cores=max_cores, memory_limit_mb=memory_limit_mb)
@@ -187,7 +187,7 @@ def group_treatments_for_variable(variable: str, datasetinfo: DatasetInfo, stats
     for partindex, part in enumerate(part for part in xstats.parts if not (part.part_type() == "Interval" and part.is_missing)):
         logger.debug("Grouping treatments for part %s...", part)
         partname = f"I{partindex + 1}"
-        logger.debug("Training recoder...")
+        logger.debug("Training recoder with max %s cores and max %s MB of memory...", max_cores, memory_limit_mb)
         analysis_result_files = khiops.core.train_recoder(
             upliftdict.domain, upliftdict.dict.name, str(fileoutput.datasetfile), datasetinfo.jname, str(fileoutput.xi_analysisresultfile(xname, partname)),
             sample_percentage=100, selection_variable=selectionvarname, selection_value=partname,
