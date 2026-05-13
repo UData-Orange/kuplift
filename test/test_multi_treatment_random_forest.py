@@ -9,124 +9,156 @@ import pytest
 from kuplift import MultiTreatmentRandomForest
 
 
-class _FakeTree:
-    """Minimal tree-like object for forest predict tests."""
-
-    def __init__(self, preds, criterion):
-        self._preds = np.array(preds, dtype=float)
-        self.tree_criterion = float(criterion)
-
-    def predict(self, X_test):
-        # Return deterministic predictions regardless of input
-        return self._preds
-
-
 @pytest.fixture
-def small_features_df():
-    return pd.DataFrame(
+def tiny_mt_dataset():
+    X = pd.DataFrame(
         {
-            "x1": [0.1, 0.2, 0.3, 0.4],
-            "x2": [1, 2, 3, 4],
-            "x3": [10, 20, 30, 40],
-            "x4": [7, 7, 8, 9],
+            "x1": [0, 1, 0, 1, 2, 2, 3, 3, 4, 4, 5, 5],
+            "x2": [10, 11, 10, 11, 12, 12, 13, 13, 14, 14, 15, 15],
+            "x3": [1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6],
         }
     )
+    t = pd.Series(["A", "B", "C", "A", "B", "C", "A", "B", "C", "A", "B", "C"], name="treatment")
+    y = pd.Series([0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1], name="target")
+    return X, t, y
 
 
-def test_init_clamps_maxtreatmentgroups_to_2():
-    """Constructor must enforce binary treatment grouping upper bound."""
-    rf = MultiTreatmentRandomForest(maxtreatmentgroups=999)
-    assert rf.maxtreatmentgroups == 2
+def test_init_validates_n_trees_and_max_features():
+    with pytest.raises(ValueError):
+        MultiTreatmentRandomForest(n_trees=0)
+
+    with pytest.raises(ValueError):
+        MultiTreatmentRandomForest(max_features=0)
 
 
-def test_sample_feature_columns_without_subset_returns_all_columns(small_features_df):
-    """If vars_subset=False, all feature columns should be returned."""
-    rf = MultiTreatmentRandomForest(vars_subset=False, random_state=123)
-    cols = rf._sample_feature_columns(small_features_df)
-    assert set(cols) == set(small_features_df.columns)
-    assert len(cols) == len(small_features_df.columns)
+def test_fit_raises_on_invalid_data_type():
+    rf = MultiTreatmentRandomForest(n_trees=2, max_features=2, random_state=0)
+    with pytest.raises(TypeError):
+        rf.fit(data=[1, 2, 3], treatment_col=pd.Series([0, 1, 0]), y_col=pd.Series([0, 1, 1]))
 
 
-def test_sample_feature_columns_with_subset_returns_sqrt_count(small_features_df):
-    """If vars_subset=True, number of selected columns should be max(1, floor(sqrt(p)))."""
-    rf = MultiTreatmentRandomForest(vars_subset=True, random_state=123)
-    cols = rf._sample_feature_columns(small_features_df)
-    expected_count = max(1, int(np.sqrt(len(small_features_df.columns))))
-    assert len(cols) == expected_count
-    assert len(set(cols)) == len(cols)  # no duplicates
-    assert set(cols).issubset(set(small_features_df.columns))
+def test_fit_raises_on_empty_dataframe():
+    rf = MultiTreatmentRandomForest(n_trees=2, max_features=2, random_state=0)
+    with pytest.raises(ValueError):
+        rf.fit(pd.DataFrame(), treatment_col=pd.Series(dtype=object), y_col=pd.Series(dtype=int))
+
+
+def test_fit_raises_on_length_mismatch():
+    rf = MultiTreatmentRandomForest(n_trees=2, max_features=2, random_state=0)
+    X = pd.DataFrame({"x1": [1, 2, 3]})
+    t = pd.Series(["A", "B"])      # len 2
+    y = pd.Series([0, 1, 0])       # len 3
+    with pytest.raises(ValueError):
+        rf.fit(X, t, y)
 
 
 def test_predict_raises_if_not_fitted():
-    """predict must fail if no trees are available."""
     rf = MultiTreatmentRandomForest()
     X = pd.DataFrame({"x1": [1, 2, 3]})
     with pytest.raises(RuntimeError):
         rf.predict(X)
 
 
-def test_predict_unweighted_average():
-    """Unweighted predict should return the mean of all tree predictions."""
-    rf = MultiTreatmentRandomForest()
-    rf.list_of_trees = [
-        _FakeTree([0.0, 1.0, 2.0], criterion=10.0),
-        _FakeTree([1.0, 2.0, 3.0], criterion=20.0),
-        _FakeTree([2.0, 3.0, 4.0], criterion=30.0),
-    ]
-    X = pd.DataFrame({"x1": [1, 2, 3]})
+def test_fit_then_predict_probabilities_shapes(tiny_mt_dataset):
+    X, t, y = tiny_mt_dataset
+    rf = MultiTreatmentRandomForest(
+        n_trees=3,
+        max_features=2,
+        random_state=0,
+        max_depth=2,
+        min_samples_leaf=2,
+    )
+    rf.fit(X, t, y)
 
-    preds = rf.predict(X, weighted_average=False)
-    expected = np.array([1.0, 2.0, 3.0], dtype=float)
+    out_df = rf.predict_probabilities(X, result_type="df", include_negative_probabilities=False)
+    out_np = rf.predict_probabilities(X, result_type="ndarray", include_negative_probabilities=False)
+    out_ls = rf.predict_probabilities(X, result_type="lists", include_negative_probabilities=False)
 
-    assert isinstance(preds, np.ndarray)
-    np.testing.assert_allclose(preds, expected, rtol=1e-12, atol=1e-12)
+    assert isinstance(out_df, pd.DataFrame)
+    assert isinstance(out_np, np.ndarray)
+    assert isinstance(out_ls, list)
 
-
-def test_predict_weighted_average():
-    """Weighted predict should use inverse-criterion style weights."""
-    rf = MultiTreatmentRandomForest()
-    rf.list_of_trees = [
-        _FakeTree([1.0, 1.0, 1.0], criterion=1.0),
-        _FakeTree([3.0, 3.0, 3.0], criterion=3.0),
-    ]
-    X = pd.DataFrame({"x1": [1, 2, 3]})
-
-    preds = rf.predict(X, weighted_average=True)
-
-    # Weight computation in class:
-    # inv_i = sum(criteria) / criterion_i => [4/1, 4/3] = [4, 1.333...]
-    # normalized weights => [0.75, 0.25]
-    expected = 0.75 * np.array([1.0, 1.0, 1.0]) + 0.25 * np.array([3.0, 3.0, 3.0])
-
-    np.testing.assert_allclose(preds, expected, rtol=1e-12, atol=1e-12)
+    assert out_df.shape[0] == len(X)
+    assert out_np.shape[0] == len(X)
+    assert len(out_ls) == len(X)
 
 
-def test_predict_weighted_handles_zero_criterion():
-    """Weighted predict should remain finite when a tree criterion is zero."""
-    rf = MultiTreatmentRandomForest()
-    rf.list_of_trees = [
-        _FakeTree([1.0, 2.0], criterion=0.0),   # edge case
-        _FakeTree([3.0, 4.0], criterion=2.0),
-    ]
-    X = pd.DataFrame({"x1": [1, 2]})
+def test_predict_probabilities_invalid_result_type_raises(tiny_mt_dataset):
+    X, t, y = tiny_mt_dataset
+    rf = MultiTreatmentRandomForest(
+        n_trees=2,
+        max_features=2,
+        random_state=0,
+        max_depth=2,
+        min_samples_leaf=2,
+    )
+    rf.fit(X, t, y)
 
-    preds = rf.predict(X, weighted_average=True)
-
-    assert isinstance(preds, np.ndarray)
-    assert np.isfinite(preds).all()
-    assert len(preds) == 2
-
-
-def test_fit_raises_on_invalid_data_type():
-    """fit must raise TypeError if data is not a DataFrame."""
-    rf = MultiTreatmentRandomForest()
-    with pytest.raises(TypeError):
-        rf.fit(data=[1, 2, 3], treatment_col=pd.Series([0, 1, 0]), y_col=pd.Series([0, 1, 1]))
-
-
-def test_fit_raises_on_empty_dataframe():
-    """fit must raise ValueError if data is empty."""
-    rf = MultiTreatmentRandomForest()
-    empty_df = pd.DataFrame()
     with pytest.raises(ValueError):
-        rf.fit(empty_df, treatment_col=pd.Series(dtype=int), y_col=pd.Series(dtype=int))
+        rf.predict_probabilities(X, result_type="bad_type")
+
+
+def test_predict_dataframe_outputs_blocks(tiny_mt_dataset):
+    X, t, y = tiny_mt_dataset
+    rf = MultiTreatmentRandomForest(
+        n_trees=3,
+        max_features=2,
+        random_state=0,
+        max_depth=2,
+        min_samples_leaf=2,
+        control_name="A",
+    )
+    rf.fit(X, t, y)
+
+    pred = rf.predict(
+        X,
+        predict_probabilities=True,
+        predict_best_treatment=True,
+        predict_uplift=True,
+    )
+    assert isinstance(pred, pd.DataFrame)
+    assert pred.shape[0] == len(X)
+    assert "best_treatment" in pred.columns
+    assert "uplift" in pred.columns
+
+
+def test_predict_uplift_requires_control_name(tiny_mt_dataset):
+    X, t, y = tiny_mt_dataset
+    rf = MultiTreatmentRandomForest(
+        n_trees=2,
+        max_features=2,
+        random_state=0,
+        max_depth=2,
+        min_samples_leaf=2,
+        control_name=None,
+    )
+    rf.fit(X, t, y)
+
+    with pytest.raises(ValueError):
+        rf.predict(
+            X,
+            predict_probabilities=False,
+            predict_best_treatment=False,
+            predict_uplift=True,
+        )
+
+
+def test_predict_uplift_control_name_must_exist(tiny_mt_dataset):
+    X, t, y = tiny_mt_dataset
+    rf = MultiTreatmentRandomForest(
+        n_trees=2,
+        max_features=2,
+        random_state=0,
+        max_depth=2,
+        min_samples_leaf=2,
+        control_name="DOES_NOT_EXIST",
+    )
+    rf.fit(X, t, y)
+
+    with pytest.raises(ValueError):
+        rf.predict(
+            X,
+            predict_probabilities=False,
+            predict_best_treatment=False,
+            predict_uplift=True,
+        )
