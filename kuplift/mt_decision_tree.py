@@ -17,7 +17,7 @@ import pandas as pd
 from kuplift.mt_tree import Tree
 from kuplift.mt_node import Node, IncomingSplit
 from kuplift.mt_decision_binary_tree_cost import MultiTreatmentDecisionBinaryTreeCost
-from kuplift.mt_decision_tree_node_split import DecisionTreeNodeSplit
+from kuplift.mt_decision_tree_node_split import MultiTreatmentDecisionTreeNodeSplit
 from kuplift.mt_leaf_selection_strategies import (
     select_leaf,
     validate_leaf_selection_strategy,
@@ -691,7 +691,7 @@ class MultiTreatmentDecisionTree:
                     if left_node.sample_size < self.min_samples_leaf or right_node.sample_size < self.min_samples_leaf:
                         continue
 
-                    node_split = DecisionTreeNodeSplit(
+                    node_split = MultiTreatmentDecisionTreeNodeSplit(
                         splittable_node=leaf,
                         split_var=split_var,
                     )

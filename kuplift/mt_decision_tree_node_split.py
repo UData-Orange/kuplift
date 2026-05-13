@@ -5,7 +5,7 @@
 from __future__ import annotations
 
 
-class DecisionTreeNodeSplit:
+class MultiTreatmentDecisionTreeNodeSplit:
     """
     Container for a hypothetical split evaluation in multi-treatment DecisionTree.
 
@@ -98,7 +98,7 @@ class DecisionTreeNodeSplit:
     def __str__(self) -> str:
         node_id = getattr(self._splittable_node, "id", None)
         return (
-            f"DTDecisionTreeNodeSplit("
+            f"MultiTreatmentDecisionTreeNodeSplit("
             f"node_id={node_id}, split_var={self._split_var!r}, "
             f"split_var_type={self._split_var_type!r}, tree_cost={self._tree_cost:.6f})"
         )
