@@ -1,5 +1,5 @@
 import logging
-from kuplift import DecisionTree
+from kuplift import MultiTreatmentDecisionTree
 import pandas
 
 logging.getLogger("kuplift.mt_univariate_encoding").setLevel(logging.WARNING)
@@ -19,7 +19,7 @@ if __name__ == "__main__":
 
     # # 2 treatments
     # dataset = pandas.read_csv("./data/data_uplift_missing.csv").astype({CATEGORICAL_VAR_NAME: object, TREATMENT_NAME: object, TARGET_NAME: object})
-    # tree = DecisionTree()
+    # tree = MultiTreatmentDecisionTree()
     # tree.fit(dataset[dataset.columns[:-2]], dataset[TREATMENT_NAME], dataset[TARGET_NAME])
     # # print(tree.tree_to_mermaid())
     # tree.print_tree(show_path=True)
@@ -30,7 +30,7 @@ if __name__ == "__main__":
 
     # # 4 treatments
     # dataset = pandas.read_csv("./data/dataset.csv").astype({CATEGORICAL_VAR_NAME: object, TREATMENT_NAME: object, TARGET_NAME: object})
-    # tree = DecisionTree()
+    # tree = MultiTreatmentDecisionTree()
     # tree.fit(dataset[dataset.columns[:-2]], dataset[TREATMENT_NAME], dataset[TARGET_NAME])
     # # print(tree.tree_to_mermaid())
     # tree.print_tree(show_path=True)
@@ -39,7 +39,7 @@ if __name__ == "__main__":
 
 
     dataset = pandas.read_csv("./data/synthetic_10k.txt", sep="\t").astype({"T": object, "Y": object})
-    tree = DecisionTree()
+    tree = MultiTreatmentDecisionTree()
     tree.fit(dataset[dataset.columns[:-2]], dataset["T"], dataset["Y"])
     # print(tree.tree_to_mermaid())
     tree.print_tree(show_path=True)

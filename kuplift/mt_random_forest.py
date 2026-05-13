@@ -10,11 +10,11 @@ from typing import Optional, Literal
 import numpy as np
 import pandas as pd
 
-from kuplift.mt_decision_tree import DecisionTree
+from kuplift.mt_decision_tree import MultiTreatmentDecisionTree
 from kuplift.utils import join_jt
 
 
-class RandomForest:
+class MultiTreatmentRandomForest:
     """
     RandomForest for uplift-style multi-treatment probabilities.
 
@@ -70,7 +70,7 @@ class RandomForest:
         )
 
         # Fitted attributes
-        self.trees: list[DecisionTree] = []
+        self.trees: list[MultiTreatmentDecisionTree] = []
         self.tree_features: list[list[str]] = []
         self.features: list[str] = []
         self.treatment_col_name: Optional[str] = None
@@ -85,7 +85,7 @@ class RandomForest:
         treatment_col,
         y_col,
         positive_target=None,
-    ) -> "RandomForest":
+    ) -> "MultiTreatmentRandomForest":
         if data is None or len(data) == 0:
             raise ValueError("data must be a non-empty DataFrame")
         if not isinstance(data, pd.DataFrame):
@@ -121,7 +121,7 @@ class RandomForest:
             # independent random seed per tree
             tree_seed = int(self.rng.integers(0, 2**32 - 1))
 
-            tree = DecisionTree(
+            tree = MultiTreatmentDecisionTree(
                 **{**self.dt_params, "random_state": tree_seed}
             )
 

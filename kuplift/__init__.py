@@ -8,10 +8,10 @@ from kuplift.feature_selection import FeatureSelection
 from kuplift.univariate_encoding import UnivariateEncoding
 from kuplift.optimized_univariate_encoding import OptimizedUnivariateEncoding
 from kuplift.mt_univariate_encoding import MultiTreatmentUnivariateEncoding
-from kuplift.mt_decision_tree import DecisionTree
-from kuplift.mt_decision_tree_cost import DecisionTreeCost
-from kuplift.mt_decision_binary_tree_cost import DecisionBinaryTreeCost
-from kuplift.mt_random_forest import RandomForest
+from kuplift.mt_decision_tree import MultiTreatmentDecisionTree
+from kuplift.mt_decision_tree_cost import MultiTreatmentDecisionTreeCost
+from kuplift.mt_decision_binary_tree_cost import MultiTreatmentDecisionBinaryTreeCost
+from kuplift.mt_random_forest import MultiTreatmentRandomForest
 
 __all__ = [
     "BayesianDecisionTree",
@@ -20,8 +20,8 @@ __all__ = [
     "UnivariateEncoding",
     "OptimizedUnivariateEncoding",
     "MultiTreatmentUnivariateEncoding",
-    "DecisionTree",
-    "DecisionTreeCost",
-    "DecisionBinaryTreeCost",
-    "RandomForest"
+    "MultiTreatmentDecisionTree",
+    "MultiTreatmentDecisionTreeCost",
+    "MultiTreatmentDecisionBinaryTreeCost",
+    "MultiTreatmentRandomForest"
 ]

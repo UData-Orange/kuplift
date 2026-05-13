@@ -16,7 +16,7 @@ import pandas as pd
 
 from kuplift.mt_tree import Tree
 from kuplift.mt_node import Node, IncomingSplit
-from kuplift.mt_decision_binary_tree_cost import DecisionBinaryTreeCost
+from kuplift.mt_decision_binary_tree_cost import MultiTreatmentDecisionBinaryTreeCost
 from kuplift.mt_decision_tree_node_split import DecisionTreeNodeSplit
 from kuplift.mt_leaf_selection_strategies import (
     select_leaf,
@@ -30,7 +30,7 @@ import khiops.core  # For warning handling and handling of khiops.core.exception
 logger = logging.getLogger(__name__)
 
 
-class DecisionTree:
+class MultiTreatmentDecisionTree:
     """
     Local-partition version (base implementation):
       - for each candidate split at a node, partitions are fitted on node raw dataset
@@ -80,7 +80,7 @@ class DecisionTree:
 
         self.local_fit_mode = local_fit_mode
 
-        self.cost_model = cost_model if cost_model is not None else DecisionBinaryTreeCost()
+        self.cost_model = cost_model if cost_model is not None else MultiTreatmentDecisionBinaryTreeCost()
 
         # selector info (OUE/MTUE family)
         self.encoder_type = None
@@ -125,7 +125,7 @@ class DecisionTree:
     def treatment_modality_count(self) -> int:
         return self.tree.treatment_modality_count if self.tree is not None else 0
 
-    def fit(self, data: pd.DataFrame, treatment_col, y_col, positive_target = None) -> "DecisionTree":
+    def fit(self, data: pd.DataFrame, treatment_col, y_col, positive_target = None) -> "MultiTreatmentDecisionTree":
         if data is None or len(data) == 0:
             raise ValueError("data must be a non-empty DataFrame")
 
