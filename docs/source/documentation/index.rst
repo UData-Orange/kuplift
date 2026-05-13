@@ -41,10 +41,27 @@ kuplift.optimized_univariate_encoding module
    :undoc-members:
    :show-inheritance:
 
-kuplift.multi_treatment_univariate_encoding module
+kuplift.mt_univariate_encoding module
 --------------------------------------------
 
-.. automodule:: kuplift.multi_treatment_univariate_encoding
+.. automodule:: kuplift.mt_univariate_encoding
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+kuplift.mt_decision_tree module
+--------------------------------------------
+
+.. automodule:: kuplift.mt_decision_tree
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
+kuplift.mt_random_forest module
+--------------------------------------------
+
+.. automodule:: kuplift.mt_random_forest
    :members:
    :undoc-members:
    :show-inheritance:
