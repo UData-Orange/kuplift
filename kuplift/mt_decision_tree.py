@@ -32,10 +32,13 @@ logger = logging.getLogger(__name__)
 
 class MultiTreatmentDecisionTree:
     """
-    Local-partition version (base implementation):
-      - for each candidate split at a node, partitions are fitted on node raw dataset
-      - raw node datasets are preserved
-      - no silent fallback
+    Multi-treatment decision tree with local univariate partition fitting.
+
+    This implementation grows a binary tree by evaluating, at each candidate leaf,
+    local split candidates based on univariate encoders selected from treatment cardinality:
+
+    - OUE when there are exactly 2 treatment modalities
+    - MTUE when there are 3 or more treatment modalities
 
     Local fitting modes
     -------------------
@@ -44,6 +47,13 @@ class MultiTreatmentDecisionTree:
         for each variable of that leaf.
     - per_variable:
         one local fit_transform() per (leaf, variable) on a single-column dataset.
+
+    Notes
+    -----
+    - Raw node datasets are preserved (no global transformed dataset is stored in the tree).
+    - Candidate split evaluation is cost-driven through `cost_model`.
+    - A strict pass-through is implemented for `KhiopsEnvironmentError` so missing
+      Khiops setup is not silently converted into a generic local-fit failure.
     """
 
     def __init__(
@@ -60,6 +70,41 @@ class MultiTreatmentDecisionTree:
         max_cores = None,
         memory_limit_mb = None
     ):
+        """
+        Initialize a multi-treatment decision tree.
+
+        Parameters
+        ----------
+        max_depth : int, default=15
+            Maximum number of split iterations.
+        min_samples_leaf : int, default=20
+            Minimum number of samples required in each child leaf.
+        leaf_selection : str, default="best_leaf"
+            Leaf selection strategy among {"best_leaf", "random", "weighted_random"}.
+        random_state : int | None, default=None
+            Random seed used by stochastic leaf selection strategies.
+        cost_model : object | None, default=None
+            Cost model implementing the `MultiTreatmentDecisionTreeCost` interface.
+            Defaults to `MultiTreatmentDecisionBinaryTreeCost`.
+        control_name : Any, default=None
+            Optional control treatment name (used downstream in uplift workflows).
+        maxparts : int, default=2
+            Maximum number of parts for univariate encoding.
+            (Currently forced to 2 in this class for binary split behavior.)
+        maxtreatmentgroups : int | None, default=None
+            Maximal number of treatment groups for MTUE.
+        local_fit_mode : {"per_leaf", "per_variable"}, default="per_leaf"
+            Local fit granularity.
+        max_cores : int | None, default=None
+            Optional max cores passed to Khiops recoder calls.
+        memory_limit_mb : int | None, default=None
+            Optional memory limit passed to Khiops recoder calls.
+
+        Raises
+        ------
+        ValueError
+            If `local_fit_mode` or `leaf_selection` is invalid.
+        """
         validate_leaf_selection_strategy(leaf_selection)
 
         if local_fit_mode not in {"per_leaf", "per_variable"}:
@@ -99,33 +144,64 @@ class MultiTreatmentDecisionTree:
 
     @property
     def used_variable_count(self) -> int:
+        """Number of distinct variables effectively used in applied tree splits."""
         return self.tree.used_variable_count if self.tree is not None else 0
 
     @property
     def target_modalities(self):
+        """Sorted target modalities observed in training data."""
         return self.tree.target_modalities if self.tree is not None else []
 
     @property
     def treatment_modalities(self):
+        """Sorted treatment modalities observed in training data."""
         return self.tree.treatment_modalities if self.tree is not None else []
 
     @property
     def root_node(self):
+        """Root node of the fitted tree, or None if unfitted."""
         return self.tree.root_node if self.tree is not None else None
 
     @property
     def internal_nodes(self):
+        """List of internal nodes of the fitted tree."""
         return self.tree.internal_nodes if self.tree is not None else []
 
     @property
     def leaf_nodes(self):
+        """List of leaf nodes of the fitted tree."""
         return self.tree.leaf_nodes if self.tree is not None else []
 
     @property
     def treatment_modality_count(self) -> int:
+        """Number of treatment modalities observed at training."""
         return self.tree.treatment_modality_count if self.tree is not None else 0
 
     def fit(self, data: pd.DataFrame, treatment_col, y_col, positive_target = None) -> "MultiTreatmentDecisionTree":
+        """
+        Fit the decision tree on raw features, treatment and target.
+
+        Parameters
+        ----------
+        data : pandas.DataFrame
+            Feature matrix.
+        treatment_col : array-like / pandas.Series
+            Treatment column aligned with `data`.
+        y_col : array-like / pandas.Series
+            Target column aligned with `data`.
+        positive_target : Any, default=None
+            Positive target modality. If None, auto-detected.
+
+        Returns
+        -------
+        MultiTreatmentDecisionTree
+            The fitted estimator.
+
+        Raises
+        ------
+        ValueError
+            If input data is empty or lengths are inconsistent.
+        """
         if data is None or len(data) == 0:
             raise ValueError("data must be a non-empty DataFrame")
 
@@ -173,12 +249,44 @@ class MultiTreatmentDecisionTree:
         return self
 
     def _new_local_encoder(self, t_series: pd.Series):
+        """
+        Build a fresh local encoder according to treatment cardinality.
+
+        Parameters
+        ----------
+        t_series : pandas.Series
+            Local treatment values.
+
+        Returns
+        -------
+        tuple
+            (encoder_instance, encoder_name)
+        """
         encoder, info = select_univariate_encoder(t_series)
         return encoder, info.encoder_name
 
     def _fit_local_encoder(self, local_X: pd.DataFrame, local_t: pd.Series, local_y: pd.Series):
         """
         Fit local encoder on provided local_X and return (encoder, encoder_name, X_enc).
+
+        Parameters
+        ----------
+        local_X : pandas.DataFrame
+            Local raw features (leaf-level or single-column depending on mode).
+        local_t : pandas.Series
+            Local treatment values.
+        local_y : pandas.Series
+            Local target values.
+
+        Returns
+        -------
+        tuple
+            (encoder, enc_name, X_enc) where X_enc is a pandas.DataFrame.
+
+        Raises
+        ------
+        RuntimeError
+            If encoder.fit_transform does not return a DataFrame.
         """
         encoder, enc_name = self._new_local_encoder(local_t)
 
@@ -227,6 +335,23 @@ class MultiTreatmentDecisionTree:
 
         Important:
         - both success and failure are cached per leaf to avoid repeated retries.
+
+        Parameters
+        ----------
+        node : Node
+            Leaf node to process.
+
+        Returns
+        -------
+        dict[str, dict]
+            Mapping variable -> partition metadata / informativeness flag.
+
+        Raises
+        ------
+        khiops.core.exceptions.KhiopsEnvironmentError
+            Re-raised as-is when Khiops environment is not configured.
+        RuntimeError
+            For local fitting failures unrelated to environment setup.
         """
         cache_key = ("leaf", int(node.id))
         cached = self._local_fit_cache.get(cache_key)
@@ -299,6 +424,25 @@ class MultiTreatmentDecisionTree:
     def _fit_local_partition_for_var(self, node: Node, var: str) -> dict:
         """
         Return local partition info for a (node, var), depending on local_fit_mode.
+
+        Parameters
+        ----------
+        node : Node
+            Candidate leaf node.
+        var : str
+            Variable name to evaluate.
+
+        Returns
+        -------
+        dict
+            Partition metadata for this variable or non-informative marker.
+
+        Raises
+        ------
+        khiops.core.exceptions.KhiopsEnvironmentError
+            Re-raised as-is when Khiops environment is not configured.
+        RuntimeError
+            For local fitting or contract errors.
         """
         if var not in self.features:
             raise RuntimeError(f"Unknown training feature {var!r}")
@@ -375,6 +519,16 @@ class MultiTreatmentDecisionTree:
     def _normalize_treatment_groups(groups) -> list[tuple]:
         """
         Normalize encoder-provided groups to list[tuple[...]].
+
+        Parameters
+        ----------
+        groups : iterable | None
+            Raw groups returned by encoder.
+
+        Returns
+        -------
+        list[tuple]
+            Normalized immutable grouping representation.
         """
         normalized = []
         if groups is None:
@@ -386,6 +540,20 @@ class MultiTreatmentDecisionTree:
     def _extract_groups_for_var_part(self, treatment_groups_full: dict, var: str, part):
         """
         Extract groups for (var, part) from full dictionary returned by get_treatment_groups().
+
+        Parameters
+        ----------
+        treatment_groups_full : dict
+            Full nested mapping as returned by encoder.
+        var : str
+            Split variable.
+        part : Any
+            Part object corresponding to one split side.
+
+        Returns
+        -------
+        list[tuple] | None
+            Normalized treatment groups for this (var, part), or None.
         """
         if not treatment_groups_full:
             return None
@@ -399,6 +567,22 @@ class MultiTreatmentDecisionTree:
         return self._normalize_treatment_groups(groups_by_part[part])
 
     def _simulate_split_on_var_local(self, node: Node, var: str):
+        """
+        Simulate a local binary split for one variable on one node.
+
+        Parameters
+        ----------
+        node : Node
+            Candidate leaf node.
+        var : str
+            Variable to test.
+
+        Returns
+        -------
+        tuple | None
+            (left_node, right_node, split_value, split_var_type, source_info, n_values_cat)
+            or None if no valid informative split is available.
+        """
         try:
             info = self._fit_local_partition_for_var(node, var)
         except RuntimeError as e:
@@ -476,6 +660,9 @@ class MultiTreatmentDecisionTree:
         return left_node, right_node, split_value, split_var_type, info, n_values_cat
 
     def _grow_tree(self) -> None:
+        """
+        Greedily grow the tree until no improving split is found or depth limit is reached.
+        """
         if self.tree is None:
             return
 
@@ -561,6 +748,19 @@ class MultiTreatmentDecisionTree:
             depth += 1
 
     def _descend_to_leaf(self, row: pd.Series):
+        """
+        Traverse the fitted tree for one sample and return reached leaf.
+
+        Parameters
+        ----------
+        row : pandas.Series
+            Input sample.
+
+        Returns
+        -------
+        Node | None
+            Reached leaf node.
+        """
         node = self.root_node
         while node is not None and not node.is_leaf:
             info = node.source_partition_info
@@ -579,6 +779,19 @@ class MultiTreatmentDecisionTree:
         return node
 
     def predict_leaf_id(self, X: pd.DataFrame) -> np.ndarray:
+        """
+        Predict leaf id for each sample in X.
+
+        Parameters
+        ----------
+        X : pandas.DataFrame
+            Input features.
+
+        Returns
+        -------
+        numpy.ndarray
+            Leaf ids, one per sample.
+        """
         if self.tree is None:
             raise RuntimeError("Model is not fitted")
 
@@ -589,56 +802,191 @@ class MultiTreatmentDecisionTree:
         return np.array(out, dtype=int)
 
     def get_node_by_id(self, node_id: int):
+        """
+        Return node object by id.
+
+        Parameters
+        ----------
+        node_id : int
+            Node identifier.
+
+        Returns
+        -------
+        Node | None
+            Matching node or None.
+        """
         if self.tree is None:
             return None
         return self.tree.get_node_by_id(node_id)
 
     def get_node_path_str(self, node_id: int, separator: str = " AND ") -> str:
+        """
+        Return human-readable path string for one node id.
+
+        Parameters
+        ----------
+        node_id : int
+            Node identifier.
+        separator : str, default=" AND "
+            Rule separator.
+
+        Returns
+        -------
+        str
+            Path string.
+        """
         if self.tree is None:
             raise RuntimeError("Model is not fitted")
         return self.tree.get_node_path_str(node_id=node_id, separator=separator)
 
     def get_treatment_groups_of_leaves(self, sort=None) -> pd.DataFrame:
+        """
+        Return treatment grouping metadata for current leaves.
+
+        Parameters
+        ----------
+        sort : Any, default=None
+            Optional sorting mode forwarded to tree helper.
+
+        Returns
+        -------
+        pandas.DataFrame
+            Leaf-level treatment groups.
+        """
         if self.tree is None:
             raise RuntimeError("Model is not fitted")
         return self.tree.get_treatment_groups_of_leaves(sort)
 
     def get_target_frequencies(self, sort=None) -> pd.DataFrame:
+        """
+        Return leaf-level target-treatment frequency table.
+
+        Parameters
+        ----------
+        sort : Any, default=None
+            Optional sorting mode forwarded to tree helper.
+
+        Returns
+        -------
+        pandas.DataFrame
+            Frequency table.
+        """
         if self.tree is None:
             raise RuntimeError("Model is not fitted")
         return self.tree.get_target_frequencies(sort)
-    
+
     def get_target_probabilities(self, sort=None) -> pd.DataFrame:
+        """
+        Return leaf-level target-treatment probability table.
+
+        Parameters
+        ----------
+        sort : Any, default=None
+            Optional sorting mode forwarded to tree helper.
+
+        Returns
+        -------
+        pandas.DataFrame
+            Probability table.
+        """
         if self.tree is None:
             raise RuntimeError("Model is not fitted")
         return self.tree.get_target_probabilities(sort)
-    
+
     def get_uplift(self, sort=None) -> pd.DataFrame:
+        """
+        Return leaf-level uplift table.
+
+        Parameters
+        ----------
+        sort : Any, default=None
+            Optional sorting mode forwarded to tree helper.
+
+        Returns
+        -------
+        pandas.DataFrame
+            Uplift table.
+        """
         if self.tree is None:
             raise RuntimeError("Model is not fitted")
         return self.tree.get_uplift(sort)
-    
+
     def node_ids_sorted_dfs(self) -> pd.Index:
+        """
+        Return node ids in DFS order.
+
+        Returns
+        -------
+        pandas.Index
+            Node ids.
+        """
         if self.tree is None:
             raise RuntimeError("Model is not fitted")
         return self.tree.node_ids_sorted_dfs()
 
     def leaf_ids_sorted_dfs(self) -> pd.Index:
+        """
+        Return leaf ids in DFS order.
+
+        Returns
+        -------
+        pandas.Index
+            Leaf ids.
+        """
         if self.tree is None:
             raise RuntimeError("Model is not fitted")
         return self.tree.leaf_ids_sorted_dfs()
-    
+
     def node_ids_sorted_dfs_from(self, node_ids: pd.Index) -> pd.Index:
+        """
+        Filter provided node ids according to DFS order.
+
+        Parameters
+        ----------
+        node_ids : pandas.Index
+            Candidate node ids.
+
+        Returns
+        -------
+        pandas.Index
+            Node ids ordered by DFS.
+        """
         if self.tree is None:
             raise RuntimeError("Model is not fitted")
         return self.tree.node_ids_sorted_dfs_from(node_ids)
-    
+
     def get_leaf_paths(self, sort=None) -> pd.Series:
+        """
+        Return path string for each leaf.
+
+        Parameters
+        ----------
+        sort : Any, default=None
+            Optional sorting mode forwarded to tree helper.
+
+        Returns
+        -------
+        pandas.Series
+            Leaf path strings.
+        """
         if self.tree is None:
             raise RuntimeError("Model is not fitted")
         return self.tree.get_leaf_paths(sort)
-    
+
     def predict_best_treatment(self, X: pd.DataFrame) -> pd.Series:
+        """
+        Predict best treatment per sample based on highest positive-class rate in reached leaf.
+
+        Parameters
+        ----------
+        X : pandas.DataFrame
+            Input features.
+
+        Returns
+        -------
+        pandas.Series
+            Predicted best treatment per sample.
+        """
         if self.tree is None:
             raise RuntimeError("Model is not fitted")
 
@@ -678,6 +1026,21 @@ class MultiTreatmentDecisionTree:
         return pd.Series(preds, index=X.index, name="prediction")
 
     def predict_probabilities(self, X: pd.DataFrame, result_type: Literal["df", "ndarray", "lists"] = "ndarray") -> pd.DataFrame:
+        """
+        Predict positive-target probabilities per treatment for each sample.
+
+        Parameters
+        ----------
+        X : pandas.DataFrame or array-like
+            Input features.
+        result_type : {"df", "ndarray", "lists"}, default="ndarray"
+            Output format.
+
+        Returns
+        -------
+        pandas.DataFrame | numpy.ndarray | list
+            Predicted probabilities in requested format.
+        """
         if self.tree is None:
             raise RuntimeError("Model is not fitted")
         # Ensure the type is correct, so the caller can pass list of lists and the like.
@@ -705,8 +1068,24 @@ class MultiTreatmentDecisionTree:
             case "lists": return result_dataframe.to_numpy().tolist()
             case invalid: raise ValueError("invalid result type {!r}".format(invalid))
 
-    
+
     def _autodetect_positive_target(self, targets):
+        """
+        Auto-detect positive target modality from a list-like of modalities.
+
+        Heuristic order:
+        1, "1", True, "True", else last modality.
+
+        Parameters
+        ----------
+        targets : Sequence
+            Candidate target modalities.
+
+        Returns
+        -------
+        Any
+            Detected positive modality.
+        """
         positive = None
         for cand in [1, "1", True, "True"]:
             if cand in targets:
@@ -721,15 +1100,23 @@ class MultiTreatmentDecisionTree:
     # ------------------------------------------------------------------
 
     def __str__(self) -> str:
+        """
+        Return compact textual summary of estimator state.
+
+        Returns
+        -------
+        str
+            Human-readable summary.
+        """
         if self.tree is None:
             return (
-                "DecisionTree(unfitted, "
+                "MultiTreatmentDecisionTree(unfitted, "
                 f"leaf_selection={self.leaf_selection}, "
                 f"encoder_type={self.encoder_type}, "
                 f"local_fit_mode={self.local_fit_mode})"
             )
         return (
-            "DecisionTree("
+            "MultiTreatmentDecisionTree("
             f"encoder_type={self.encoder_type}, "
             f"leaf_selection={self.leaf_selection}, "
             f"local_fit_mode={self.local_fit_mode}, "
@@ -741,6 +1128,19 @@ class MultiTreatmentDecisionTree:
         )
 
     def _part_to_text(self, part) -> str:
+        """
+        Convert a Khiops part object to a readable textual representation.
+
+        Parameters
+        ----------
+        part : Any
+            Khiops interval or value-group part.
+
+        Returns
+        -------
+        str
+            Human-readable part text.
+        """
         ptype = part.part_type()
         if ptype == "Interval":
             if getattr(part, "is_missing", False):
@@ -754,6 +1154,19 @@ class MultiTreatmentDecisionTree:
         return str(part)
 
     def _split_rule_from_info(self, node) -> tuple[str, str]:
+        """
+        Build textual left/right split rules from node source partition metadata.
+
+        Parameters
+        ----------
+        node : Node
+            Internal node containing `source_partition_info`.
+
+        Returns
+        -------
+        tuple[str, str]
+            (left_rule, right_rule)
+        """
         info = getattr(node, "source_partition_info", None)
         if info is None:
             raise RuntimeError(f"Missing source_partition_info on node id={node.id}")
@@ -779,8 +1192,23 @@ class MultiTreatmentDecisionTree:
             )
 
     def tree_to_string(self, show_path: bool = False, max_depth: int | None = None) -> str:
+        """
+        Export tree as a unicode text structure.
+
+        Parameters
+        ----------
+        show_path : bool, default=False
+            Whether to append full path for each displayed node.
+        max_depth : int | None, default=None
+            Optional max rendering depth.
+
+        Returns
+        -------
+        str
+            Pretty-printed tree.
+        """
         if self.tree is None or self.root_node is None:
-            return "DecisionTree: tree is not fitted."
+            return "MultiTreatmentDecisionTree: tree is not fitted."
 
         lines: list[str] = []
 
@@ -868,11 +1296,33 @@ class MultiTreatmentDecisionTree:
         return "\n".join(lines)
 
     def print_tree(self, show_path: bool = False, max_depth: int | None = None) -> None:
+        """
+        Print textual tree representation to stdout.
+
+        Parameters
+        ----------
+        show_path : bool, default=False
+            Whether to append full path for each displayed node.
+        max_depth : int | None, default=None
+            Optional max rendering depth.
+        """
         print(self.tree_to_string(show_path=show_path, max_depth=max_depth))
 
     def tree_to_dot(self, max_depth: int | None = None, show_node_stats: bool = True) -> str:
         """
         Export tree to Graphviz DOT format.
+
+        Parameters
+        ----------
+        max_depth : int | None, default=None
+            Optional max rendering depth.
+        show_node_stats : bool, default=True
+            Whether to include detailed labels.
+
+        Returns
+        -------
+        str
+            DOT graph source.
         """
         if self.tree is None or self.root_node is None:
             return 'digraph Tree {\n  label="Tree is not fitted";\n}'
@@ -967,8 +1417,30 @@ class MultiTreatmentDecisionTree:
         _walk(self.root_node, 0)
         lines.append("}")
         return "\n".join(lines)
-    
+
     def tree_to_image(self, dest: Path | str | None = None, img_format: str = "png", *args, **kwargs) -> str:
+        """
+        Render tree to image using Graphviz.
+
+        Parameters
+        ----------
+        dest : Path | str | None, default=None
+            Output destination file path. If None, auto-generated in current directory.
+        img_format : str, default="png"
+            Image format passed to Graphviz.
+        *args, **kwargs
+            Forwarded to `tree_to_dot()`.
+
+        Returns
+        -------
+        str
+            Path to rendered image file.
+
+        Raises
+        ------
+        RuntimeError
+            If graphviz Python package is missing.
+        """
         try:
             import graphviz
         except ImportError as exc:

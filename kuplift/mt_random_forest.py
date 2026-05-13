@@ -16,12 +16,18 @@ from kuplift.utils import join_jt
 
 class MultiTreatmentRandomForest:
     """
-    RandomForest for uplift-style multi-treatment probabilities.
+    MultiTreatmentRandomForest for uplift-style multi-treatment probabilities.
 
-    - Each tree is a DecisionTree with leaf_selection="random"
+    - Each tree is a MultiTreatmentDecisionTree with leaf_selection="random"
     - Each tree is trained on all rows, but only a random subset of features
       (max_features=20 by default, or all if fewer are available)
     - predict() averages per-tree positive-class probabilities per treatment
+
+    Notes
+    -----
+    - This class does not perform row bootstrap sampling by default.
+      Diversity is induced through random feature subspaces and per-tree seeds.
+    - Uplift output requires `control_name` to be set and present in treatment modalities.
     """
 
     def __init__(
@@ -29,7 +35,7 @@ class MultiTreatmentRandomForest:
         n_trees: int = 30,
         max_features: int = 20,
         random_state: Optional[int] = None,
-        # DecisionTree params forwarded
+        # MultiTreatmentDecisionTree params forwarded
         max_depth: int = 15,
         min_samples_leaf: int = 20,
         cost_model=None,
@@ -40,6 +46,41 @@ class MultiTreatmentRandomForest:
         max_cores = None,
         memory_limit_mb = None
     ):
+        """
+        Initialize the random forest.
+
+        Parameters
+        ----------
+        n_trees : int, default=30
+            Number of trees in the ensemble.
+        max_features : int, default=20
+            Number of feature columns sampled (without replacement) per tree.
+        random_state : int | None, default=None
+            Random seed for forest-level RNG.
+        max_depth : int, default=15
+            Forwarded to each MultiTreatmentDecisionTree.
+        min_samples_leaf : int, default=20
+            Forwarded to each MultiTreatmentDecisionTree.
+        cost_model : object | None, default=None
+            Cost model forwarded to each MultiTreatmentDecisionTree.
+        control_name : Any, default=None
+            Control treatment name used for uplift computation.
+        maxparts : int, default=2
+            Forwarded to each MultiTreatmentDecisionTree encoder fit.
+        maxtreatmentgroups : int | None, default=None
+            Forwarded to MTUE.
+        local_fit_mode : {"per_leaf", "per_variable"}, default="per_leaf"
+            Local fitting mode forwarded to each MultiTreatmentDecisionTree.
+        max_cores : int | None, default=None
+            Optional max cores for Khiops calls in trees.
+        memory_limit_mb : int | None, default=None
+            Optional memory limit for Khiops calls in trees.
+
+        Raises
+        ------
+        ValueError
+            If `n_trees <= 0` or `max_features <= 0`.
+        """
         if n_trees <= 0:
             raise ValueError("n_trees must be >= 1")
         if max_features <= 0:
@@ -50,7 +91,7 @@ class MultiTreatmentRandomForest:
         self.random_state = random_state
         self.rng = np.random.default_rng(random_state)
         self.control_name = control_name
-        
+
         self.max_cores = max_cores
         self.memory_limit_mb = memory_limit_mb
 
@@ -86,6 +127,32 @@ class MultiTreatmentRandomForest:
         y_col,
         positive_target=None,
     ) -> "MultiTreatmentRandomForest":
+        """
+        Fit all trees of the forest.
+
+        Parameters
+        ----------
+        data : pandas.DataFrame
+            Feature matrix.
+        treatment_col : array-like / pandas.Series
+            Treatment column aligned with `data`.
+        y_col : array-like / pandas.Series
+            Target column aligned with `data`.
+        positive_target : Any, default=None
+            Positive target modality forwarded to each tree fit.
+
+        Returns
+        -------
+        MultiTreatmentRandomForest
+            Fitted estimator.
+
+        Raises
+        ------
+        ValueError
+            If data is empty, has no feature column, or lengths are inconsistent.
+        TypeError
+            If `data` is not a pandas DataFrame.
+        """
         if data is None or len(data) == 0:
             raise ValueError("data must be a non-empty DataFrame")
         if not isinstance(data, pd.DataFrame):
@@ -144,7 +211,7 @@ class MultiTreatmentRandomForest:
 
         self._is_fitted = True
         return self
-    
+
     def predict(
         self,
         X: pd.DataFrame,
@@ -152,6 +219,32 @@ class MultiTreatmentRandomForest:
         predict_best_treatment: bool = True,
         predict_uplift: bool = True,
     ) -> pd.DataFrame:
+        """
+        Predict requested outputs for each sample.
+
+        Parameters
+        ----------
+        X : pandas.DataFrame or array-like
+            Input feature matrix.
+        predict_probabilities : bool, default=True
+            Include class probabilities (negative then positive per treatment).
+        predict_best_treatment : bool, default=True
+            Include best treatment column according to maximal positive probability.
+        predict_uplift : bool, default=True
+            Include uplift column as max_t P(Y=positive|t) - P(Y=positive|control).
+
+        Returns
+        -------
+        pandas.DataFrame
+            Concatenated prediction blocks according to requested outputs.
+
+        Raises
+        ------
+        RuntimeError
+            If model is not fitted.
+        ValueError
+            If no output is requested, features are missing, or uplift cannot be computed.
+        """
         if not self._is_fitted or not self.trees:
             raise RuntimeError("Model is not fitted")
 
@@ -190,7 +283,7 @@ class MultiTreatmentRandomForest:
 
         if predict_uplift:
             if self.control_name is None:
-                raise ValueError("predict_uplift=True requires RandomForest.control_name to be set")
+                raise ValueError("predict_uplift=True requires MultiTreatmentRandomForest.control_name to be set")
             if self.control_name not in self.treatment_modalities:
                 raise ValueError(
                     f"control_name={self.control_name!r} is not in treatment modalities: {self.treatment_modalities}"
@@ -211,10 +304,34 @@ class MultiTreatmentRandomForest:
         result_type: Literal["df", "ndarray", "lists"] = "ndarray",
         include_negative_probabilities: bool = False,
     ):
+        """
+        Predict treatment-wise probabilities by averaging tree outputs.
+
+        Parameters
+        ----------
+        X : pandas.DataFrame or array-like
+            Input feature matrix.
+        result_type : {"df", "ndarray", "lists"}, default="ndarray"
+            Output format.
+        include_negative_probabilities : bool, default=False
+            If True, prepend negative probabilities as `1 - positive`.
+
+        Returns
+        -------
+        pandas.DataFrame | numpy.ndarray | list
+            Predicted probabilities in requested format.
+
+        Raises
+        ------
+        RuntimeError
+            If model is not fitted.
+        ValueError
+            If input features are incomplete or `result_type` is invalid.
+        """
         if not self._is_fitted or not self.trees:
             raise RuntimeError("Model is not fitted")
 
-        # Accept non-DataFrame input as in DecisionTree.predict_probabilities
+        # Accept non-DataFrame input as in MultiTreatmentDecisionTree.predict_probabilities
         if not isinstance(X, pd.DataFrame):
             X = pd.DataFrame(X, columns=self.features)
         else:
@@ -253,4 +370,3 @@ class MultiTreatmentRandomForest:
             return result_df.to_numpy().tolist()
 
         raise ValueError(f"invalid result type {result_type!r}")
-
