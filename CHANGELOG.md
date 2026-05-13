@@ -8,6 +8,7 @@ All notable changes to this project will be documented in this file.
 - Set minimal Python version to 3.10 because of khiops v11
 - Add kuplift.MultiTreatmentDecisionTree
 - Add kuplift.MultiTreatmentRandomForest
+- Add a GitHub Actions workflow named "Experimental Package" to generate a zip containing the source code, the example code and some datasets, for those who do not want to or cannot clone the repository
 
 ## [0.0.16] - 2026-03-25
 
