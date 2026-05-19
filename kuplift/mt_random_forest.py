@@ -3,7 +3,6 @@
 # This software is distributed under the MIT License, the text of which is available
 # at https://spdx.org/licenses/MIT.html or see the "LICENSE" file for more details.
 
-# kuplift/mt_random_forest.py
 from __future__ import annotations
 
 from typing import Optional, Literal
@@ -22,6 +21,8 @@ class MultiTreatmentRandomForest:
     - Each tree is a MultiTreatmentDecisionTree with leaf_selection="random"
     - Each tree is trained on all rows, but only a random subset of features
       (max_features=20 by default, or all if fewer are available)
+    - At each split inside each tree, variables can also be sub-sampled via
+      `split_max_features` (forwarded to MultiTreatmentDecisionTree)
     - predict() averages per-tree positive-class probabilities per treatment
 
     Notes
@@ -44,6 +45,7 @@ class MultiTreatmentRandomForest:
         maxparts: int = 2,
         maxtreatmentgroups: Optional[int] = None,
         local_fit_mode: str = "per_leaf",
+        split_max_features: Optional[int] = None,
         max_cores = None,
         memory_limit_mb = None
     ):
@@ -72,6 +74,9 @@ class MultiTreatmentRandomForest:
             Forwarded to MTUE.
         local_fit_mode : {"per_leaf", "per_variable"}, default="per_leaf"
             Local fitting mode forwarded to each MultiTreatmentDecisionTree.
+        split_max_features : int | None, default=None
+            Number of candidate split variables sampled at each tree node expansion.
+            Forwarded to each MultiTreatmentDecisionTree.
         max_cores : int | None, default=None
             Optional max cores for Khiops calls in trees.
         memory_limit_mb : int | None, default=None
@@ -86,6 +91,8 @@ class MultiTreatmentRandomForest:
             raise ValueError("n_trees must be >= 1")
         if max_features <= 0:
             raise ValueError("max_features must be >= 1")
+        if split_max_features is not None and int(split_max_features) <= 0:
+            raise ValueError("split_max_features must be >= 1 when provided")
 
         self.n_trees = int(n_trees)
         self.max_features = int(max_features)
@@ -107,6 +114,7 @@ class MultiTreatmentRandomForest:
             maxparts=maxparts,
             maxtreatmentgroups=maxtreatmentgroups,
             local_fit_mode=local_fit_mode,
+            split_max_features=split_max_features,
             max_cores=self.max_cores,
             memory_limit_mb=self.memory_limit_mb
         )
@@ -188,7 +196,7 @@ class MultiTreatmentRandomForest:
 
             # independent random seed per tree
             tree_seed = int(self.rng.integers(0, 2**32 - 1))
-            
+
             base_cost_model = self.dt_params.get("cost_model", None)
             tree_cost_model = None if base_cost_model is None else copy.deepcopy(base_cost_model)
             params = {**self.dt_params, "random_state": tree_seed, "cost_model": tree_cost_model}
@@ -298,7 +306,6 @@ class MultiTreatmentRandomForest:
             blocks.append(pd.DataFrame({"uplift": (max_pos - p_control)}, index=X.index))
 
         return pd.concat(blocks, axis=1)
-
 
     def predict_probabilities(
         self,

@@ -67,6 +67,7 @@ class MultiTreatmentDecisionTree:
         maxparts: int = 2,
         maxtreatmentgroups: Optional[int] = None,
         local_fit_mode: str = "per_leaf",
+        split_max_features: Optional[int] = None,
         max_cores = None,
         memory_limit_mb = None
     ):
@@ -95,6 +96,9 @@ class MultiTreatmentDecisionTree:
             Maximal number of treatment groups for MTUE.
         local_fit_mode : {"per_leaf", "per_variable"}, default="per_leaf"
             Local fit granularity.
+        split_max_features : int | None, default=None
+            Number of candidate split variables sampled at each leaf expansion.
+            If None, all variables are considered.
         max_cores : int | None, default=None
             Optional max cores passed to Khiops recoder calls.
         memory_limit_mb : int | None, default=None
@@ -109,6 +113,8 @@ class MultiTreatmentDecisionTree:
 
         if local_fit_mode not in {"per_leaf", "per_variable"}:
             raise ValueError("local_fit_mode must be 'per_leaf' or 'per_variable'")
+        if split_max_features is not None and int(split_max_features) <= 0:
+            raise ValueError("split_max_features must be >= 1 when provided")
 
         self.max_depth = max_depth
         self.min_samples_leaf = min_samples_leaf
@@ -124,6 +130,7 @@ class MultiTreatmentDecisionTree:
         self.memory_limit_mb = memory_limit_mb
 
         self.local_fit_mode = local_fit_mode
+        self.split_max_features = None if split_max_features is None else int(split_max_features)
 
         self.cost_model = cost_model if cost_model is not None else MultiTreatmentDecisionBinaryTreeCost()
 
@@ -228,7 +235,6 @@ class MultiTreatmentDecisionTree:
         raw_train_df = X.copy()
         raw_train_df[self.treatment_col_name] = t.values
         raw_train_df[self.target_col_name] = y.values
-
 
         self.positive_target = self._autodetect_positive_target(y) if positive_target is None else positive_target
 
@@ -667,6 +673,8 @@ class MultiTreatmentDecisionTree:
             return
 
         depth = 0
+        eps = 1e-12  # numerical tolerance for tie / non-improvement checks
+
         while depth < self.max_depth:
             candidate_leaves = [
                 node for node in self.tree.leaf_nodes
@@ -680,9 +688,18 @@ class MultiTreatmentDecisionTree:
 
             for leaf in candidate_leaves:
                 best_cost = None
-                best_split_desc = None
+                best_splits = []  # all near-optimal candidates for this leaf
 
-                for split_var in self.tree.features:
+                # Randomized feature candidates for this leaf/split
+                all_split_vars = list(self.tree.features)
+                self.rng.shuffle(all_split_vars)
+                if self.split_max_features is None:
+                    split_vars = all_split_vars
+                else:
+                    k = min(self.split_max_features, len(all_split_vars))
+                    split_vars = all_split_vars[:k]
+
+                for split_var in split_vars:
                     simulated = self._simulate_split_on_var_local(leaf, split_var)
                     if simulated is None:
                         continue
@@ -709,13 +726,21 @@ class MultiTreatmentDecisionTree:
                         node_split=node_split,
                     )
 
-                    if (best_cost is None) or (cost < best_cost):
+                    candidate = (
+                        split_var, left_node, right_node, split_value, split_var_type, source_info, n_values_cat
+                    )
+
+                    if (best_cost is None) or (cost < best_cost - eps):
                         best_cost = cost
-                        best_split_desc = (
-                            split_var, left_node, right_node, split_value, split_var_type, source_info, n_values_cat
-                        )
+                        best_splits = [candidate]
+                    elif abs(cost - best_cost) <= eps:
+                        best_splits.append(candidate)
 
                 if best_cost is not None:
+                    # Random tie-break among equivalent best splits
+                    chosen_idx = int(self.rng.integers(0, len(best_splits)))
+                    best_split_desc = best_splits[chosen_idx]
+
                     node_vs_best_cost[leaf] = best_cost
                     node_vs_best_split[leaf] = best_split_desc
 
@@ -730,7 +755,8 @@ class MultiTreatmentDecisionTree:
             selected_cost = node_vs_best_cost[selected_leaf]
             split_var, left_node, right_node, split_value, split_var_type, source_info, n_values_cat = node_vs_best_split[selected_leaf]
 
-            if selected_cost >= self.tree_criterion:
+            # stop if no strict improvement (with tolerance)
+            if selected_cost >= self.tree_criterion - eps:
                 break
 
             self.tree.apply_split(
@@ -1068,7 +1094,6 @@ class MultiTreatmentDecisionTree:
             case "lists": return result_dataframe.to_numpy().tolist()
             case invalid: raise ValueError("invalid result type {!r}".format(invalid))
 
-
     def _autodetect_positive_target(self, targets):
         """
         Auto-detect positive target modality from a list-like of modalities.
@@ -1086,14 +1111,13 @@ class MultiTreatmentDecisionTree:
         Any
             Detected positive modality.
         """
-        positive = None
+        vals = list(pd.Series(targets).dropna().unique())
+
         for cand in [1, "1", True, "True"]:
-            if cand in targets:
-                positive = cand
-                break
-        if positive is None:
-            positive = targets[-1] if targets else None
-        return positive
+            if cand in vals:
+                return cand
+
+        return vals[-1] if vals else None
 
     # ------------------------------------------------------------------
     # Display helpers
