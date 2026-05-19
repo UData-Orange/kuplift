@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 from typing import Optional, Literal
+import copy
 import numpy as np
 import pandas as pd
 
@@ -187,10 +188,11 @@ class MultiTreatmentRandomForest:
 
             # independent random seed per tree
             tree_seed = int(self.rng.integers(0, 2**32 - 1))
-
-            tree = MultiTreatmentDecisionTree(
-                **{**self.dt_params, "random_state": tree_seed}
-            )
+            
+            base_cost_model = self.dt_params.get("cost_model", None)
+            tree_cost_model = None if base_cost_model is None else copy.deepcopy(base_cost_model)
+            params = {**self.dt_params, "random_state": tree_seed, "cost_model": tree_cost_model}
+            tree = MultiTreatmentDecisionTree(**params)
 
             # Train tree on all rows but selected columns
             tree.fit(
